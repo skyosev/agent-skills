@@ -1,11 +1,11 @@
 ---
 name: doc-hunter
 description: |
-  Audit code for missing inline documentation where the "why" is not obvious — obscure
-  calculations, non-trivial business rules, surprising behavior, implicit constraints,
+  Audit TypeScript code for missing inline documentation where the "why" is not obvious —
+  obscure calculations, non-trivial business rules, surprising behavior, implicit constraints,
   and workarounds. Finds where a comment would save the next reader significant time.
 
-  Use when: reviewing code for long-term maintainability, onboarding new team members,
+  Use when: reviewing TypeScript code for long-term maintainability, onboarding new team members,
   auditing undocumented business logic, or preparing code for handoff.
 ---
 
@@ -206,7 +206,7 @@ Classify each as:
 
 ## Output Format
 
-Save as `Y-m-d-doc-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-doc-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Doc Hunter Audit — {date}

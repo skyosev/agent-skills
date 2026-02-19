@@ -1,12 +1,12 @@
 ---
 name: security-hunter
 description: |
-  Audit code for security vulnerabilities — hardcoded secrets, injection risks, missing
-  input validation at trust boundaries, insecure defaults, auth gaps, sensitive data
+  Audit TypeScript code for security vulnerabilities — hardcoded secrets, injection risks,
+  missing input validation at trust boundaries, insecure defaults, auth gaps, sensitive data
   exposure, and unsafe patterns like eval or innerHTML.
 
-  Use when: reviewing code before deployment, auditing trust boundaries, preparing for
-  a security review, onboarding third-party integrations, or hardening an application.
+  Use when: reviewing TypeScript code before deployment, auditing trust boundaries, preparing
+  for a security review, onboarding third-party integrations, or hardening an application.
 ---
 
 # Security Hunter
@@ -138,7 +138,22 @@ Personal data, secrets, or internal details leaked through logs, errors, respons
 **Action:** Strip sensitive fields from logs and error responses. Filter API responses to only required fields. Use
 encrypted/httpOnly storage for sensitive client-side data.
 
-### 7. Unsafe Code Patterns
+### 7. Dependency and Supply-Chain Risks
+
+Package dependencies with known vulnerabilities, unvetted postinstall scripts, or lockfile integrity issues.
+
+**Signals:**
+
+- `package.json` dependencies pinned to `*` or very wide ranges without a lockfile
+- Lockfile (`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`) not committed to the repo
+- Packages with `postinstall`, `preinstall`, or `install` lifecycle scripts that execute arbitrary code
+- Dependencies with known CVEs (check via `npm audit` or equivalent)
+- Importing from CDNs or unpinned URLs at runtime
+
+**Action:** Commit the lockfile. Pin dependency ranges. Run `npm audit` and address critical/high findings. Review
+lifecycle scripts in new dependencies before adding them.
+
+### 8. Unsafe Code Patterns
 
 Language-level patterns that create exploitable conditions.
 
@@ -201,6 +216,9 @@ rg --pcre2 'console\.(log|info|debug).*\b(password|token|secret|authorization|co
 
 # Regex from user input
 rg 'new RegExp\(' --type ts $EXCLUDE
+
+# Dependency risks: lifecycle scripts in package.json
+rg '"(pre|post)?install"' --glob 'package.json'
 ```
 
 ### Phase 3: Trace Data Flows
@@ -221,7 +239,7 @@ For each trust boundary found in Phase 1:
 
 ## Output Format
 
-Save as `Y-m-d-security-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-security-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Security Hunter Audit — {date}
@@ -283,11 +301,17 @@ Save as `Y-m-d-security-hunter-audit.md` in the project's docs folder.
 | - | -------- | ------- | ---- | ------ |
 | 1 | file:line | `innerHTML = userInput` | XSS | Use `textContent` |
 
+### Dependency / Supply-Chain Risks
+
+| # | Location | Issue | Severity | Action |
+| - | -------- | ----- | -------- | ------ |
+| 1 | package.json | No lockfile committed | High | Commit lockfile |
+
 ## Recommendations (Priority Order)
 
 1. **Critical**: {hardcoded secrets to rotate, injection vulnerabilities, auth bypasses}
-2. **Must-fix**: {missing input validation, insecure defaults, auth gaps}
-3. **Should-fix**: {sensitive data exposure, unsafe patterns}
+2. **Must-fix**: {missing input validation, insecure defaults, auth gaps, dependency CVEs}
+3. **Should-fix**: {sensitive data exposure, unsafe patterns, supply-chain hygiene}
 ```
 
 ## Operating Constraints

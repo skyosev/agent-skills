@@ -47,7 +47,9 @@ assertions. The goal: **illegal states become unrepresentable, and consumers nar
 
 7. **Fail fast.** When an invariant is violated, throw immediately — do not silently return a default or catch-and-log.
    Invariant violations are programmer errors; they should crash loudly to surface bugs. Empty catches and broad
-   `catch(e) { log(e) }` blocks are never acceptable.
+   `catch(e) { log(e) }` blocks that only log without recovery or re-throw are never acceptable in non-boundary code.
+   (Try/catch at defined error boundaries — top-level handlers, middleware — with actual recovery logic is fine; see
+   Canonical Exceptions.)
 
 8. **Eliminate type-system bypasses.** `as any`, `as unknown as T`, `@ts-ignore`, `@ts-expect-error` are escape hatches.
    Each must be justified (why necessary), scoped (boundary layers only), and temporary (tracked as tech debt).
@@ -126,8 +128,13 @@ Guards, assertions, and validations that could be compile-time guarantees.
 - Branded type candidates: IDs, units, validated strings used as plain `string`
 - Empty-check branches that a `NonEmptyArray<T>` type would eliminate
 - Mutation guards that `Readonly<T>` would enforce
+- Object literals without `satisfies` where shape conformance is intended but unchecked
+- Validation functions that return `boolean` instead of using `asserts param is T` to narrow the caller's scope
+- Mutable arrays/objects used as config where `as const` would enforce literal types and immutability
 
-**Action:** Promote to type constraint. If type complexity would be excessive, keep as runtime with documentation.
+**Action:** Promote to type constraint. Use `satisfies` to validate shape at assignment without widening. Use assertion
+functions (`asserts x is T`) for runtime guards that should narrow control flow. Use `as const` for fixed configuration
+and lookup objects. If type complexity would be excessive, keep as runtime with documentation.
 
 ### 6. Type-System Bypasses and Error Suppression
 
@@ -173,6 +180,8 @@ blocks: remove if suppressing invariant violations, keep if at a defined error b
    rg '\?\?' --type ts $EXCLUDE                                      # nullish coalescing
    rg 'as\s+(unknown|any)\s+as' --type ts $EXCLUDE                  # double-casts
    rg -U 'catch\s*\([^)]*\)\s*\{\s*(//.*)?\s*\}' --type ts $EXCLUDE # empty catches
+   rg 'satisfies\s' --type ts $EXCLUDE                              # satisfies usage (adoption check)
+   rg 'asserts\s+\w+\s+is\s' --type ts $EXCLUDE                    # assertion functions
    ```
 
 4. Produce counts by category, grouped by module/layer.
@@ -214,7 +223,7 @@ For each type bypass: verify justification, scoping, and tech debt tracking.
 
 ## Output Format
 
-Save as `Y-m-d-invariant-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-invariant-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Invariant Hunter Audit — {date}

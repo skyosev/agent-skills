@@ -40,7 +40,8 @@ and maintain.**
 
 4. **Generics must vary.** A type parameter that is always instantiated with the same concrete type is indirection, not
    abstraction. If `Cache<T>` is always `Cache<User>`, remove `T` and use `User` directly. Introduce generics when there
-   are 2+ distinct instantiations.
+   are 2+ distinct instantiations. **Exception:** library and public API types may carry generic parameters for consumer
+   flexibility even with a single internal instantiation — flag only when the generic adds no value to any consumer.
 
 5. **Reuse the standard library.** TypeScript ships `Partial`, `Required`, `Readonly`, `Pick`, `Omit`, `Record`,
    `Extract`, `Exclude`, `NonNullable`, `ReturnType`, `Parameters`, and more. Hand-rolling equivalents wastes tokens
@@ -134,7 +135,22 @@ Hand-rolled type utilities that replicate built-in TypeScript utility types.
 
 **Action:** Replace with the built-in. If the custom version has genuinely different semantics, document the difference.
 
-### 7. Type Organization Debt
+### 7. Missing Modern Type Features
+
+Opportunities to use `satisfies`, `as const`, or const type parameters to improve type safety without adding complexity.
+
+**Signals:**
+
+- Object literals assigned to a typed variable where `satisfies` would catch typos without widening the type
+- Configuration objects or lookup tables without `as const`, losing literal type information
+- Generic functions that infer wide types where `const` type parameters would preserve literal inference
+- Validation schemas (Zod, io-ts) that could derive their TypeScript type via `z.infer<>` but instead maintain a
+  parallel manual type
+
+**Action:** Apply `satisfies` for shape validation at assignment. Use `as const` on fixed data. Use const type
+parameters where literal inference matters. Derive types from schemas instead of maintaining parallel definitions.
+
+### 8. Type Organization Debt
 
 Type definitions that have drifted into the wrong locations or accumulated into unwieldy files.
 
@@ -187,6 +203,12 @@ rg '(Partial|Required|Readonly|Pick|Omit|Record|Exclude|Extract|NonNullable|Retu
 
 # Large type files
 rg -c '(interface|type)\s+\w+' --type ts $EXCLUDE --sort path
+
+# satisfies usage (adoption check)
+rg 'satisfies\s' --type ts $EXCLUDE
+
+# as const usage
+rg 'as\s+const\b' --type ts $EXCLUDE
 ```
 
 ### Phase 3: Analyze Duplication
@@ -205,7 +227,7 @@ For each hand-rolled utility: Does a built-in equivalent exist?
 
 ## Output Format
 
-Save as `Y-m-d-type-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-type-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Type Hunter Audit — {date}

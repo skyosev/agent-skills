@@ -1,17 +1,17 @@
 ---
 name: simplicity-hunter
 description: |
-  Audit code for unnecessary structural complexity — duplication, avoidable abstractions,
-  dead logic paths, flag-heavy APIs, deep nesting, and mixed concerns. Recommends the
-  simplest shape that preserves intended behavior.
+  Audit TypeScript code for unnecessary structural complexity — duplication, avoidable
+  abstractions, dead logic paths, flag-heavy APIs, deep nesting, and mixed concerns.
+  Recommends the simplest shape that preserves intended behavior.
 
-  Use when: reviewing new code for over-engineering, reducing complexity after prototyping,
-  enforcing reuse over addition, or simplifying before a refactor.
+  Use when: reviewing TypeScript code for over-engineering, reducing complexity after
+  prototyping, enforcing reuse over addition, or simplifying before a refactor.
 ---
 
-# Simple Hunter
+# Simplicity Hunter
 
-Audit code for **structural complexity** — places where logic is duplicated, abstractions don't earn their keep, control
+Audit TypeScript code for **structural complexity** — places where logic is duplicated, abstractions don't earn their keep, control
 flow is deeper than it needs to be, or concerns are mixed. The goal: **the simplest code that preserves intended
 behavior.**
 
@@ -153,8 +153,10 @@ rg '^\s{8,}\S' --type ts $EXCLUDE
 # Boolean parameters
 rg --pcre2 '\w+\s*[?:]?\s*:\s*boolean' --type ts $EXCLUDE
 
-# Functions with many parameters (long param lists)
+# Functions with many parameters (declarations, arrow functions, methods)
 rg --pcre2 'function\s+\w+\s*\([^)]{80,}\)' --type ts $EXCLUDE
+rg --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\([^)]{80,}\)\s*(?:=>|:)' --type ts $EXCLUDE
+rg --pcre2 '^\s+\w+\s*\([^)]{80,}\)\s*[:{]' --type ts $EXCLUDE
 
 # Nested ternaries
 rg --pcre2 '\?[^:]+\?' --type ts $EXCLUDE
@@ -178,10 +180,10 @@ For each complexity signal, determine:
 
 ## Output Format
 
-Save as `Y-m-d-simplicity-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-simplicity-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
-# Simple Hunter Audit — {date}
+# Simplicity Hunter Audit — {date}
 
 ## Scope
 

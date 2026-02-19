@@ -39,10 +39,11 @@ module is a black box, replaceable from its interface alone.**
    only to the interface contract.
 
 4. **Dependency direction must follow architectural intent.** In a layered architecture, dependencies flow inward:
-   infrastructure → application → domain. A domain module importing from infrastructure is a boundary violation
-   regardless of whether the import is "just a type". Visualize the dependency graph; runtime cycles are always
-   violations. Type-only import cycles between co-evolving modules may be acceptable with explicit justification, but
-   default to breaking them.
+   infrastructure → application → domain. A domain module importing a concrete implementation from infrastructure is a
+   boundary violation. **Exception:** type-only imports from a shared kernel or contracts layer that both sides depend on
+   are not violations — this is standard DDD practice. Type-only import cycles between co-evolving modules in the same
+   layer may be acceptable with explicit justification, but default to breaking them. Runtime cycles are always
+   violations.
 
 5. **Wrap externals — don't let them leak.** Third-party types and APIs should not appear in domain or application layer
    interfaces. Wrap them behind owned types so the external can be replaced without changing consumers.
@@ -216,13 +217,14 @@ For each module:
 For each module's consumers:
 
 1. **Deep imports.** Are consumers importing from internal paths (bypassing the barrel)?
+   Replace `(module-name)` and `@alias` below with actual module names and tsconfig path aliases from the project:
    ```bash
    EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/**'
 
-   # Relative deep imports
+   # Relative deep imports (substitute actual module directory name)
    rg --pcre2 "from ['\"]\..*/(module-name)/(?!index)" --type ts $EXCLUDE
 
-   # Alias-based deep imports (adapt alias prefix to project's tsconfig paths)
+   # Alias-based deep imports (substitute actual tsconfig paths alias)
    rg --pcre2 "from ['\"]@alias/(module-name)/" --type ts $EXCLUDE
    ```
 2. **Train wrecks.** Are consumers accessing nested properties across boundaries?
@@ -247,7 +249,7 @@ For each module, answer:
 
 ## Output Format
 
-Produce a single report. Save as `Y-m-d-boundary-hunter-audit.md` in the project's docs folder.
+Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Boundary Hunter Audit — {date}

@@ -1,11 +1,11 @@
 ---
 name: slop-hunter
 description: |
-  Audit code for AI-generated noise — redundant comments, verbose documentation,
+  Audit TypeScript code for AI-generated noise — redundant comments, verbose documentation,
   style drift from project conventions, and trivially dead code. Surface-level hygiene
   pass; defaults to branch diff but supports any scope.
 
-  Use when: reviewing AI-assisted code before merge, cleaning up generated code,
+  Use when: reviewing AI-assisted TypeScript code before merge, cleaning up generated code,
   enforcing project style on new contributions, or reducing review noise.
 ---
 
@@ -171,7 +171,7 @@ For each finding, determine:
 
 ## Output Format
 
-Save as `Y-m-d-slop-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-slop-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Slop Hunter Audit — {date}

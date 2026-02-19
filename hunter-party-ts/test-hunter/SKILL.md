@@ -1,12 +1,12 @@
 ---
 name: test-hunter
 description: |
-  Audit test code for quality gaps — missing coverage on critical paths, brittle tests
-  coupled to implementation, over-mocking, assertion-free tests, missing edge cases, and
-  duplicated test setup. Focuses on test effectiveness, not production code structure.
+  Audit TypeScript test code for quality gaps — missing coverage on critical paths, brittle
+  tests coupled to implementation, over-mocking, assertion-free tests, missing edge cases,
+  and duplicated test setup. Focuses on test effectiveness, not production code structure.
 
-  Use when: reviewing test suites for reliability, reducing false-positive test failures,
-  improving coverage of critical business logic, or cleaning up test debt.
+  Use when: reviewing TypeScript test suites for reliability, reducing false-positive test
+  failures, improving coverage of critical business logic, or cleaning up test debt.
 ---
 
 # Test Hunter
@@ -65,7 +65,10 @@ Tests that break on safe refactors because they depend on internal details.
 
 **Signals:**
 
-- Assertions on the number of times an internal function was called (`expect(fn).toHaveBeenCalledTimes(3)`)
+- Assertions on the number of times an *internal* function was called (`expect(fn).toHaveBeenCalledTimes(3)`) where
+  the call count is an implementation detail, not a business requirement. (Call-count assertions on *boundary*
+  interactions — e.g., verifying an email was sent exactly once, or a payment API was charged once — may be legitimate
+  when the count is business-significant.)
 - Tests that verify the order of internal operations
 - Snapshot tests on large structures that change frequently
 - Tests that import and assert on private/internal modules
@@ -212,7 +215,7 @@ For each test file:
 
 ## Output Format
 
-Save as `Y-m-d-test-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-test-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Test Hunter Audit — {date}

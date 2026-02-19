@@ -52,7 +52,9 @@ SOLID principles are guidelines for managing change, not rules to apply universa
 
 - **Value objects and DTOs** — data carriers don't need DIP or ISP; they are the data.
 - **Single-implementation interfaces** created speculatively — an interface with no second implementation and no test
-  double is premature abstraction (simplicity-hunter territory).
+  double is premature abstraction (simplicity-hunter territory). Note: DIP may recommend introducing an interface for
+  a service dependency to enable testing or replacement. The distinction is intent: DIP interfaces exist for decoupling
+  *service dependencies*; speculative interfaces exist "in case we need a second implementation someday."
 - **Functional-style code** — modules that use plain functions and composition rather than classes are not SOLID
   violations; SOLID applies to class-based design.
 - **Exhaustive switches on closed discriminated unions** — when the union is intentionally finite and every consumer
@@ -205,7 +207,7 @@ For each inheritance relationship:
 
 ## Output Format
 
-Save as `Y-m-d-solid-hunter-audit.md` in the project's docs folder.
+Save as `YYYY-MM-DD-solid-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # SOLID Hunter Audit — {date}
