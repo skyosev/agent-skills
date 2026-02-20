@@ -223,7 +223,7 @@ For each type bypass: verify justification, scoping, and tech debt tracking.
 
 ## Output Format
 
-Save as `YYYY-MM-DD-invariant-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Invariant Hunter Audit — {date}

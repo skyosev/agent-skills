@@ -210,7 +210,7 @@ For each finding, determine:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-slop-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Slop Hunter Audit — {date}

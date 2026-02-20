@@ -215,7 +215,7 @@ For each test file:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-test-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-test-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Test Hunter Audit — {date}

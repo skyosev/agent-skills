@@ -227,7 +227,7 @@ For each hand-rolled utility: Does a built-in equivalent exist?
 
 ## Output Format
 
-Save as `YYYY-MM-DD-type-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Type Hunter Audit — {date}

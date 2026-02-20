@@ -223,7 +223,7 @@ For each enum pattern: Is the type safe? Is there validation?
 
 ## Output Format
 
-Save as `YYYY-MM-DD-type-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Type Hunter Audit — {date}

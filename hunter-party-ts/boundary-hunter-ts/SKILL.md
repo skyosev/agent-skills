@@ -249,7 +249,7 @@ For each module, answer:
 
 ## Output Format
 
-Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Boundary Hunter Audit — {date}

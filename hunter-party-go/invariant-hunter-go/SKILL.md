@@ -270,7 +270,7 @@ For each sync primitive: Is it used correctly and consistently?
 
 ## Output Format
 
-Save as `YYYY-MM-DD-invariant-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Invariant Hunter Audit — {date}

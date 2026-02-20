@@ -254,7 +254,7 @@ Classify each as:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-doc-hunter-audit.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
 
 ```md
 # Doc Hunter Audit — {date}
