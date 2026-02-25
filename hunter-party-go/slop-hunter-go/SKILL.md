@@ -276,7 +276,10 @@ Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs fold
   (→ test-hunter-go). If a finding doesn't answer "is this noise?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Preserve intent.** Flag noise, not substance. If a comment captures genuine design intent, keep it regardless of
-  verbosity.
+  verbosity. In particular, comments that explain **why a non-obvious design was chosen over the seemingly simpler
+  alternative** (e.g., "why not use two separate stoppages instead of a transitioning one") are design rationale, not
+  noise — even if they run to 10+ lines. The test is: would removing this comment risk someone reimplementing the
+  broken approach? If yes, the comment is load-bearing and must not be flagged.
 - **Precedence: `gofmt` > project conventions > Effective Go.** `gofmt` formatting is mandatory — it is not a style
   choice. Project-specific conventions (naming, error handling, import grouping) take precedence next. Fall back to
   standard Go idioms (Effective Go, Code Review Comments wiki) only when the project has no established convention.

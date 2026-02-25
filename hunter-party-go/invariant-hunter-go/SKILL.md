@@ -66,6 +66,11 @@ Not every finding requires action. Document these but do not flag as "must-fix":
 | Zero-value struct | Struct is explicitly designed for zero-value usability (documented) |
 | `recover` in HTTP middleware | Top-level panic recovery to prevent server crash |
 | `panic` in init() | Truly fatal configuration error during startup |
+| `panic` in constructors for required fields | When the project explicitly endorses panic for invariant violations (check CLAUDE.md, AGENTS.md, or project conventions). Do not recommend checked-constructor alternatives when panic is the intentional policy |
+
+**Important:** Before flagging panic/recover patterns, check the project's CLAUDE.md or equivalent for stated conventions.
+If the project says "panic is appropriate for invariant violations", respect that convention. Acknowledge it in the
+report and do not recommend alternatives unless the panic is reachable from untrusted input (user-facing API boundary).
 
 ## What to Hunt
 

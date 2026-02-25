@@ -66,6 +66,17 @@ SOLID principles are guidelines for managing change, not rules to apply universa
 - **Exhaustive type switches on sealed interfaces** — when the set of types is intentionally finite and every consumer
   handles all variants, this is not an OCP violation. Flag only when the switch appears in many places and new variants
   require editing all of them.
+- **Cohesive domain aggregates** — a struct with many methods is not a god struct if those methods all operate on the
+  same data for the same workflow. Evaluate *cohesion*, not method count. If the struct's methods form a single
+  transaction boundary (e.g., state mutation + rule execution + audit logging that are inseparable), it is a cohesive
+  aggregate, not an SRP violation. Split only when responsibilities can change independently.
+- **Small switch dispatchers** — a switch statement with ≤3 cases in ≤2 locations is not an OCP violation worth a
+  strategy registry. The cost of a registry (type definitions, registration, lookup) exceeds the cost of maintaining
+  a small switch. Flag only when the switch has 4+ cases AND appears in 3+ distinct locations.
+- **Composition roots** — direct instantiation of concrete types in the composition root (`main()`, `RegisterEndpoints`,
+  `cmd/` setup functions) is correct wiring, not a DIP violation. DIP applies to business logic and domain packages,
+  not to the place where dependencies are assembled. Do not recommend interfaces or DI containers for composition roots
+  with a single implementation per dependency.
 
 ## What to Hunt
 

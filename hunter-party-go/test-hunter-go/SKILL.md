@@ -335,4 +335,7 @@ Save as `YYYY-MM-DD-test-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - **Tests for dependencies are out of scope.** Don't flag missing tests for third-party libraries or standard library
   internals. Focus on the project's own business logic and integration points.
 - **Pragmatism.** Not every function needs a test. Thin wrappers, trivial getters, and generated code may not
-  warrant dedicated tests. Flag gaps where a bug would have real consequences.
+  warrant dedicated tests. Flag gaps where a bug would have real consequences. Explicitly deprioritize thin
+  infrastructure wrappers (OpenAPI schema helpers, request decoder adapters, middleware configuration) that contain
+  no business logic and whose bugs would surface immediately at integration time. Focus coverage recommendations
+  on code where a bug would produce silently wrong results (calculations, validation, state transitions).

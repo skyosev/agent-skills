@@ -213,6 +213,14 @@ Global variables at the package level that hold mutable state, creating hidden c
 - Global loggers modified at runtime: `var logger = log.New(...)` with `SetLogger()` functions
 - Package-level `var once sync.Once` with `var instance *Service` (singleton pattern)
 
+**Do not flag:**
+
+- `var` declarations that are effectively constant lookup tables (e.g., `var weekdayMap = map[string]time.Weekday{...}`)
+  when there is no write path after initialization. Go does not support `const` maps, so `var` is the only option.
+  Check for: (1) explicit annotations like `nolint: gochecknoglobals` with "read-only" comments, (2) absence of any
+  assignment to the variable outside its declaration. The smell is actual mutation (writes after init), not the `var`
+  keyword on a read-only structure.
+
 **Action:** Move state into struct instances passed via dependency injection. If truly global state is needed (rare),
 encapsulate it in a struct with a constructor and pass the struct explicitly. Package-level constants and immutable
 variables (`var Version = "1.0"`) are fine — the smell is mutability.

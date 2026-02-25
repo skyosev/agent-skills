@@ -154,6 +154,12 @@ Type definitions that have drifted into the wrong locations or accumulated into 
 - The same type imported via different paths (re-exported or duplicated)
 - Types in unexpected locations (domain type in an infrastructure package)
 
+**Do not flag:**
+
+- Files under 300 lines with consistent organization, even if they contain many types. A file with 20 small event types
+  (3-5 lines each) that all serve the same domain concept is well-organized, not disorganized. The concern is mixing
+  *unrelated* domain concepts in one file, not raw type count or line count.
+
 **Action:** Collocate implementation-local types with their code. Centralize shared domain types in a domain package.
 Split large type files by domain concept. Ensure one canonical import path per type.
 

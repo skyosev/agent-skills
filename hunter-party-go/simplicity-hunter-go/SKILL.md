@@ -105,6 +105,12 @@ Functions with many parameters, boolean flags, or option structs that create a c
 - Option structs where most fields are zero-valued in all call sites
 - Functional options pattern (`With*` functions) applied to functions with 1-2 options
 
+**Do not flag:**
+
+- 3 or fewer boolean parameters with well-descriptive names and ≤3 callers. The cure (a struct type + constructor) is
+  heavier than the disease. Flag only when the boolean count causes real confusion or the caller count is high enough
+  to justify the abstraction cost.
+
 **Action:** Split into focused functions per use case, or reduce to the parameters actually used by callers. Reserve
 functional options for truly variadic configuration.
 
@@ -132,6 +138,13 @@ Single functions or types that handle multiple unrelated responsibilities.
 - A handler that validates input AND applies business logic AND formats output
 - Long functions (50+ lines) with distinct logical sections
 - A struct with methods spanning different abstraction levels
+
+**Do not flag:**
+
+- **Dispatcher/coordinator functions** whose sole job is to route to the right handler based on a discriminant. A
+  function that switches on a type and delegates each case to a separate function is a coordinator — that IS its
+  single responsibility. Flag only when the dispatch function also contains substantial inline business logic in
+  each case arm.
 
 **Action:** Extract each concern into a named function. The parent function becomes a coordinator.
 
