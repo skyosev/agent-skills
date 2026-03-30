@@ -452,9 +452,10 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 - **Scope: classic code smells and TypeScript-specific antipatterns only.** Do not flag SOLID violations
   (→ solid-hunter-ts), type design debt (→ type-hunter-ts), module boundary issues (→ boundary-hunter-ts), invariant
   enforcement (→ invariant-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation
-  (→ doc-hunter-ts), security (→ security-hunter-ts), test quality (→ test-hunter-ts), or AI-generated noise
-  (→ slop-hunter-ts). If a finding is better described as a SOLID principle violation, type design issue, or boundary
-  problem, defer to the specialized hunter.
+  (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), performance
+  (→ perf-hunter-ts), test quality (→ test-hunter-ts), or AI-generated noise (→ slop-hunter-ts). If a finding is
+  better described as a SOLID principle violation, type design issue, or boundary problem, defer to the specialized
+  hunter.
 - **Evidence required.** Every finding must cite `file/path.ts:line` with the exact code.
 - **Context matters.** A smell in a prototype is less urgent than a smell in a payment system. Assess severity
   relative to the code's criticality and change frequency.

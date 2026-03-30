@@ -283,8 +283,8 @@ Save as `YYYY-MM-DD-test-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: test quality and coverage only.** Do not flag production code issues — type invariants (→ invariant-hunter-ts),
   type design (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts),
-  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts), or
-  cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "does this test catch real bugs?", it doesn't belong
+  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts),
+  error handling design (→ error-hunter-ts), performance (→ perf-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "does this test catch real bugs?", it doesn't belong
   here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact test code.
 - **Risk-based prioritization.** Coverage gaps in payment logic matter more than coverage gaps in a logging utility.

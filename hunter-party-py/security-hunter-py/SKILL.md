@@ -184,6 +184,27 @@ Language-level patterns that create exploitable conditions.
 for XML parsing, `subprocess.run()` with list arguments instead of `shell=True`. Never deserialize untrusted data with
 `pickle`.
 
+### 9. Framework-Specific Security Misconfigurations
+
+Security patterns specific to popular Python web frameworks that go beyond general best practices.
+
+**Signals:**
+
+- **FastAPI**: `CORSMiddleware` with `allow_origins=["*"]` combined with `allow_credentials=True` (credential leakage),
+  routes missing `Depends(get_current_user)` where peer routes require auth, Pydantic `Settings` with hardcoded
+  `secret_key` or `jwt_secret` default values, `uvicorn.run(host="0.0.0.0")` without TLS in production config
+- **Django**: `ALLOWED_HOSTS = ['*']` in production settings, `SECRET_KEY` hardcoded in `settings.py` (not from env),
+  `DEBUG = True` in production settings module, `@csrf_exempt` on state-changing views without justification,
+  `SECURE_SSL_REDIRECT = False` and `SESSION_COOKIE_SECURE = False` in production,
+  `AUTH_PASSWORD_VALIDATORS = []` (empty password validation)
+- **Flask**: `app.secret_key` hardcoded in source, `app.run(debug=True)` in production entrypoint,
+  no `SESSION_COOKIE_SECURE` or `SESSION_COOKIE_HTTPONLY` configured, `send_from_directory()` or `send_file()`
+  with user-controlled paths without sanitization
+
+**Action:** Move secrets to environment variables or secret managers. Enable framework security features explicitly.
+Audit route-level auth coverage against a peer-comparison table. Ensure production settings modules disable debug
+and enforce HTTPS.
+
 ## Audit Workflow
 
 ### Phase 1: Map Trust Boundaries

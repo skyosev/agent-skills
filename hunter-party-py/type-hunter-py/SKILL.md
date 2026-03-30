@@ -85,12 +85,18 @@ Using string literals where `Literal` unions, `Enum`, or union types would provi
 
 ### 3. Over-Broad Unions and `Optional` Overuse
 
-Unions that are wider than the actual possible values, or `Optional` used where a value is always present after a
-certain point.
+Unions that are wider than the actual possible values, or `Optional` used where the *type definition* should not
+permit absence.
+
+**Boundary with invariant-hunter:** type-hunter owns "this type *should not be* `Optional` — redesign the model."
+invariant-hunter owns "given a correctly non-Optional type, downstream code still does unnecessary `is not None`
+checks." If the type definition is wrong, it belongs here. If the type is right but consumers don't trust it, it
+belongs in invariant-hunter.
 
 **Signals:**
 
 - `Optional[X]` on a field that is always set after `__init__` or after a specific lifecycle point
+  — the type definition itself is too loose
 - `Union[str, int, float, bool, None]` — too broad, indicates unclear data model
 - Return type `Optional[X]` where `None` means "not found" and also means "error" — conflated semantics
 - `X | None` passed through multiple layers requiring `is not None` checks at every level

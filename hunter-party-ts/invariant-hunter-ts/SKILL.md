@@ -300,8 +300,15 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: type invariants only.** Do not flag type design/architecture (→ type-hunter-ts), module boundary issues
   (→ boundary-hunter-ts), structural complexity (→ simplicity-hunter-ts), class/interface design (→ solid-hunter-ts), missing
-  documentation (→ doc-hunter-ts), security (→ security-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style
-  (→ slop-hunter-ts). If a finding doesn't answer "is this type tight enough?", it doesn't belong here.
+  documentation (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), test
+  quality (→ test-hunter-ts), performance (→ perf-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding
+  doesn't answer "is this type tight enough?", it doesn't belong here.
+- **Boundary with error-hunter**: invariant-hunter owns type-system bypasses (`as any`, `@ts-ignore`,
+  `@ts-expect-error`) and loose optionality from a type-enforcement perspective. Error-hunter owns how errors are
+  structured, propagated, caught, and converted — the *design* of the error handling strategy. If the finding is about
+  `as any` without justification, it belongs here. If the finding is about an empty `catch` block or missing
+  `Error.cause` chain, it belongs in error-hunter. Type-system bypass patterns that appear *inside* catch blocks
+  (e.g., `catch (e) { throw e as any }`) are invariant-hunter findings.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Architecture-first.** Understand the project's intended layering before flagging violations. Ask if unclear.
 - **Complexity honesty.** If encoding an invariant requires conditional types three levels deep, say so and recommend

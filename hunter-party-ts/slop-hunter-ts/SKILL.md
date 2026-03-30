@@ -226,8 +226,9 @@ Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: surface noise only.** Do not flag type invariants (→ invariant-hunter-ts), type design (→ type-hunter-ts),
   structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts), class/interface design
-  (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts), or test quality
-  (→ test-hunter-ts). If a finding doesn't answer "is this noise?", it doesn't belong here.
+  (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design
+  (→ error-hunter-ts), performance (→ perf-hunter-ts), or test quality (→ test-hunter-ts). If a finding doesn't answer
+  "is this noise?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Preserve intent.** Flag noise, not substance. If a comment captures genuine design intent, keep it regardless of
   verbosity.

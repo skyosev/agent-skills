@@ -241,8 +241,9 @@ Save as `YYYY-MM-DD-simplicity-hunter-audit-{$LLM-name}.md` in the project's doc
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: structural complexity only.** Do not flag type invariants (→ invariant-hunter-ts), type design
   (→ type-hunter-ts), module boundary issues (→ boundary-hunter-ts), class/interface design (→ solid-hunter-ts), missing
-  documentation (→ doc-hunter-ts), security (→ security-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style
-  (→ slop-hunter-ts). If a finding doesn't answer "is this simpler than it could be?", it doesn't belong here.
+  documentation (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts),
+  performance (→ perf-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding
+  doesn't answer "is this simpler than it could be?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Reuse over addition.** When recommending a fix, prefer existing helpers or deletion over new code.
 - **Preserve behavior.** Never recommend changes that alter what the code does, only how it's structured.

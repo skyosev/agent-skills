@@ -165,9 +165,54 @@ Language-level patterns that create exploitable conditions.
 - Timing-sensitive comparisons of secrets (use constant-time comparison instead)
 - Unrestricted file write paths derived from user input
 - Deserialization of untrusted data without schema validation
+- `__proto__` or `constructor.prototype` accessible via user-controlled object keys (prototype pollution)
 
 **Action:** Use `textContent` instead of `innerHTML`, allowlist properties on untrusted objects, validate schemas
-after parsing, use `crypto.timingSafeEqual()` for secret comparison.
+after parsing, use `crypto.timingSafeEqual()` for secret comparison. Use `Object.create(null)` for lookup maps
+populated from user input to prevent prototype pollution.
+
+### 9. TypeScript-Specific Security Patterns
+
+Leveraging (or failing to leverage) TypeScript's type system for security enforcement.
+
+**Signals:**
+
+- `as any` or `as unknown as T` bypassing validation at trust boundaries — input flows from `any` into typed
+  operations without runtime validation
+- Branded types not used for security-sensitive strings (raw `string` for SQL fragments, HTML content, URLs,
+  file paths) — allows accidental mixing of validated and unvalidated values
+- Missing type guards at security validation boundaries — `typeof` / `instanceof` checks that should narrow
+  to validated types but are plain boolean checks instead
+- `strict: false` or `strictNullChecks: false` in `tsconfig.json` — permissive compiler settings that weaken
+  security invariants
+- Zod/Joi/class-validator schemas that exist but whose inferred types aren't used in downstream function
+  signatures — validation runs but the type system doesn't enforce it
+- `@ts-ignore` or `@ts-expect-error` suppressing errors in security-sensitive code (auth, validation, crypto)
+
+**Action:** Use branded types for security-sensitive values (`type SafeHtml = string & { __brand: 'SafeHtml' }`).
+Enable `strict: true` in `tsconfig.json`. Use assertion functions or type guards (`asserts input is ValidatedRequest`)
+at trust boundaries. Derive downstream types from validation schemas (`z.infer<typeof schema>`).
+
+### 10. GraphQL and WebSocket Security
+
+Missing protections specific to GraphQL APIs and WebSocket connections.
+
+**Signals:**
+
+- GraphQL: no query depth limiting (allows deeply nested queries that exhaust server resources)
+- GraphQL: no query complexity analysis or cost limiting
+- GraphQL: introspection enabled in production (exposes full schema to attackers)
+- GraphQL: mutations without authentication or authorization checks in resolvers
+- GraphQL: no persisted queries or query allowlisting in production
+- WebSocket: missing origin validation on connection upgrade
+- WebSocket: no authentication on WebSocket handshake (relying only on initial HTTP auth)
+- WebSocket: no rate limiting on message frequency
+- WebSocket: user input from messages used in operations without validation
+- Server-Sent Events (SSE): no authentication or authorization on event streams
+
+**Action:** Add query depth and complexity limits (e.g., `graphql-depth-limit`, `graphql-query-complexity`).
+Disable introspection in production. Validate WebSocket origin headers. Authenticate WebSocket connections on
+handshake. Rate-limit WebSocket messages. Validate all user input from WebSocket messages with schema validation.
 
 ## Audit Workflow
 
@@ -198,6 +243,17 @@ rg --pcre2 '(postgres|mysql|mongodb)://\w+:\w+@' $EXCLUDE
 
 # Injection: eval, exec, spawn, Function constructor
 rg '\beval\s*\(|\bexec\s*\(|\bspawn\s*\(|\bFunction\s*\(' --type ts $EXCLUDE
+
+# TypeScript-specific security
+rg 'as any|as unknown' --type ts $EXCLUDE
+rg 'strict.*false|strictNullChecks.*false' --glob 'tsconfig*.json'
+rg '@ts-ignore|@ts-expect-error' --type ts $EXCLUDE
+
+# GraphQL security
+rg 'introspection|depthLimit|queryComplexity' --type ts $EXCLUDE
+
+# WebSocket security
+rg 'WebSocket|socket\.io|ws\.' --type ts $EXCLUDE
 
 # Injection: string concatenation in queries
 rg --pcre2 '(query|sql|execute)\s*\(\s*[`"\x27].*\$\{' --type ts $EXCLUDE
@@ -319,8 +375,9 @@ Save as `YYYY-MM-DD-security-hunter-audit-{$LLM-name}.md` in the project's docs 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: security vulnerabilities only.** Do not flag type invariants (→ invariant-hunter-ts), type design
   (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts),
-  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), test quality (→ test-hunter-ts),
-  or cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "could this be exploited?", it doesn't belong here.
+  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), error handling design
+  (→ error-hunter-ts), performance (→ perf-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style
+  (→ slop-hunter-ts). If a finding doesn't answer "could this be exploited?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Severity matters.** Use Critical / Must-fix / Should-fix. A hardcoded production secret is not the same severity
   as a missing `SameSite` cookie attribute. Prioritize accordingly.

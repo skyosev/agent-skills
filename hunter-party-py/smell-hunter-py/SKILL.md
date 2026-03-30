@@ -221,6 +221,27 @@ Using classes where plain functions, modules, or dataclasses would be simpler an
 - Singleton class → module-level instance or factory function
 - Data-holding class with meaningful behavior → keep the class or use a dataclass
 
+### 10. Anemic Domain Model
+
+Entities or dataclasses that hold data but contain no business logic — all behavior lives in separate "service" or
+"handler" classes that operate on the data externally.
+
+**Signals:**
+
+- Dataclass/entity with only fields, `__init__`, and no methods that encode business rules or state transitions
+- A `UserService` that validates, transitions, and mutates `User`, while `User` is just a data bag with public fields
+- Entity state modified externally (`order.status = "shipped"`) instead of via a domain method (`order.ship()`)
+- "Tell, don't ask" violations: service interrogates entity state (`if order.status == "paid"`) then acts, instead
+  of the entity deciding (`order.can_ship() → bool`)
+- Entity with only getters/setters (or bare public attributes) and no behavior
+- All validation logic for an entity living outside the entity class (in a separate validator or service)
+
+**Action:** Move business logic into the entity. State transitions should be methods on the entity
+(`order.ship()`, `user.deactivate()`). Validation of entity invariants belongs in `__init__` or `__post_init__`.
+Keep services as orchestrators that coordinate between entities, not as the sole location of domain logic.
+If the entity is genuinely just a data carrier with no behavior (a DTO, a config object), it's fine as a
+plain dataclass — the smell applies when the entity *should* have behavior but it's been extracted away.
+
 ## Audit Workflow
 
 ### Phase 1: Gain Context

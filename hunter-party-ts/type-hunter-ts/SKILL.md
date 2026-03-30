@@ -295,7 +295,8 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - **Scope: type design and architecture only.** Do not flag type enforcement issues like loose optionality, unnecessary
   casts, or discriminated union enforcement (→ invariant-hunter-ts), module boundary issues (→ boundary-hunter-ts),
   class/interface design (→ solid-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation
-  (→ doc-hunter-ts), security (→ security-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts).
+  (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), performance
+  (→ perf-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts).
   If a finding doesn't answer "is this type well-designed and maintainable?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact type definition.
 - **Complexity is sometimes justified.** Library-level types, framework constraints, and serialization boundaries may

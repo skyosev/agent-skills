@@ -273,8 +273,9 @@ Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folde
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: missing "why" documentation only.** Do not flag redundant or verbose comments (→ slop-hunter-ts), structural
   complexity (→ simplicity-hunter-ts), type invariants (→ invariant-hunter-ts), type design (→ type-hunter-ts), module boundary
-  issues (→ boundary-hunter-ts), class/interface design (→ solid-hunter-ts), security (→ security-hunter-ts), or test quality
-  (→ test-hunter-ts). If a finding doesn't answer "would a reader pause here and ask why?", it doesn't belong here.
+  issues (→ boundary-hunter-ts), class/interface design (→ solid-hunter-ts), security (→ security-hunter-ts), error handling
+  design (→ error-hunter-ts), performance (→ perf-hunter-ts), or test quality (→ test-hunter-ts). If a finding doesn't
+  answer "would a reader pause here and ask why?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Judgment over pattern-matching.** Grep can find magic numbers and regex literals, but only reading the code reveals
   whether the "why" is truly missing. Prioritize manual review of complex logic over mechanical scanning.

@@ -58,6 +58,7 @@ Rules:
 - Are there contradictions or missing states (edge cases, error states)?
 - Is the request actually a prerequisite problem (e.g., missing abstraction, missing data model)?
 - Are constraints real or assumed? Flag weak assumptions explicitly.
+- Are the proposed features or requirements justified by user value, or are they "nice to have" features that should be deferred?
 
 ### 4 Ground in codebase reality
 

@@ -332,8 +332,8 @@ Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.m
 - **Scope: module boundaries only.** Encapsulation, coupling, dependency direction, API surface. Do not flag type
   invariants (→ invariant-hunter-ts), type design (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts),
   class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts),
-  test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "is this boundary
-  clean?", it doesn't belong here.
+  error handling design (→ error-hunter-ts), performance (→ perf-hunter-ts), test quality (→ test-hunter-ts), or
+  cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "is this boundary clean?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code or import statement.
 - **Architecture-first.** Understand the project's intended layering before flagging violations. Ask if unclear.
 - **Pragmatism over purism.** Not every coupling is worth breaking. Small utilities shared between two closely related

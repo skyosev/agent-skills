@@ -53,10 +53,8 @@ correctness), see type-hunter-py.
    discriminants. Do not blindly refactor into verbose alternatives that harm ergonomics without improving safety.
 
 7. **Fail fast.** When an invariant is violated, raise immediately — do not silently return a default or catch-and-log.
-   Invariant violations are programmer errors; they should crash loudly to surface bugs. Bare `except:` and broad
-   `except Exception` blocks that only log without recovery or re-raise are never acceptable in non-boundary code.
-   (Try/except at defined error boundaries — top-level handlers, middleware — with actual recovery logic is fine; see
-   Canonical Exceptions.)
+   Invariant violations are programmer errors; they should crash loudly to surface bugs. For error handling *design*
+   (exception hierarchy, chaining, try/except scope, silent suppression), see error-hunter-py.
 
 8. **Eliminate type-system bypasses.** `Any`, `cast()`, `# type: ignore`, `# pyright: ignore` are escape hatches.
    Each must be justified (why necessary), scoped (boundary layers only), and temporary (tracked as tech debt).
@@ -147,20 +145,22 @@ Guards, assertions, and validations that could be compile-time guarantees.
 should narrow control flow. Use `frozen=True` for immutable data. If type complexity would be excessive, keep as
 runtime with documentation.
 
-### 6. Type-System Bypasses and Error Suppression
+### 6. Type-System Bypasses
 
-`Any`, `cast()`, `# type: ignore`, bare `except:`, and catch-only-log patterns.
+`Any`, `cast()`, `# type: ignore`, and `# pyright: ignore` — escape hatches that circumvent the type checker.
+
+**Boundary with error-hunter:** invariant-hunter owns type-system escape hatches (`Any`, `cast()`, `# type: ignore`).
+error-hunter owns error suppression patterns (bare `except:`, catch-and-log-only, silent fallbacks). If the finding
+is about bypassing the type checker, it belongs here. If it’s about swallowing exceptions, it belongs in error-hunter.
 
 **Signals:**
 
 - `Any` as parameter type, return type, or variable annotation without justification
 - `# type: ignore` without a specific error code (e.g., `# type: ignore[attr-defined]`)
 - `cast()` without justification comment
-- `except:` or `except Exception:` with no recovery logic (just `pass` or `logger.error()`)
-- Silent fallback (`return []`, `return None`) on invalid input instead of raising
+- `# pyright: ignore` or `# mypy: ignore` without explanation
 
-**Action:** Fix the underlying type issue. If bypass is necessary, add justification and track as tech debt. For except
-blocks: remove if suppressing invariant violations, keep if at a defined error boundary with recovery.
+**Action:** Fix the underlying type issue. If bypass is necessary, add justification and track as tech debt.
 
 ## Audit Workflow
 
@@ -191,8 +191,6 @@ blocks: remove if suppressing invariant violations, keep if at a defined error b
    rg '# (pyright|mypy): ignore' --type py $EXCLUDE                 # tool-specific ignores
    rg 'Optional\[' --type py $EXCLUDE                               # Optional usage
    rg 'is not None|is None' --type py $EXCLUDE                      # None checks
-   rg --pcre2 'except\s*:' --type py $EXCLUDE                       # bare except
-   rg --pcre2 'except\s+Exception\s*:' --type py $EXCLUDE           # broad except
    rg 'assert_never\|TypeGuard' --type py $EXCLUDE                  # modern typing adoption
    rg 'NewType\(' --type py $EXCLUDE                                # NewType usage
    ```
@@ -208,6 +206,10 @@ For each tagged union (Literal discriminant, dataclass hierarchy, or class hiera
 - **Exhaustiveness**: Do `match`/`if-elif` chains have `assert_never()` or `else: raise` defaults?
 
 ### Phase 3: Evaluate Optionality and Defensive Access
+
+**Boundary with type-hunter:** If the type *definition* should not be Optional (the field is always present), that’s
+a type-hunter finding. If the type is correctly non-Optional but downstream code still does `is not None` checks,
+that’s an invariant-hunter finding.
 
 For each `Optional` field in core types: Is absence meaningful, or always present after construction?
 For each `is not None` / `or default` in non-boundary code: Is the property guaranteed present in this context?
@@ -262,7 +264,6 @@ folder exists).
 | `# type: ignore` (total) | {n} |
 | `Any` usage | {n} |
 | Tool-specific ignores | {n} |
-| Bare `except:` / `except Exception:` | {n} |
 | `Optional` fields in core types | {n} |
 | `is not None` in non-boundary code | {n} |
 
@@ -287,7 +288,7 @@ folder exists).
 | - | --------- | -------- | ------- | -------- | ---------- |
 | 1 | ... | file:line | runtime guard | type constraint | low/med/high |
 
-## Error Handling and Bypasses
+## Type-System Bypasses
 
 | # | Location | Pattern | Classification | Action |
 | - | -------- | ------- | -------------- | ------ |
@@ -302,7 +303,7 @@ folder exists).
 ## Recommendations (Priority Order)
 
 1. **Must-fix**: {narrowing failures, forced casts, silent fallbacks masking bugs}
-2. **Should-fix**: {defaults in wrong layer, always-present optionals, except cleanup}
+2. **Should-fix**: {defaults in wrong layer, always-present optionals}
 3. **Consider**: {ergonomic improvements, extensibility prep}
 ```
 
@@ -311,8 +312,9 @@ folder exists).
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: type invariants only.** Do not flag type design/architecture (→ type-hunter-py), module boundary issues
   (→ boundary-hunter-py), structural complexity (→ simplicity-hunter-py), class/interface design (→ solid-hunter-py),
-  missing documentation (→ doc-hunter-py), security (→ security-hunter-py), test quality (→ test-hunter-py), or
-  cosmetic style (→ slop-hunter-py). If a finding doesn't answer "is this type tight enough?", it doesn't belong here.
+  missing documentation (→ doc-hunter-py), security (→ security-hunter-py), error handling design (→ error-hunter-py),
+  test quality (→ test-hunter-py), or cosmetic style (→ slop-hunter-py). If a finding doesn't answer "is this type
+  tight enough?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.py:line` with the exact code.
 - **Architecture-first.** Understand the project's intended layering before flagging violations. Ask if unclear.
 - **Complexity honesty.** If encoding an invariant requires deeply nested generics or impractical Protocol gymnastics,

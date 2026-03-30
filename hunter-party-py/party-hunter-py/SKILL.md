@@ -1,9 +1,9 @@
 ---
 name: party-hunter-py
 description: |
-  Run all 10 Python code quality hunters in parallel as subagents and write each report to
-  a timestamped reports folder. Covers boundary, doc, invariant, security, simplicity, slop,
-  smell, solid, test, and type hunters.
+  Run all 12 Python code quality hunters in parallel as subagents and write each report to
+  a timestamped reports folder. Covers boundary, doc, error, invariant, perf, security,
+  simplicity, slop, smell, solid, test, and type hunters.
 
   Use when: running a full Python codebase audit, scanning all quality dimensions at once,
   preparing for a code review, or generating a comprehensive findings report.
@@ -11,7 +11,7 @@ description: |
 
 # Party Hunter — Python
 
-Orchestrate a full audit of a Python codebase by running all 10 hunter skills as independent
+Orchestrate a full audit of a Python codebase by running all 12 hunter skills as independent
 subagents, each producing a focused report. Results land in a single timestamped folder
 for easy review and sharing.
 
@@ -32,63 +32,94 @@ Use the current timestamp. Create the folder before launching any subagents.
 
 ### 3. Launch all hunters as subagents
 
-Run **all 10 subagents in parallel**. Pass the same target scope to each. Each subagent
-must load its hunter skill and return findings as a Markdown report.
+Run **all 12 subagents in parallel**. Pass the same target scope to each. Each subagent
+must load its hunter skill and write its report to the `./hunters` subfolder inside the
+reports directory.
 
-| Hunter       | Skill to load           | Output file       |
-|--------------|-------------------------|-------------------|
-| Boundary     | `boundary-hunter-py`    | `boundary.md`     |
-| Doc          | `doc-hunter-py`         | `doc.md`          |
-| Invariant    | `invariant-hunter-py`   | `invariant.md`    |
-| Security     | `security-hunter-py`    | `security.md`     |
-| Simplicity   | `simplicity-hunter-py`  | `simplicity.md`   |
-| Slop         | `slop-hunter-py`        | `slop.md`         |
-| Smell        | `smell-hunter-py`       | `smell.md`        |
-| SOLID        | `solid-hunter-py`       | `solid.md`        |
-| Test         | `test-hunter-py`        | `test.md`         |
-| Type         | `type-hunter-py`        | `type.md`         |
+| Hunter       | Skill to load           | Output file            |
+|--------------|-------------------------|------------------------|
+| Boundary     | `boundary-hunter-py`    | `hunters/boundary.md`  |
+| Doc          | `doc-hunter-py`         | `hunters/doc.md`       |
+| Error        | `error-hunter-py`       | `hunters/error.md`     |
+| Invariant    | `invariant-hunter-py`   | `hunters/invariant.md` |
+| Perf         | `perf-hunter-py`        | `hunters/perf.md`      |
+| Security     | `security-hunter-py`    | `hunters/security.md`  |
+| Simplicity   | `simplicity-hunter-py`  | `hunters/simplicity.md`|
+| Slop         | `slop-hunter-py`        | `hunters/slop.md`      |
+| Smell        | `smell-hunter-py`       | `hunters/smell.md`     |
+| SOLID        | `solid-hunter-py`       | `hunters/solid.md`     |
+| Test         | `test-hunter-py`        | `hunters/test.md`      |
+| Type         | `type-hunter-py`        | `hunters/type.md`      |
 
 **Subagent prompt template** (adapt per hunter):
 
 ```
 Load and apply the {skill-name} skill to the Python code at {target_scope}.
-Produce a structured Markdown report with:
+Write your report to ./hunters/{hunter-name}.md in the reports folder.
+
+Your report must include:
 - An executive summary (2-3 sentences)
 - Findings grouped by severity (Critical / High / Medium / Low)
-- For each finding: location, description, and a concrete fix suggestion
+- For each finding: location, description, and a concrete fix suggestion with code examples where applicable
+
 Return only the Markdown report — no commentary outside the report.
 ```
 
 ### 4. Write report files
 
-As each subagent completes, write its output to the corresponding file inside the
-reports folder. Do not wait for all subagents before writing — write as results arrive.
+Each subagent writes its output directly to the `hunters/` subfolder. Do not wait for
+all subagents before writing — write as results arrive.
 
 ### 5. Write summary
 
-After all 10 subagents have finished, write `summary.md` to the same folder:
+After all 12 subagents have finished, write `summary.md` to the reports folder root.
+The summary must be **fully self-sufficient**: anyone reading it should be able to
+implement all suggestions without consulting the individual hunter reports.
 
 ```markdown
 # Party Hunter Report — Python
 **Target**: {target_scope}
 **Date**: {timestamp}
 
-## Hunter Results
+## Executive Summary
+{2-3 sentences summarizing the overall code quality state and most critical areas needing attention}
 
-| Hunter     | Critical | High | Medium | Low | Total |
-|------------|----------|------|--------|-----|-------|
-| Boundary   | …        | …    | …      | …   | …     |
-| …          |          |      |        |     |       |
+## All Actionable Findings
 
-## Cross-cutting Themes
-{2-4 recurring patterns observed across multiple hunters}
+### Security Issues
+{All security-related findings with location, description, and concrete fix}
 
-## Top 5 Priority Issues
-{Ranked list of the most impactful findings regardless of hunter}
+### Type Safety Issues
+{All type-related findings with location, description, and concrete fix}
+
+### Error Handling Issues
+{All error handling findings with location, description, and concrete fix}
+
+### Code Quality Issues
+{All smell, slop, simplicity, and SOLID findings with location, description, and concrete fix}
+
+### Documentation Issues
+{All documentation findings with location, description, and concrete fix}
+
+### Testing Issues
+{All testing findings with location, description, and concrete fix}
+
+### Architecture & Boundary Issues
+{All boundary and invariant findings with location, description, and concrete fix}
+
+### Performance Issues
+{All performance findings with location, description, and concrete fix}
+
+## Priority Action Items
+{Ranked list of the top 5-10 most impactful fixes, each with:
+- What to fix (location + issue)
+- Why it matters (impact/risk)
+- How to fix (concrete steps or code example)}
 ```
 
-## Output Contract
-
-Every report file must be valid Markdown. Finding counts in `summary.md` must match
-the findings in individual reports. If a hunter finds nothing, write a one-line note
-(`No findings.`) rather than an empty file.
+**Summary requirements:**
+- Include **only actionable items** — omit sections entirely if a category has no findings
+- Do **not** write "No issues found" or similar empty statements
+- Every finding must include: file location, issue description, and a concrete fix suggestion
+- Fix suggestions must be specific enough to implement without consulting hunter reports
+- Aggregate duplicate findings from multiple hunters into a single actionable item

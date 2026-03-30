@@ -261,7 +261,8 @@ Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs fol
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **Scope: class and interface design only.** Do not flag module boundary issues (→ boundary-hunter-ts), type invariants
   (→ invariant-hunter-ts), type design (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation
-  (→ doc-hunter-ts), security (→ security-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts).
+  (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), performance
+  (→ perf-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts).
   If a finding doesn't answer "is this class/interface designed for change?", it doesn't belong here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Pragmatism over dogma.** SOLID principles exist to manage change, not to achieve theoretical purity. A class with

@@ -161,6 +161,29 @@ Patterns that cause tests to pass or fail non-deterministically.
 `unittest.mock.patch`. Isolate tests from shared state and external dependencies. Use `tmp_path` fixture for file
 operations.
 
+### 8. Async Test Antipatterns
+
+Patterns specific to async Python testing that cause silent skips, resource leaks, or false passes.
+
+**Signals:**
+
+- `async def test_*` without `@pytest.mark.asyncio` decorator (test is collected but never awaited — silently passes
+  without executing the body). Only applies when `asyncio_mode` is not set to `"auto"` in `pyproject.toml`/`conftest.py`
+- Async fixtures (`async def` in `@pytest.fixture`) without `@pytest_asyncio.fixture` (fixture returns a coroutine
+  object instead of the resolved value)
+- `asyncio.run()` called inside a test function that already runs in an event loop (nested event loop error, or
+  masked by `nest_asyncio`)
+- Async resources opened in fixtures without cleanup: `session = AsyncSession()` yielded but not closed/rolled-back
+  in the `finally`/`yield` teardown
+- Missing `pytest-asyncio` `mode` configuration causing inconsistent behavior between `strict` and `auto` modes
+  across the test suite
+- `aiohttp.ClientSession()` or `httpx.AsyncClient()` created in test body without `async with` (resource leak)
+- Sync mock (`MagicMock`) used where `AsyncMock` is needed — mock returns a `MagicMock` object instead of awaiting
+
+**Action:** Use `@pytest.mark.asyncio` or configure `asyncio_mode = "auto"`. Use `@pytest_asyncio.fixture` for async
+fixtures. Wrap async resources in `async with` in test bodies and fixture teardown. Use `AsyncMock` for async
+interfaces. Verify tests actually execute by adding a deliberate failure and confirming it's caught.
+
 ## Audit Workflow
 
 ### Phase 1: Gain Context
@@ -205,6 +228,13 @@ rg '(global\s|module-level.*=)' --type py --glob '**/*test*'
 
 # Weak assertions
 rg 'assert\s+\w+\s+is not None$|assert\s+result$|assert\s+True$' --type py --glob '**/*test*'
+
+# Async test antipatterns
+rg 'async def test_' --type py --glob '**/*test*'                     # async test functions
+rg '@pytest.mark.asyncio' --type py --glob '**/*test*'                # marked tests
+rg 'asyncio\.run\(' --type py --glob '**/*test*'                      # nested event loop risk
+rg 'MagicMock\(' --type py --glob '**/*test*'                         # may need AsyncMock
+rg 'asyncio_mode' --glob '**/pyproject.toml' --glob '**/conftest.py'  # mode configuration
 ```
 
 ### Phase 3: Evaluate Coverage Gaps
@@ -284,11 +314,17 @@ exists).
 | - | ---- | -------- | ------- | ------ |
 | 1 | `test_timeout` | file:line | `time.sleep(1)` | Use freezegun or event-based assertion |
 
+### Async Test Antipatterns
+
+| # | Test | Location | Pattern | Action |
+| - | ---- | -------- | ------- | ------ |
+| 1 | `test_fetch_data` | file:line | Missing `@pytest.mark.asyncio` | Add decorator or configure `asyncio_mode = "auto"` |
+
 ## Recommendations (Priority Order)
 
 1. **Must-fix**: {missing coverage on critical paths, assertion-free tests, flaky indicators}
 2. **Should-fix**: {brittle tests, over-mocking, missing edge cases}
-3. **Consider**: {test duplication, weak assertions on non-critical code}
+3. **Consider**: {test duplication, weak assertions on non-critical code, async test cleanup}
 ```
 
 ## Operating Constraints
