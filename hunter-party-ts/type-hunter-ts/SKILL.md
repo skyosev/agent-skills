@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing type definitions for maintainability, reducing type duplication, simplifying
   over-engineered type-level logic, or reorganizing type architecture after growth.
+disable-model-invocation: true  
 ---
 
 # Type Hunter

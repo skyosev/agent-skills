@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Python test suites for reliability, reducing false-positive test
   failures, improving coverage of critical business logic, or cleaning up test debt.
+disable-model-invocation: true  
 ---
 
 # Test Hunter

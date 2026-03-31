@@ -8,6 +8,7 @@ description: |
   Use when: reviewing error handling strategy, tightening exception design before deployment,
   auditing error propagation paths, standardizing API error responses, or establishing
   error handling conventions after rapid feature development.
+disable-model-invocation: true  
 ---
 
 # Error Hunter

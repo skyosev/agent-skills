@@ -1,6 +1,7 @@
 ---
 name: brainstorm
 description: Transform vague, ambiguous, or incomplete requests into precise, codebase-grounded technical descriptions. Explore user intent, requirements, and design before modifying the code.
+disable-model-invocation: true
 ---
 
 # Brainstorm

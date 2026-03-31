@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Go code before deployment, auditing trust boundaries, preparing for
   a security review, onboarding third-party integrations, or hardening an application.
+disable-model-invocation: true  
 ---
 
 # Security Hunter

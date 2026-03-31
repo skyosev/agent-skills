@@ -8,6 +8,7 @@ description: |
 
   Use when: reviewing Python code for long-term maintainability, onboarding new team members,
   auditing undocumented business logic, or preparing code for handoff.
+disable-model-invocation: true  
 ---
 
 # Doc Hunter

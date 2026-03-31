@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing package structure, shrinking public API surface, enforcing encapsulation,
   preparing packages for replacement, or untangling tight coupling between layers.
+disable-model-invocation: true  
 ---
 
 # Boundary Hunter

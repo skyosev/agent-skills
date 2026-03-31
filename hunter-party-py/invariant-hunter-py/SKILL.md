@@ -8,6 +8,7 @@ description: |
   Use when: tightening post-construction guarantees, reducing type: ignore and cast() usage,
   reviewing dataclass/TypedDict optionality, auditing error-handling hygiene, or establishing
   a type-safety baseline before refactoring.
+disable-model-invocation: true  
 ---
 
 # Invariant Hunter

@@ -6,6 +6,7 @@ description: |
 
   Use when: reviewing module structure, shrinking public API surface, enforcing encapsulation,
   preparing modules for replacement, or untangling tight coupling between layers.
+disable-model-invocation: true  
 ---
 
 # Boundary Hunter

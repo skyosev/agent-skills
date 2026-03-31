@@ -7,6 +7,7 @@ description: |
 
   Use when: tightening domain models, reducing panic risks, increasing error handling
   discipline, or establishing a safety baseline before refactoring.
+disable-model-invocation: true  
 ---
 
 # Invariant Hunter

@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing class hierarchies, preparing for extension with new variants,
   reducing coupling between services, or improving testability of class-heavy code.
+disable-model-invocation: true  
 ---
 
 # SOLID Hunter

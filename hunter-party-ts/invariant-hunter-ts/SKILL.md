@@ -7,6 +7,7 @@ description: |
 
   Use when: tightening domain models, reducing type assertions, increasing type coverage,
   reviewing discriminated unions, or establishing a type-safety baseline before refactoring.
+disable-model-invocation: true  
 ---
 
 # Invariant Hunter

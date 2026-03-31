@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Go code for structural design problems, preparing for a refactor,
   auditing code after rapid feature development, or hunting for misplaced responsibilities.
+disable-model-invocation: true  
 ---
 
 # Smell Hunter

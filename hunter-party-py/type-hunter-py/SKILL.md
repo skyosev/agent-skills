@@ -8,6 +8,7 @@ description: |
   Use when: reviewing type annotations for expressiveness, tightening domain models,
   reducing runtime checks via the type system, or preparing for stricter mypy/pyright
   configuration.
+disable-model-invocation: true
 ---
 
 # Type Hunter

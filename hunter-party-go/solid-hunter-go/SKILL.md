@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing package structure, preparing for extension with new variants,
   reducing coupling between packages, or improving testability.
+disable-model-invocation: true  
 ---
 
 # SOLID Hunter

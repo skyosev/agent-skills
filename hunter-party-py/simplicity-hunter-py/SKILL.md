@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Python code for over-engineering, reducing complexity after
   prototyping, enforcing reuse over addition, or simplifying before a refactor.
+disable-model-invocation: true  
 ---
 
 # Simplicity Hunter

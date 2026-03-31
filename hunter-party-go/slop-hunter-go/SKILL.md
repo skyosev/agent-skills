@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing AI-assisted Go code before merge, cleaning up generated code,
   enforcing project style on new contributions, or reducing review noise.
+disable-model-invocation: true  
 ---
 
 # Slop Hunter

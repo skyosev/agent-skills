@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing a Go codebase for design soundness, testing robustness,
   or overall code quality before merging or after prototyping.
+disable-model-invocation: true  
 ---
 
 # Go Code Review

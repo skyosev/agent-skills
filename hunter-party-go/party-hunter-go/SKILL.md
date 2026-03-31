@@ -7,6 +7,7 @@ description: |
 
   Use when: running a full Go codebase audit, scanning all quality dimensions at once,
   preparing for a code review, or generating a comprehensive findings report.
+disable-model-invocation: true  
 ---
 
 # Party Hunter — Go

@@ -1,6 +1,7 @@
 ---
 name: refining-requirements
-description: Transforms vague feature ideas into precise, codebase-grounded technical requirements. Use when requirements are ambiguous/incomplete, the user struggles to describe behavior, terminology is unclear, or multiple concepts are mixed (e.g., "help me define this feature", "something like…", "I'm not sure how to describe…"). Output is a requirements spec—NOT an implementation plan.
+description: Transforms vague feature ideas into precise, codebase-grounded technical requirements. Use when requirements are ambiguous/incomplete, the user struggles to describe behavior, terminology is unclear, or multiple concepts are mixed. Output is a requirements spec—NOT an implementation plan.
+disable-model-invocation: true
 ---
 
 # Refining Requirements
