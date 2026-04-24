@@ -1,6 +1,6 @@
 ---
-name: brainstorm
-description: Transform vague, ambiguous, or incomplete requests into precise, codebase-grounded technical descriptions. Explore user intent, requirements, and design before modifying the code.
+name: grill-light
+description: Transform vague, incomplete requirements into precise description. Thoroughly explore user intent before modifying the code.
 disable-model-invocation: true
 ---
 
@@ -9,10 +9,8 @@ disable-model-invocation: true
 Help turn unclear or vague ideas into fully formed designs and specs through natural collaborative dialogue.
 
 Start by understanding the current project context, then ask questions to refine the idea. Once you understand what you're building, present the design and get user approval.
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it.
 
-The output is a **brainstorm session document**, not an implementation plan. However, details must be concrete enough to avoid ambiguity. 
-Weak assumptions and underestimated risks are unacceptable—call them out or resolve them.
+The output is a **brainstorm session document**, not an implementation plan. However, details must be concrete enough to avoid ambiguity. Weak assumptions and underestimated risks are unacceptable—call them out or resolve them.
 
 ## What belongs in problem description vs. implementation plan
  
@@ -47,11 +45,6 @@ Outcome of this step MUST be:
 - A named list of units
 - A recommended ordering
 
-Rules:
-
-- Prefer the smallest slice that provides user-visible or measurable value.
-- Do not "boil the ocean".
-
 ### 3 Challenge and validate ideas or proposals
 
 - Does the potential solution solve the right problem, for the right user?
@@ -72,7 +65,7 @@ Rules:
 
 - Use AskUserQuestion tool to ask the smallest set of questions that materially affects behavior, scope boundaries, acceptance criteria, or feasibility
 - Prefer multiple choice questions when possible, but open-ended is fine too
-- Present options conversationally with your recommendation and reasoning
+- Present options conversationally with your recommendation and rationale
 
 ### 6 Synthesize artifact
 
