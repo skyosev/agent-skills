@@ -1,26 +1,17 @@
 ---
 name: grill-light
-description: Transform vague, incomplete requirements into precise description. Thoroughly explore user intent before modifying the code.
+description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements before modifying the code.
 disable-model-invocation: true
 ---
 
 # Brainstorm
 
-Help turn unclear or vague ideas into fully formed designs and specs through natural collaborative dialogue.
+Help turn unclear or vague ideas into fully formed execution plan through natural collaborative dialogue.
 
-Start by understanding the current project context, then ask questions to refine the idea. Once you understand what you're building, present the design and get user approval.
+Start by understanding the current project context, then ask questions to refine the idea. 
+Weak assumptions and underestimated risks are unacceptable—call them out or resolve them.
 
-The output is a **brainstorm session document**, not an implementation plan. However, details must be concrete enough to avoid ambiguity. Weak assumptions and underestimated risks are unacceptable—call them out or resolve them.
-
-## What belongs in problem description vs. implementation plan
- 
-| Problem Description (this skill)                            | Implementation plan (separate step)            |
-| ----------------------------------------------------------- | ---------------------------------------------- |
-| _What_ the system must do and _why_                         | _How_ to build it (file changes, task order)   |
-| References to existing types, interfaces, method signatures | Actual code diffs and new file scaffolds       |
-| Pseudo-code or data-flow sketches clarifying behavior       | Step-by-step implementation instructions       |
-| Constraints, invariants, edge cases                         | Detailed test plans with exact assertions      |
-| High-level acceptance criteria                              | CI commands, deployment steps                  |
+The goal of this session is a direct implementation plan that can be executed with minimal further clarification.
 
 ## Workflow
 
@@ -35,15 +26,8 @@ Extract:
 
 ### 2 Decide whether this is one task or multiple tasks
 
-Assess if the request mixes multiple high-level concepts. If yes, split into units:
-
-- **Independent units**: can be implemented and verified separately (prefer this split)
-- **Sequential units**: require an earlier prerequisite slice
-
-Outcome of this step MUST be:
-
-- A named list of units
-- A recommended ordering
+Assess if the request mixes multiple high-level concepts. If yes, propose usint the `grill-hard` skill to produce details
+specification artefact. If the user insists on a single task, identify the main theme and defer other themes as "future work" or "out of scope" with clear rationale.
 
 ### 3 Challenge and validate ideas or proposals
 
@@ -67,11 +51,6 @@ Outcome of this step MUST be:
 - Prefer multiple choice questions when possible, but open-ended is fine too
 - Present options conversationally with your recommendation and rationale
 
-### 6 Synthesize artifact
-
-Produce `docs/brainstorm/{Y-m-d-session-name}.md` — containing the result of the brainstorming session.
-This document serves as the **input** for a future precise requirements or implementation plan.
-
 ## Principles
 
 - **Be blunt**: explicitly state what is unclear or inconsistent.
@@ -82,44 +61,4 @@ This document serves as the **input** for a future precise requirements or imple
 - **Focus**: Keep the conversation and artifacts anchored to the chosen initial theme. Do not expand scope or
   switch to adjacent concepts unless they are required to clarify, make feasible, or verify the proposed ideas.
 
-## Output Template (you might change or expand this as needed)
-
-### {Y-m-d-session-name}.md
-
-```md
-# [Feature Name]
-
-## Session Summary
-
-### Problem Statement
-
-- ...
-
-### Glossary
-
-- ...
-
-### Expected Behavior
-
-Describe behavior as observable outcomes.
-
-- Primary flow:
-- Alternate flows:
-- Error/invalid states:
-
-### Scope
-
-...
-
-#### Includes
-
-- ...
-
-### Open Questions
-
-- Q1: ...
-- Q2: ...
-```
-
-**IMPORTANT** ensure that the artifact you produced is present in the correct directory. No need to display it in the
-output.
+After the interview, present the synthesized requirements to the user for implementation approval.
