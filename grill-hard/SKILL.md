@@ -76,7 +76,7 @@ Rules:
 
 ### 6 Synthesize artifact
 
-Produce `docs/brainstorm/{Y-m-d-session-name}.md` — containing the result of the brainstorming session.
+Produce `docs/process/brainstorm/{Y-m-d-session-name}.md` — containing the result of the brainstorming session.
 This document serves as the **input** for a future precise requirements or implementation plan.
 
 ## Principles
