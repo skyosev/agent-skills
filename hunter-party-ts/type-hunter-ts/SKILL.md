@@ -293,6 +293,7 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
 - **Scope: type design and architecture only.** Do not flag type enforcement issues like loose optionality, unnecessary
   casts, or discriminated union enforcement (→ invariant-hunter-ts), module boundary issues (→ boundary-hunter-ts),
   class/interface design (→ solid-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation

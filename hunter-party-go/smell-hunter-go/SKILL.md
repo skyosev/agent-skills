@@ -430,6 +430,7 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
 - **Scope: classic code smells and Go-specific antipatterns only.** Do not flag SOLID violations (→ solid-hunter-go),
   type design debt (→ type-hunter-go), package boundary issues (→ boundary-hunter-go), invariant enforcement
   (→ invariant-hunter-go), structural complexity (→ simplicity-hunter-go), missing documentation (→ doc-hunter-go),

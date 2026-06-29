@@ -425,6 +425,7 @@ exists).
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
 - **Scope: classic code smells and Python-specific antipatterns only.** Do not flag SOLID violations
   (→ solid-hunter-py), type design debt or primitive obsession (→ type-hunter-py), module boundary issues
   (→ boundary-hunter-py), invariant enforcement (→ invariant-hunter-py), structural complexity

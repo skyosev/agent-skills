@@ -62,6 +62,7 @@ Your report must include:
 - An executive summary (2-3 sentences)
 - Findings grouped by severity (Critical / High / Medium / Low)
 - For each finding: location, description, and a concrete fix suggestion with code examples where applicable
+- Omit severity groups and finding categories with zero items — no empty tables, placeholder headings, or statements like "no findings"
 
 Return only the Markdown report — no commentary outside the report.
 ```
@@ -120,6 +121,7 @@ implement all suggestions without consulting the individual hunter reports.
 
 **Summary requirements:**
 - Include **only actionable items** — omit sections entirely if a category has no findings
+- Do **not** include empty tables, placeholder headings, or negative statements ("no dead exports", "no issues found", etc.)
 - Do **not** write "No issues found" or similar empty statements
 - Every finding must include: file location, issue description, and a concrete fix suggestion
 - Fix suggestions must be specific enough to implement without consulting hunter reports

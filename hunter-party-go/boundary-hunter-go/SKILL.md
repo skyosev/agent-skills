@@ -308,6 +308,7 @@ Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.md` in the project's docs 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
 - **Scope: package boundaries only.** Encapsulation, coupling, dependency direction, API surface. Do not flag type
   safety (→ invariant-hunter-go), type design (→ type-hunter-go), structural complexity (→ simplicity-hunter-go),
   interface design (→ solid-hunter-go), missing documentation (→ doc-hunter-go), security (→ security-hunter-go),

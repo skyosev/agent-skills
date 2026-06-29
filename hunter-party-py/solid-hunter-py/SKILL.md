@@ -266,6 +266,7 @@ exists).
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
 - **Scope: class and interface design only.** Do not flag module boundary issues (→ boundary-hunter-py), type invariants
   (→ invariant-hunter-py), type design (→ type-hunter-py), structural complexity (→ simplicity-hunter-py), missing
   documentation (→ doc-hunter-py), security (→ security-hunter-py), test quality (→ test-hunter-py), or cosmetic style
