@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing class hierarchies, preparing for extension with new variants,
   reducing coupling between services, or improving testability of class-heavy code.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing package structure, preparing for extension with new variants,
   reducing coupling between packages, or improving testability.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

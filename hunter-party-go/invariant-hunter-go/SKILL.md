@@ -7,6 +7,7 @@ description: |
 
   Use when: tightening domain models, reducing panic risks, increasing error handling
   discipline, or establishing a safety baseline before refactoring.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

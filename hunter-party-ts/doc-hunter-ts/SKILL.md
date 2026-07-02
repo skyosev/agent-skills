@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing TypeScript code for long-term maintainability, onboarding new team members,
   auditing undocumented business logic, or preparing code for handoff.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

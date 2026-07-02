@@ -1,6 +1,6 @@
 ---
 name: grill-light
-description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements before modifying the code.
+description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements before modifying the code. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 
@@ -60,5 +60,8 @@ specification artefact. If the user insists on a single task, identify the main 
 - **YAGNI ruthlessly**: Remove unnecessary features from all designs
 - **Focus**: Keep the conversation and artifacts anchored to the chosen initial theme. Do not expand scope or
   switch to adjacent concepts unless they are required to clarify, make feasible, or verify the proposed ideas.
+- **No empty sections.** Include only sections with content. Omit a heading, list, or subsection entirely when it
+  would contain zero items — do not include empty lists, placeholder subsections, or negative statements like
+  "none", "N/A", or "no open questions".
 
 After the interview, present the synthesized requirements to the user for implementation approval.

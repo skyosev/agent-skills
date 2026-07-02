@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing TypeScript code for structural design problems, preparing for a refactor,
   auditing code after rapid feature development, or hunting for misplaced responsibilities.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 
@@ -229,10 +230,11 @@ Using TypeScript `enum` where a string literal union type would be simpler, more
 - Enum values imported across the codebase creating coupling to the enum module
 
 **Action:** Replace with string literal union types for simple value sets. Use `as const` objects when you need both
-a type and runtime access:
+a type and runtime access — derive the union from the runtime value (see type-hunter-ts §2 Missing Derivations):
 ```typescript
 const Status = { Active: 'active', Inactive: 'inactive' } as const;
 type Status = typeof Status[keyof typeof Status]; // 'active' | 'inactive'
+// or: const roles = ['admin', 'user'] as const; type Role = (typeof roles)[number];
 ```
 Keep `enum` only when you need: reverse mapping (numeric enums), bitwise flags, or compatibility with non-TS
 consumers.

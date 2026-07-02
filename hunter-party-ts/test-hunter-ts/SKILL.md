@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing TypeScript test suites for reliability, reducing false-positive test
   failures, improving coverage of critical business logic, or cleaning up test debt.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

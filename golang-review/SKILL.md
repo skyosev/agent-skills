@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing a Go codebase for design soundness, testing robustness,
   or overall code quality before merging or after prototyping.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

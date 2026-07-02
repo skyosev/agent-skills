@@ -8,6 +8,7 @@ description: |
   Use when: reviewing type annotations for expressiveness, tightening domain models,
   reducing runtime checks via the type system, or preparing for stricter mypy/pyright
   configuration.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 

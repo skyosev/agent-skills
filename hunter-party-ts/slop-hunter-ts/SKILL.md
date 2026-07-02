@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing AI-assisted TypeScript code before merge, cleaning up generated code,
   enforcing project style on new contributions, or reducing review noise.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

@@ -7,6 +7,7 @@ description: |
 
   Use when: tightening domain models, reducing type assertions, increasing type coverage,
   reviewing discriminated unions, or establishing a type-safety baseline before refactoring.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 
@@ -42,18 +43,30 @@ assertions. The goal: **illegal states become unrepresentable, and consumers nar
 5. **Discriminants: single source of truth.** The discriminant field must be exhaustive. Redundant fields carrying the
    same information (e.g., `shape` vs `arch.kind`) are a drift risk — eliminate one or derive it.
 
-6. **`as` must be justified.** Type assertions should be minimized, but **runtime-guarded casts are acceptable** when
+6. **Prefer `satisfies` over `as`.** When validating that an object literal conforms to a type, `satisfies Type`
+   checks shape without widening or erasing literal inference. Object-literal `as Type` is a cast — it silences the
+   compiler and provides no runtime guarantee.
+
+7. **`as` must be justified.** Type assertions should be minimized, but **runtime-guarded casts are acceptable** when
    the cast immediately follows a runtime check and TypeScript's control flow analysis cannot correlate the
    discriminants. Do not blindly refactor into verbose alternatives that harm ergonomics without improving safety.
 
-7. **Fail fast.** When an invariant is violated, throw immediately — do not silently return a default or catch-and-log.
+8. **Prefer `unknown` over `any`.** `any` disables the type checker and leaks through the codebase. At boundaries and
+   for untyped values, use `unknown` and narrow with type predicates, assertion functions, or schema validation — never
+   `as T` without a preceding guard.
+
+9. **Fail fast.** When an invariant is violated, throw immediately — do not silently return a default or catch-and-log.
    Invariant violations are programmer errors; they should crash loudly to surface bugs. Empty catches and broad
    `catch(e) { log(e) }` blocks that only log without recovery or re-throw are never acceptable in non-boundary code.
    (Try/catch at defined error boundaries — top-level handlers, middleware — with actual recovery logic is fine; see
    Canonical Exceptions.)
 
-8. **Eliminate type-system bypasses.** `as any`, `as unknown as T`, `@ts-ignore`, `@ts-expect-error` are escape hatches.
+10. **Eliminate type-system bypasses.** `as any`, `as unknown as T`, `@ts-ignore`, `@ts-expect-error` are escape hatches.
    Each must be justified (why necessary), scoped (boundary layers only), and temporary (tracked as tech debt).
+
+11. **Type-safe ≠ runtime safe.** Compile-time types end at runtime boundaries. `(await response.json()) as User`
+    compiles but provides zero runtime guarantee. Typed API responses, parsed JSON, and external input require validation
+    at the boundary — see security-hunter-ts for trust-boundary patterns; flag the cast here, hand off schema gaps there.
 
 ### Canonical Exceptions
 
@@ -65,7 +78,11 @@ Not every finding requires action. Document these but do not flag as "must-fix":
 | Optional utility parameters | Helper accepting optional when domain type requires |
 | `??` / `?.` at true boundaries | External API responses, user input, config defaults |
 | Try/catch at error boundaries | Top-level handlers, middleware with defined recovery |
-| Type bypasses in boundary layers | JSON parsing, FFI, library workarounds — with comment |
+| Type bypasses in boundary layers | FFI, library workarounds — with comment and tracked debt |
+| Schema-validated boundary parse | Zod/io-ts parse at trust boundary; type derived via `z.infer<>` |
+
+Do **not** treat `(await response.json()) as T` or `JSON.parse(x) as T` as acceptable — flag as must-fix unless
+immediately followed by schema validation that narrows to `T`.
 
 ## What to Hunt
 
@@ -75,11 +92,14 @@ Not every finding requires action. Document these but do not flag as "must-fix":
 
 **Signals:**
 
+- Object-literal `as Type` where `satisfies Type` would validate shape without widening
 - `as` not preceded by a runtime check validating the assertion
+- `(await response.json()) as T` or `JSON.parse(...) as T` without schema validation at the boundary
 - `!` on a value that could be made non-optional at its source
 - `as unknown as T` double-cast bypasses
 
-**Action:** Tighten the upstream type or add a runtime guard. If runtime-guarded, document as acceptable.
+**Action:** Replace object-literal `as` with `satisfies`. Tighten the upstream type or add a runtime guard (type
+predicate, assertion function, or schema parse). If runtime-guarded, document as acceptable.
 
 ### 2. Loose Optionality
 
@@ -131,11 +151,13 @@ Guards, assertions, and validations that could be compile-time guarantees.
 - Mutation guards that `Readonly<T>` would enforce
 - Object literals without `satisfies` where shape conformance is intended but unchecked
 - Validation functions that return `boolean` instead of using `asserts param is T` to narrow the caller's scope
+- Repeated inline `typeof` / `in` checks at multiple call sites instead of a reusable type predicate (`value is T`)
 - Mutable arrays/objects used as config where `as const` would enforce literal types and immutability
 
-**Action:** Promote to type constraint. Use `satisfies` to validate shape at assignment without widening. Use assertion
-functions (`asserts x is T`) for runtime guards that should narrow control flow. Use `as const` for fixed configuration
-and lookup objects. If type complexity would be excessive, keep as runtime with documentation.
+**Action:** Promote to type constraint. Use `satisfies` to validate shape at assignment without widening. Extract
+reusable type predicates (`function isUser(x: unknown): x is User`) or assertion functions (`asserts x is T`) for
+boundary narrowing. Use `as const` for fixed configuration and lookup objects. If type complexity would be excessive,
+keep as runtime with documentation.
 
 ### 6. Type-System Bypasses and Error Suppression
 
@@ -143,13 +165,15 @@ and lookup objects. If type complexity would be excessive, keep as runtime with 
 
 **Signals:**
 
+- `any` where `unknown` plus narrowing would preserve safety
 - `as any` or `as unknown as T` without justification comment
 - `@ts-ignore` / `@ts-expect-error` without explanation
 - `catch { }` or `catch(e) { console.log(e) }` with no recovery logic
 - Silent fallback (`return []`, `return null`) on invalid input instead of throwing
 
-**Action:** Fix the underlying type issue. If bypass is necessary, add justification and track as tech debt. For catch
-blocks: remove if suppressing invariant violations, keep if at a defined error boundary with recovery.
+**Action:** Replace `any` with `unknown` and narrow at use sites. Fix the underlying type issue. If bypass is necessary,
+add justification and track as tech debt. For catch blocks: remove if suppressing invariant violations, keep if at a
+defined error boundary with recovery.
 
 ## Audit Workflow
 
@@ -183,6 +207,8 @@ blocks: remove if suppressing invariant violations, keep if at a defined error b
    rg -U 'catch\s*\([^)]*\)\s*\{\s*(//.*)?\s*\}' --type ts $EXCLUDE # empty catches
    rg 'satisfies\s' --type ts $EXCLUDE                              # satisfies usage (adoption check)
    rg 'asserts\s+\w+\s+is\s' --type ts $EXCLUDE                    # assertion functions
+   rg --pcre2 '\):\s*\w+\s+is\s+\w+' --type ts $EXCLUDE           # type predicates (value is T)
+   rg --pcre2 '\.json\(\)\)\s+as\s|\bJSON\.parse\([^)]+\)\s+as\s' --type ts $EXCLUDE  # cast without validation
    ```
 
 4. Produce counts by category, grouped by module/layer.
@@ -305,6 +331,9 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
   documentation (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), test
   quality (→ test-hunter-ts), performance (→ perf-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding
   doesn't answer "is this type tight enough?", it doesn't belong here.
+- **Boundary with security-hunter**: `(json()) as T` and missing schema validation at trust boundaries are must-fix in
+  both skills — invariant-hunter flags the unsafe cast and loose typing; security-hunter flags the exploitable boundary
+  and recommends schema + `z.infer<>`. Do not duplicate full trust-boundary audits here.
 - **Boundary with error-hunter**: invariant-hunter owns type-system bypasses (`as any`, `@ts-ignore`,
   `@ts-expect-error`) and loose optionality from a type-enforcement perspective. Error-hunter owns how errors are
   structured, propagated, caught, and converted — the *design* of the error handling strategy. If the finding is about

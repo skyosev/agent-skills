@@ -7,6 +7,7 @@ description: |
 
   Use when: running a full Go codebase audit, scanning all quality dimensions at once,
   preparing for a code review, or generating a comprehensive findings report.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 
@@ -57,7 +58,7 @@ Produce a structured Markdown report with:
 - An executive summary (2-3 sentences)
 - Findings grouped by severity (Critical / High / Medium / Low)
 - For each finding: location, description, and a concrete fix suggestion
-- Omit severity groups and finding categories with zero items — no empty tables, placeholder headings, or statements like "no findings"
+- Omit severity groups and finding categories with zero items — follow **No empty sections** in Operating Constraints
 Return only the Markdown report — no commentary outside the report.
 ```
 
@@ -91,8 +92,12 @@ After all 10 subagents have finished, write `summary.md` to the same folder:
 
 ## Output Contract
 
-Every report file must be valid Markdown. Omit empty finding sections entirely — no empty
-tables, placeholder headings, or negative statements like "no dead exports" or "none found".
-Finding counts in `summary.md` must match the findings in individual reports. If a hunter
-finds nothing across all categories, write a one-line note (`No findings.`) rather than an
-empty file.
+Every report file must be valid Markdown. Finding counts in `summary.md` must match the
+findings in individual reports. If a hunter finds nothing across all categories, write a
+one-line note (`No findings.`) rather than an empty file.
+
+## Operating Constraints
+
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would
+  contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead
+  exports", "none found", or "no issues".

@@ -7,6 +7,7 @@ description: |
 
   Use when: running a full TypeScript codebase audit, scanning all quality dimensions at
   once, preparing for a code review, or generating a comprehensive findings report.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 
@@ -62,7 +63,7 @@ Your report must include:
 - An executive summary (2-3 sentences)
 - Findings grouped by severity (Critical / High / Medium / Low)
 - For each finding: location, description, and a concrete fix suggestion with code examples where applicable
-- Omit severity groups and finding categories with zero items — no empty tables, placeholder headings, or statements like "no findings"
+- Omit severity groups and finding categories with zero items — follow **No empty sections** in Operating Constraints
 
 Return only the Markdown report — no commentary outside the report.
 ```
@@ -126,3 +127,9 @@ implement all suggestions without consulting the individual hunter reports.
 - Every finding must include: file location, issue description, and a concrete fix suggestion
 - Fix suggestions must be specific enough to implement without consulting hunter reports
 - Aggregate duplicate findings from multiple hunters into a single actionable item
+
+## Operating Constraints
+
+- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would
+  contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead
+  exports", "none found", or "no issues".

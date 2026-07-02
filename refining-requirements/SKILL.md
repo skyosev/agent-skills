@@ -1,6 +1,6 @@
 ---
 name: refining-requirements
-description: Transforms vague feature ideas into precise, codebase-grounded technical requirements. Use when requirements are ambiguous/incomplete, the user struggles to describe behavior, terminology is unclear, or multiple concepts are mixed. Output is a requirements spec—NOT an implementation plan.
+description: Transforms vague feature ideas into precise, codebase-grounded technical requirements. Use when requirements are ambiguous/incomplete, the user struggles to describe behavior, terminology is unclear, or multiple concepts are mixed. Output is a requirements spec—NOT an implementation plan. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 
@@ -156,3 +156,9 @@ Write as testable conditions (black-box where possible).
 
 **IMPORTANT** ensure that the artifact you produced is present in the correct directory. No need to display it in the
 output.
+
+## Operating Constraints
+
+- **No empty sections.** Include only sections with content. Omit a heading, list, or subsection entirely when it
+  would contain zero items — do not include empty lists, placeholder subsections, or negative statements like
+  "none", "N/A", or "no open questions".

@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Go code for over-engineering, reducing complexity after prototyping,
   enforcing reuse over addition, or simplifying before a refactor.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Python code before deployment, auditing trust boundaries, preparing
   for a security review, onboarding third-party integrations, or hardening an application.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

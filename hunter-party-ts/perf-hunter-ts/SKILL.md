@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing async correctness, auditing resource lifecycle, hunting N+1 query
   patterns, checking connection pool configuration, or profiling structurally inefficient code.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

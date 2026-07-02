@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing Python code for structural design problems, preparing for a refactor,
   auditing code after rapid feature development, or hunting for misplaced responsibilities.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing type definitions for maintainability, reducing type duplication,
   simplifying over-engineered generics, or reorganizing type architecture after growth.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

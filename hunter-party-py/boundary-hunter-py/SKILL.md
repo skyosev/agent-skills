@@ -6,6 +6,7 @@ description: |
 
   Use when: reviewing package structure, shrinking public API surface, enforcing encapsulation,
   preparing modules for replacement, or untangling tight coupling between layers.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing type definitions for maintainability, reducing type duplication, simplifying
   over-engineered type-level logic, or reorganizing type architecture after growth.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 
@@ -52,6 +53,10 @@ and maintain.**
    their code. A 500-line types file that mixes domain types with internal helpers is disorganized. A type defined in a
    function body that is used by three modules is misplaced.
 
+7. **Trust inference.** Explicit annotations should earn their keep. Redundant `: string` on obvious literals, return
+   types that duplicate what inference already produces, and annotations that force widening hurt maintainability.
+   Let the compiler infer when the expression is the source of truth.
+
 ## What to Hunt
 
 ### 1. Type Duplication
@@ -78,8 +83,12 @@ Types that should be derived from a source type but are manually defined, creati
 - A "patch" type that makes all fields optional by hand (should be `Partial<Entity>`)
 - A "readonly" variant that adds `readonly` to each field manually (should be `Readonly<Entity>`)
 - Function return types that repeat the type of a known data structure
+- Manual string-literal union (`type Role = 'admin' | 'user'`) parallel to a runtime array of roles — should derive via
+  `const roles = ['admin', 'user'] as const; type Role = (typeof roles)[number]`
+- `as const` object with a hand-written union type that duplicates its values
 
-**Action:** Replace with the appropriate derivation. If no built-in utility fits, create a project-level utility type.
+**Action:** Replace with the appropriate derivation. For fixed value sets shared at runtime and compile time, define the
+runtime value with `as const` and derive the union from it. If no built-in utility fits, create a project-level utility type.
 
 ### 3. Over-Engineered Type-Level Logic
 
@@ -151,7 +160,42 @@ Opportunities to use `satisfies`, `as const`, or const type parameters to improv
 **Action:** Apply `satisfies` for shape validation at assignment. Use `as const` on fixed data. Use const type
 parameters where literal inference matters. Derive types from schemas instead of maintaining parallel definitions.
 
-### 8. Type Organization Debt
+### 8. Redundant Explicit Annotations
+
+Type annotations that duplicate inference, widen types, or add maintenance overhead without improving clarity.
+
+**Signals:**
+
+- `const name: string = "Ada"` where inference already yields the correct type
+- Return type annotations on functions where inference produces an equally precise or better type
+- Variable annotations that widen literals (`const mode: string = 'dark'` instead of inferred `'dark'`)
+- Generic type arguments passed explicitly when inference would infer correctly (`getData<User>(schema)` vs
+  `getData(userSchema)`)
+- `@param` / `@returns` JSDoc that only restates types already in the signature (→ slop-hunter-ts for doc noise)
+
+**Action:** Remove redundant annotations. Keep explicit types only at public API boundaries, module exports, or where
+inference would be too wide or ambiguous. Prefer schema-driven inference for generic APIs.
+
+### 9. Template Literal Types
+
+Template literal types used where simpler types suffice, or missing where they would replace stringly-typed APIs.
+
+**Signals (missed opportunities):**
+
+- Route paths, event names, query keys, or CSS utility classes typed as plain `string` when a template union would
+  enforce structure (e.g., `` `/api/${string}` ``, `` `user:${string}` ``)
+- Lookup maps keyed by string literals where `` Record<`prefix:${string}`, T> `` or a finite template union would catch typos
+- Parallel string constants and union types maintained separately instead of derived from the same `as const` source
+
+**Signals (overuse):**
+
+- Multi-level conditional string manipulation where a runtime function with a typed return would be clearer
+- Template literal types encoding business logic that belongs in runtime validation
+
+**Action:** Introduce template literal types for finite, structured string domains (routes, events, design tokens).
+Simplify or replace over-engineered template-literal metaprogramming with runtime functions when complexity exceeds benefit.
+
+### 10. Type Organization Debt
 
 Type definitions that have drifted into the wrong locations or accumulated into unwieldy files.
 
@@ -210,6 +254,12 @@ rg 'satisfies\s' --type ts $EXCLUDE
 
 # as const usage
 rg 'as\s+const\b' --type ts $EXCLUDE
+
+# Redundant explicit annotations on literals
+rg --pcre2 'const\s+\w+\s*:\s*(string|number|boolean)\s*=' --type ts $EXCLUDE
+
+# Template literal types
+rg --pcre2 'type\s+\w+\s*=\s*`' --type ts $EXCLUDE
 ```
 
 ### Phase 3: Analyze Duplication
@@ -217,12 +267,15 @@ rg 'as\s+const\b' --type ts $EXCLUDE
 1. Identify types with overlapping field names across files.
 2. Check for "create/update/summary" variants that should be derived from a base entity type.
 3. Look for parallel enum/union definitions representing the same value set.
+4. Check for runtime `as const` arrays/objects with hand-maintained parallel union types.
 
 ### Phase 4: Evaluate Complexity and Reuse
 
 For each generic type: Is the constraint tight? Does the parameter vary? Is a simpler construct available?
-For each conditional/mapped type: Is this the simplest approach? Could a utility type replace it?
+For each conditional/mapped/template-literal type: Is this the simplest approach? Could a utility type or runtime
+function replace it?
 For each hand-rolled utility: Does a built-in equivalent exist?
+For each explicit annotation: Does it add precision, or duplicate/widen inference?
 
 ### Phase 5: Produce Report
 
@@ -277,6 +330,18 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 | - | ---- | -------- | ------------------- | ------ |
 | 1 | `MakeOptional<T>` | file:line | `Partial<T>` | Replace with built-in |
 
+### Redundant Explicit Annotations
+
+| # | Location | Annotation | Issue | Action |
+| - | -------- | ---------- | ----- | ------ |
+| 1 | file:line | `const mode: string = 'dark'` | Widens literal | Remove annotation; let inference preserve `'dark'` |
+
+### Template Literal Types
+
+| # | Type / API | Location | Issue | Action |
+| - | ---------- | -------- | ----- | ------ |
+| 1 | `eventName: string` | file:line | Missed opportunity | Use `` `user:${string}` `` union or template type |
+
 ### Type Organization
 
 | # | File | Location | Issue | Action |
@@ -287,7 +352,8 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 
 1. **Must-fix**: {type duplication with drift risk, phantom generics adding complexity}
 2. **Should-fix**: {missing derivations, reinvented utilities, under-constrained generics}
-3. **Consider**: {type organization, over-engineered types with limited usage}
+3. **Consider**: {type organization, over-engineered types with limited usage, template literal opportunities,
+   redundant annotations}
 ```
 
 ## Operating Constraints

@@ -1,6 +1,6 @@
 ---
 name: grill-hard
-description: Grilling session that challenges your requirements against the existing codebase.
+description: Grilling session that challenges your requirements against the existing codebase. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 
@@ -88,6 +88,9 @@ This document serves as the **input** for a future precise requirements or imple
 - **YAGNI ruthlessly**: Remove unnecessary features from all designs
 - **Focus**: Keep the conversation and artifacts anchored to the chosen initial theme. Do not expand scope or
   switch to adjacent concepts unless they are required to clarify, make feasible, or verify the proposed ideas.
+- **No empty sections.** Include only sections with content. Omit a heading, list, or subsection entirely when it
+  would contain zero items — do not include empty lists, placeholder subsections, or negative statements like
+  "none", "N/A", or "no open questions".
 
 ## Output Template (you might change or expand this as needed)
 

@@ -8,6 +8,7 @@ description: |
   Use when: tightening post-construction guarantees, reducing type: ignore and cast() usage,
   reviewing dataclass/TypedDict optionality, auditing error-handling hygiene, or establishing
   a type-safety baseline before refactoring.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 

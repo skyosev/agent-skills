@@ -7,6 +7,7 @@ description: |
 
   Use when: reviewing TypeScript code before deployment, auditing trust boundaries, preparing
   for a security review, onboarding third-party integrations, or hardening an application.
+  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true  
 ---
 
@@ -43,6 +44,10 @@ throughout.**
 
 5. **Fail closed.** When auth/authz checks fail or throw, the result should be denial, not access. Error paths must
    not bypass security controls.
+
+6. **Type-safe ≠ runtime safe.** TypeScript types are erased at runtime. `(await response.json()) as User` compiles but
+   does not validate — an attacker controls the wire format. Every external payload must pass schema validation before
+   it enters typed business logic; derive downstream types from the schema (`z.infer<typeof schema>`).
 
 ## What to Hunt
 
@@ -88,9 +93,13 @@ Endpoints, handlers, or integration points that accept external data without sch
 - Webhook handlers without signature verification
 - URL parameters used directly in business logic without parsing/validation
 - Form inputs passed to database operations without sanitization
+- `(await response.json()) as T`, `JSON.parse(...) as T`, or `req.body as T` — compile-time cast with no runtime schema
+- Validation schema exists in one layer but downstream functions accept manually duplicated types instead of
+  `z.infer<typeof schema>`
 
 **Action:** Add schema validation at every trust boundary. Validate type, format, range, and length. Reject invalid
-input explicitly — don't coerce or default.
+input explicitly — don't coerce or default. Parse with Zod/Joi/class-validator and type downstream code from the schema
+inference (`type User = z.infer<typeof UserSchema>`), not a parallel manual interface.
 
 ### 4. Insecure Defaults and Configuration
 
@@ -178,6 +187,7 @@ Leveraging (or failing to leverage) TypeScript's type system for security enforc
 
 **Signals:**
 
+- `(await response.json()) as T` or `JSON.parse(untrusted) as T` — typed appearance with no runtime validation
 - `as any` or `as unknown as T` bypassing validation at trust boundaries — input flows from `any` into typed
   operations without runtime validation
 - Branded types not used for security-sensitive strings (raw `string` for SQL fragments, HTML content, URLs,
@@ -190,9 +200,11 @@ Leveraging (or failing to leverage) TypeScript's type system for security enforc
   signatures — validation runs but the type system doesn't enforce it
 - `@ts-ignore` or `@ts-expect-error` suppressing errors in security-sensitive code (auth, validation, crypto)
 
-**Action:** Use branded types for security-sensitive values (`type SafeHtml = string & { __brand: 'SafeHtml' }`).
-Enable `strict: true` in `tsconfig.json`. Use assertion functions or type guards (`asserts input is ValidatedRequest`)
-at trust boundaries. Derive downstream types from validation schemas (`z.infer<typeof schema>`).
+**Action:** Replace cast-then-trust with parse-then-narrow: `const user = UserSchema.parse(await response.json())`.
+Use branded types for security-sensitive values (`type SafeHtml = string & { __brand: 'SafeHtml' }`). Enable
+`strict: true` in `tsconfig.json`. Use type predicates or assertion functions (`asserts input is ValidatedRequest`) at
+trust boundaries. Derive all downstream types from validation schemas (`z.infer<typeof schema>`) — one source of truth
+for runtime shape and compile-time types.
 
 ### 10. GraphQL and WebSocket Security
 
@@ -247,6 +259,7 @@ rg '\beval\s*\(|\bexec\s*\(|\bspawn\s*\(|\bFunction\s*\(' --type ts $EXCLUDE
 
 # TypeScript-specific security
 rg 'as any|as unknown' --type ts $EXCLUDE
+rg --pcre2 '\.json\(\)\)\s+as\s|\bJSON\.parse\([^)]+\)\s+as\s' --type ts $EXCLUDE
 rg 'strict.*false|strictNullChecks.*false' --glob 'tsconfig*.json'
 rg '@ts-ignore|@ts-expect-error' --type ts $EXCLUDE
 
