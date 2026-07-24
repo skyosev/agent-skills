@@ -2,13 +2,12 @@
 name: smell-hunter-ts
 description: |
   Audit TypeScript code for classic code smells — feature envy, data clumps, shotgun surgery,
-  primitive obsession, temporal coupling, comments as deodorant, temporary fields, callback
-  hell, enum abuse, and class abuse.
+  primitive obsession, temporal coupling, comments as deodorant, temporary fields, and
+  class abuse.
 
   Use when: reviewing TypeScript code for structural design problems, preparing for a refactor,
   auditing code after rapid feature development, or hunting for misplaced responsibilities.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Smell Hunter
@@ -20,7 +19,9 @@ domain concepts are modeled explicitly, and TypeScript idioms are respected.**
 
 **Not covered (owned by other hunters):** long method / mixed concerns (→ simplicity-hunter), dead code
 (→ simplicity-hunter / slop-hunter), speculative generality (→ simplicity-hunter), magic numbers (→ doc-hunter),
-interface pollution (→ simplicity-hunter / solid-hunter). See Operating Constraints for handoff rules.
+interface pollution (→ simplicity-hunter / solid-hunter), callback hell / unflattened promise chains
+(→ simplicity-hunter, complex control flow), enum-vs-union design (→ type-hunter). See Operating Constraints for
+handoff rules.
 
 Code smells are symptoms, not diagnoses. Each finding indicates a *likely* design problem that warrants investigation.
 Context determines whether the smell is a genuine issue or an acceptable trade-off.
@@ -141,6 +142,10 @@ Or use a Zod schema / validation function that narrows to the branded type. For 
 unions or option objects. For status values, use string literal unions: `type Status = 'active' | 'inactive' |
 'suspended'`.
 
+**Ownership note:** smell-hunter owns primitive obsession as a *domain-modeling* gap. Branded types that encode
+*validated* state (parse-don't-validate) belong to invariant-hunter; brands for security-sensitive strings (SQL
+fragments, HTML, paths) belong to security-hunter. Cross-reference instead of duplicating.
+
 ### 5. Temporal Coupling
 
 Functions or operations that must be called in a specific order, but nothing in the API enforces that order.
@@ -159,6 +164,10 @@ Functions or operations that must be called in a specific order, but nothing in 
 - Use the builder pattern with required fields enforced at the type level (builder type changes after each step)
 - Use discriminated union types where each state is a different variant with only valid transitions
 - Accept dependencies in the constructor rather than via separate setter methods
+
+**Ownership note:** smell-hunter owns the temporal-coupling finding and the redesign recommendation. doc-hunter's
+role is limited to ordering constraints that are *staying* and are undocumented — a comment is the fallback, not
+the fix.
 
 ### 6. Comments as Deodorant
 
@@ -180,6 +189,11 @@ Comments that explain *what* confusing code does rather than *why* — masking a
 - Split long functions at the comment boundaries into named sub-functions
 - Only keep comments that explain *why* (business rules, external constraints, workarounds for third-party bugs)
 
+**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+- Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
+- Comment present and the code trivial → slop-hunter (delete the redundant comment).
+- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
+
 ### 7. Temporary Field
 
 Object properties or class fields that are meaningful only in certain states or during specific operations — they are
@@ -198,48 +212,7 @@ set for one code path and undefined/null for all others.
 multiple states, use a discriminated union: separate types for each state. For transient computation, use local
 variables or return values instead of fields.
 
-### 8. Callback Hell and Unflattened Promises
-
-Deeply nested callback chains or `.then()` chains that could be flattened with `async`/`await`.
-
-**Signals:**
-
-- 3+ levels of nested callbacks (Node.js-style `(err, result) => { ... }`)
-- `.then().then().then()` chains longer than 3 steps without `async`/`await`
-- Nested `.then()` creating a "promise pyramid" instead of a flat chain
-- Mixing callbacks and promises in the same function
-- Error handling scattered across multiple `.catch()` blocks instead of a single `try`/`catch`
-- Event listener callbacks with complex logic that should be extracted into named functions
-
-**Action:** Convert to `async`/`await` with `try`/`catch`. Flatten nested callbacks into sequential awaited calls.
-Extract complex callback bodies into named functions. If truly parallel operations are needed, use
-`Promise.all()`/`Promise.allSettled()` with `await`.
-
-### 9. Enum Abuse
-
-Using TypeScript `enum` where a string literal union type would be simpler, more type-safe, and more idiomatic.
-
-**Signals:**
-
-- `enum Status { Active = 'active', Inactive = 'inactive' }` where `type Status = 'active' | 'inactive'` suffices
-- Numeric enums used for values that aren't truly ordered or bitwise-combinable
-- `enum` values compared with `===` against string literals (defeating the purpose of the enum)
-- `const enum` used for values that need to be preserved at runtime (e.g., serialized, logged)
-- `enum` with a single member
-- Enums used as object keys where `Record<Status, T>` with a union would be simpler
-- Enum values imported across the codebase creating coupling to the enum module
-
-**Action:** Replace with string literal union types for simple value sets. Use `as const` objects when you need both
-a type and runtime access — derive the union from the runtime value (see type-hunter-ts §2 Missing Derivations):
-```typescript
-const Status = { Active: 'active', Inactive: 'inactive' } as const;
-type Status = typeof Status[keyof typeof Status]; // 'active' | 'inactive'
-// or: const roles = ['admin', 'user'] as const; type Role = (typeof roles)[number];
-```
-Keep `enum` only when you need: reverse mapping (numeric enums), bitwise flags, or compatibility with non-TS
-consumers.
-
-### 10. Class Abuse
+### 8. Class Abuse
 
 Using classes where plain functions, closures, or modules would be simpler and more idiomatic TypeScript.
 
@@ -265,15 +238,37 @@ Using classes where plain functions, closures, or modules would be simpler and m
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context** to discover, validate, or trace a finding.
+   For this hunter: the Phase 2 scans run against the target scope; the git co-change analysis in Phase 4 is
+   inherently project-wide — report only concepts whose files intersect the target scope.
 2. Understand the project's domain model — what are the core entities, value objects, and operations?
 3. Note the project's conventions for naming, type design, and module organization.
 
@@ -282,10 +277,11 @@ Using classes where plain functions, closures, or modules would be simpler and m
 These scans produce **candidates only** — each match requires manual validation in Phase 3–5 before it becomes a
 finding. Expect a high false-positive rate from regex heuristics; the value is in surfacing locations to inspect.
 
-For diff/path mode, append the resolved file list (`$SCOPE`) to each `rg` command. For codebase mode, omit it.
+Run every scan against the target scope (`SCOPE=.` in codebase mode).
 
 ```bash
-EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
+# Production-scan exclusions: dependencies, build output, generated code, tests
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # Feature envy: methods that heavily reference another module's types
 # (look for obj.prop.prop patterns across module boundaries — verify manually)
@@ -300,12 +296,6 @@ rg --pcre2 'function\s+\w+\s*\([^)]*:\s*string\s*,[^)]*:\s*string' --type ts $EX
 
 # Temporal coupling: init/setup/configure methods
 rg --pcre2 '(init|setup|configure|prepare)\s*\(' --type ts $EXCLUDE -- $SCOPE
-
-# Callback hell: nested .then() chains
-rg --pcre2 '\.then\([^)]*\)\s*\.then\([^)]*\)\s*\.then' --type ts $EXCLUDE -- $SCOPE
-
-# Enum declarations (then evaluate for abuse)
-rg 'enum\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
 # Classes (then evaluate for class abuse)
 rg 'class\s+\w+' --type ts $EXCLUDE -- $SCOPE
@@ -338,10 +328,15 @@ is not shotgun surgery — the signal is many *unrelated* files changing togethe
 # Per-commit file sets: show which files change together in each commit
 git log --pretty=format:'--- %h %s' --name-only -30 | head -200
 
-# Directory co-occurrence: for each commit, list distinct directories touched
-git log --pretty=format:'COMMIT' --name-only -50 | awk '
-  /^COMMIT/ { if (NR>1) { for (d in dirs) printf "%s ", d; print "" } delete dirs; next }
-  /\// { sub(/\/[^\/]*$/, ""); dirs[$0]=1 }
+# Directory co-occurrence: for each commit, emit its sorted set of touched directories,
+# then count identical sets (sort -u makes the per-commit set order deterministic;
+# the END block flushes the final commit)
+git log --pretty=format:'COMMIT %h' --name-only -50 | awk '
+  /^COMMIT/ { c=$2; next }
+  /\// { sub(/\/[^\/]*$/, ""); print c, $0 }
+' | sort -u | awk '
+  { if ($1 != c) { if (c != "") print s; c = $1; s = "" } s = s " " $2 }
+  END { if (c != "") print s }
 ' | sort | uniq -c | sort -rn | head -20
 ```
 
@@ -351,25 +346,28 @@ suggests structural coupling.
 
 ### Phase 5: Evaluate TypeScript-Specific Smells
 
-For each `enum`:
-- Is it a string enum that could be a union type?
-- Is it a numeric enum with non-bitwise usage?
-- Is it imported across many modules creating coupling?
-
 For each `class`:
 - Does it have state? Does it have more than one public method?
 - Could it be a plain function or module?
 - Is it a singleton?
 
-For each `.then()` chain or callback:
-- Can it be converted to `async`/`await`?
-- How many nesting levels?
+(Enum design belongs to type-hunter; callback/promise-chain flattening belongs to simplicity-hunter's complex
+control flow — route, don't evaluate here.)
 
 ### Phase 6: Produce Report
 
 ## Output Format
 
-Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-smell-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Smell Hunter Audit — {date}
@@ -379,6 +377,8 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -424,18 +424,6 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 | - | -------- | ---- | -------- | ------- | ------ |
 | 1 | file:line | `Processor` | `lastResult` | `process()` only | Use discriminated union or local var |
 
-### Callback Hell
-
-| # | Location | Pattern | Depth | Action |
-| - | -------- | ------- | ----- | ------ |
-| 1 | file:line | `.then().then().then()` | 4 | Convert to async/await |
-
-### Enum Abuse
-
-| # | Location | Enum | Members | Action |
-| - | -------- | ---- | ------- | ------ |
-| 1 | file:line | `enum Status` | 3 string values | Replace with `type Status = 'active' \| 'inactive' \| 'suspended'` |
-
 ### Class Abuse
 
 | # | Location | Class | Methods | State | Action |
@@ -444,22 +432,19 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {data clumps with 5+ occurrences, primitive obsession causing type confusion, callback hell > 3 levels}
-2. **Should-fix**: {feature envy, shotgun surgery patterns, enum abuse, temporal coupling}
-3. **Consider**: {class abuse, comments as deodorant, temporary fields}
+1. **Critical**: {smells actively causing defects on production paths — e.g. swappable primitive IDs already mixed up}
+2. **High**: {data clumps with 5+ occurrences, primitive obsession causing type confusion}
+3. **Medium**: {feature envy, shotgun surgery patterns, temporal coupling}
+4. **Low**: {class abuse, comments as deodorant, temporary fields}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: classic code smells and TypeScript-specific antipatterns only.** Do not flag SOLID violations
-  (→ solid-hunter-ts), type design debt (→ type-hunter-ts), module boundary issues (→ boundary-hunter-ts), invariant
-  enforcement (→ invariant-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation
-  (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), performance
-  (→ perf-hunter-ts), test quality (→ test-hunter-ts), or AI-generated noise (→ slop-hunter-ts). If a finding is
-  better described as a SOLID principle violation, type design issue, or boundary problem, defer to the specialized
-  hunter.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: classic code smells and TypeScript-specific antipatterns only.** If a finding is better described by
+  another hunter's scope question (SOLID violation, type design, boundary problem, complexity, security, …), it
+  belongs to that hunter — do not flag it here.
 - **Evidence required.** Every finding must cite `file/path.ts:line` with the exact code.
 - **Context matters.** A smell in a prototype is less urgent than a smell in a payment system. Assess severity
   relative to the code's criticality and change frequency.

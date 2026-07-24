@@ -7,8 +7,7 @@ description: |
 
   Use when: tightening domain models, reducing type assertions, increasing type coverage,
   reviewing discriminated unions, or establishing a type-safety baseline before refactoring.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Invariant Hunter
@@ -55,11 +54,10 @@ assertions. The goal: **illegal states become unrepresentable, and consumers nar
    for untyped values, use `unknown` and narrow with type predicates, assertion functions, or schema validation — never
    `as T` without a preceding guard.
 
-9. **Fail fast.** When an invariant is violated, throw immediately — do not silently return a default or catch-and-log.
-   Invariant violations are programmer errors; they should crash loudly to surface bugs. Empty catches and broad
-   `catch(e) { log(e) }` blocks that only log without recovery or re-throw are never acceptable in non-boundary code.
-   (Try/catch at defined error boundaries — top-level handlers, middleware — with actual recovery logic is fine; see
-   Canonical Exceptions.)
+9. **Fail fast.** When an invariant is violated, throw immediately — do not silently return a default. Invariant
+   violations are programmer errors; they should crash loudly to surface bugs. (How errors are caught, suppressed,
+   or converted — empty catches, catch-and-log, boundary handling — is error-hunter's domain; do not hunt catch
+   blocks here.)
 
 10. **Eliminate type-system bypasses.** `as any`, `as unknown as T`, `@ts-ignore`, `@ts-expect-error` are escape hatches.
    Each must be justified (why necessary), scoped (boundary layers only), and temporary (tracked as tech debt).
@@ -77,7 +75,6 @@ Not every finding requires action. Document these but do not flag as "must-fix":
 | Runtime-guarded `as Extract<...>` | Cast immediately follows a runtime check |
 | Optional utility parameters | Helper accepting optional when domain type requires |
 | `??` / `?.` at true boundaries | External API responses, user input, config defaults |
-| Try/catch at error boundaries | Top-level handlers, middleware with defined recovery |
 | Type bypasses in boundary layers | FFI, library workarounds — with comment and tracked debt |
 | Schema-validated boundary parse | Zod/io-ts parse at trust boundary; type derived via `z.infer<>` |
 
@@ -146,7 +143,9 @@ Guards, assertions, and validations that could be compile-time guarantees.
 **Signals:**
 
 - `if (node.config)` where `config` should be guaranteed by the discriminant
-- Branded type candidates: IDs, units, validated strings used as plain `string`
+- Branded type candidates for *validated* state: values whose validity is established at a parse/validation
+  boundary (validated email, sanitized string, checked unit) but that travel downstream as plain `string`/`number`
+  — the brand should encode "already validated"
 - Empty-check branches that a `NonEmptyArray<T>` type would eliminate
 - Mutation guards that `Readonly<T>` would enforce
 - Object literals without `satisfies` where shape conformance is intended but unchecked
@@ -159,56 +158,83 @@ reusable type predicates (`function isUser(x: unknown): x is User`) or assertion
 boundary narrowing. Use `as const` for fixed configuration and lookup objects. If type complexity would be excessive,
 keep as runtime with documentation.
 
-### 6. Type-System Bypasses and Error Suppression
+**Ownership notes:** invariant-hunter owns the *adoption* of `satisfies`, `as const`, type predicates, and assertion
+functions as type-enforcement fixes. type-hunter owns schema-vs-manual-type *duplication* (parallel `z.infer`
+candidates) as design debt. Branded types for plain domain modeling (swappable IDs, units without a validation
+boundary) are smell-hunter's primitive obsession; brands for security-sensitive strings are security-hunter's.
 
-`as any`, `@ts-ignore`, double-casts, empty catch blocks, and catch-only-log patterns.
+### 6. Type-System Bypasses
+
+`as any`, `@ts-ignore`, and double-casts. (Empty catches and catch-only-log patterns are error-hunter's findings —
+except type bypasses *inside* catch blocks, e.g. `catch (e) { throw e as any }`, which stay here.)
 
 **Signals:**
 
 - `any` where `unknown` plus narrowing would preserve safety
 - `as any` or `as unknown as T` without justification comment
 - `@ts-ignore` / `@ts-expect-error` without explanation
-- `catch { }` or `catch(e) { console.log(e) }` with no recovery logic
 - Silent fallback (`return []`, `return null`) on invalid input instead of throwing
 
 **Action:** Replace `any` with `unknown` and narrow at use sites. Fix the underlying type issue. If bypass is necessary,
-add justification and track as tech debt. For catch blocks: remove if suppressing invariant violations, keep if at a
-defined error boundary with recovery.
+add justification and track as tech debt.
 
 ## Audit Workflow
 
 ### Phase 1: Establish Baseline
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: evaluating a union or an optional field
+   requires reading its consumers and construction sites, wherever they live.
 
 2. Record `tsconfig.json` strictness flags (`strict`, `strictNullChecks`, `exactOptionalPropertyTypes`,
    `noUncheckedIndexedAccess`). If key flags are off, note this prominently.
 
-3. Scan for patterns:
+3. Scan for patterns (against the target scope; `SCOPE=.` in codebase mode):
    ```bash
-   EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/**'
+   # Production-scan exclusions: dependencies, build output, generated code, tests
+   EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
-   rg --pcre2 '\bas\s+(?!const\b)' --type ts $EXCLUDE              # as assertions
-   rg --pcre2 '[a-zA-Z0-9_\]\)]\!(?!=)' --type ts $EXCLUDE         # non-null assertions
-   rg ':\s*any\b|<any>|\bas\s+any\b' --type ts $EXCLUDE             # any usage
-   rg '@ts-ignore|@ts-expect-error' --type ts                        # suppressions
-   rg '\?\.' --type ts $EXCLUDE                                      # optional chaining
-   rg '\?\?' --type ts $EXCLUDE                                      # nullish coalescing
-   rg 'as\s+(unknown|any)\s+as' --type ts $EXCLUDE                  # double-casts
-   rg -U 'catch\s*\([^)]*\)\s*\{\s*(//.*)?\s*\}' --type ts $EXCLUDE # empty catches
-   rg 'satisfies\s' --type ts $EXCLUDE                              # satisfies usage (adoption check)
-   rg 'asserts\s+\w+\s+is\s' --type ts $EXCLUDE                    # assertion functions
-   rg --pcre2 '\):\s*\w+\s+is\s+\w+' --type ts $EXCLUDE           # type predicates (value is T)
-   rg --pcre2 '\.json\(\)\)\s+as\s|\bJSON\.parse\([^)]+\)\s+as\s' --type ts $EXCLUDE  # cast without validation
+   # as assertions — the post-filter drops import/export alias lines (`import * as fs`, `import { foo as bar }`),
+   # which would otherwise dominate the matches
+   rg -n --pcre2 '\bas\s+(?!const\b)' --type ts $EXCLUDE -- $SCOPE | rg -v ':\s*(import|export)\b'
+   rg --pcre2 '[a-zA-Z0-9_\]\)]\!(?!=)' --type ts $EXCLUDE -- $SCOPE  # non-null assertions
+   rg ':\s*any\b|<any>|\bas\s+any\b' --type ts $EXCLUDE -- $SCOPE     # any usage
+   rg '@ts-ignore|@ts-expect-error' --type ts -- $SCOPE                # suppressions
+   rg '\?\.' --type ts $EXCLUDE -- $SCOPE                              # optional chaining
+   rg '\?\?' --type ts $EXCLUDE -- $SCOPE                              # nullish coalescing
+   rg 'as\s+(unknown|any)\s+as' --type ts $EXCLUDE -- $SCOPE          # double-casts
+   rg 'satisfies\s' --type ts $EXCLUDE -- $SCOPE                      # satisfies usage (adoption check)
+   rg 'asserts\s+\w+\s+is\s' --type ts $EXCLUDE -- $SCOPE            # assertion functions
+   rg --pcre2 '\):\s*\w+\s+is\s+\w+' --type ts $EXCLUDE -- $SCOPE   # type predicates (value is T)
+   rg --pcre2 '\.json\(\)\)\s+as\s|\bJSON\.parse\([^)]+\)\s+as\s' --type ts $EXCLUDE -- $SCOPE  # cast without validation
    ```
 
 4. Produce counts by category, grouped by module/layer.
@@ -237,10 +263,10 @@ For each runtime guard/assertion, classify:
 - **Keep as runtime**: external boundary, serialization, or excessive type complexity
 - **Remove**: redundant with existing type guarantees
 
-### Phase 5: Evaluate Error Handling and Bypasses
+### Phase 5: Evaluate Bypasses
 
-For each catch block: classify as Remove (no recovery) / Keep (defined boundary) / Move (too broad).
-For each type bypass: verify justification, scoping, and tech debt tracking.
+For each type bypass: verify justification, scoping, and tech debt tracking. (Catch-block classification is
+error-hunter's job; only type bypasses inside catch blocks are evaluated here.)
 
 ### Phase 6: Evaluate Ergonomics
 
@@ -250,7 +276,16 @@ For each type bypass: verify justification, scoping, and tech debt tracking.
 
 ## Output Format
 
-Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-invariant-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
+(e.g. `fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies
+an output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Invariant Hunter Audit — {date}
@@ -260,6 +295,8 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Compiler Context
 
@@ -276,7 +313,6 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 | `any` usage | {n} |
 | `@ts-ignore` / `@ts-expect-error` | {n} |
 | Double-cast bypasses | {n} |
-| Empty/logging-only catch blocks | {n} |
 | Optional fields in core types | {n} |
 | `??` in non-boundary code | {n} |
 | `?.` in non-boundary code | {n} |
@@ -303,7 +339,7 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 | - | --------- | -------- | ------- | -------- | ---------- |
 | 1 | ... | file:line | runtime guard | type constraint | low/med/high |
 
-## Error Handling and Bypasses
+## Type-System Bypasses
 
 | # | Location | Pattern | Classification | Action |
 | - | -------- | ------- | -------------- | ------ |
@@ -317,20 +353,18 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {narrowing failures, forced casts, silent fallbacks masking bugs}
-2. **Should-fix**: {defaults in wrong layer, always-present optionals, catch cleanup}
-3. **Consider**: {ergonomic improvements, extensibility prep}
+1. **Critical**: {unvalidated boundary casts on production input paths — `(await res.json()) as T` reachable by attackers}
+2. **High**: {narrowing failures, forced casts, silent fallbacks masking bugs}
+3. **Medium**: {defaults in wrong layer, always-present optionals}
+4. **Low**: {ergonomic improvements, extensibility prep}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: type invariants only.** Do not flag type design/architecture (→ type-hunter-ts), module boundary issues
-  (→ boundary-hunter-ts), structural complexity (→ simplicity-hunter-ts), class/interface design (→ solid-hunter-ts), missing
-  documentation (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), test
-  quality (→ test-hunter-ts), performance (→ perf-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding
-  doesn't answer "is this type tight enough?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: type invariants only.** If a finding doesn't answer "is this type tight enough?", it belongs to another
+  hunter — do not flag it here.
 - **Boundary with security-hunter**: `(json()) as T` and missing schema validation at trust boundaries are must-fix in
   both skills — invariant-hunter flags the unsafe cast and loose typing; security-hunter flags the exploitable boundary
   and recommends schema + `z.infer<>`. Do not duplicate full trust-boundary audits here.
@@ -346,5 +380,7 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
   runtime validation.
 - **Challenge assumptions.** If the current type design makes a deliberate trade-off, acknowledge it rather than
   mechanically flagging it.
-- **Prioritize**: dead fallbacks > representational correctness > discriminated unions > optional strictness flags.
-  Assess cascading effects — removing fallbacks may trigger `noUnusedParameters`; include cleanup.
+- **Prioritize** in this order: casts and silent fallbacks that mask real bugs; then making illegal states
+  unrepresentable (construction-boundary defaults, discriminated-union fixes); then union hygiene (exhaustiveness,
+  `?: never` guards); then strictness-flag adoption. Assess cascading effects — removing fallbacks may trigger
+  `noUnusedParameters`; include cleanup.

@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing class hierarchies, preparing for extension with new variants,
   reducing coupling between services, or improving testability of class-heavy code.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # SOLID Hunter
@@ -146,44 +145,69 @@ dependencies that represent behavior, not data construction.
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: counting implementors, call sites, and
+   `instanceof` consumers of an in-scope class requires searching the whole project.
 2. Identify whether the project uses class-based architecture (services, repositories, controllers) or
    functional-style composition. If primarily functional, note this in the report — SOLID findings will be limited.
 3. Identify the composition root (where dependencies are wired: DI container, app entry point, factory modules).
 
 ### Phase 2: Scan for SOLID Signals
 
+Run every scan against the target scope (`SCOPE=.` in codebase mode); consumer counting in Phase 3 searches
+project-wide.
+
 ```bash
-EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/** --glob !**/dist/**'
+# Production-scan exclusions: dependencies, build output, generated code, tests
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # Classes (starting point for SRP, DIP analysis)
-rg 'class\s+\w+' --type ts $EXCLUDE
+rg 'class\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
 # Interfaces (starting point for ISP analysis)
-rg 'interface\s+\w+' --type ts $EXCLUDE
+rg 'interface\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
 # extends / implements (inheritance and interface relationships)
-rg 'extends\s+\w+|implements\s+\w+' --type ts $EXCLUDE
+rg 'extends\s+\w+|implements\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
 # Direct instantiation in non-factory code (DIP signal)
-rg 'new\s+[A-Z]\w+\(' --type ts $EXCLUDE
+rg 'new\s+[A-Z]\w+\(' --type ts $EXCLUDE -- $SCOPE
 
 # instanceof checks (LSP signal — caller sniffing subtypes)
-rg 'instanceof\s+\w+' --type ts $EXCLUDE
+rg 'instanceof\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
 # switch/if-else chains on discriminants (OCP signal)
-rg 'switch\s*\(' --type ts $EXCLUDE
+rg 'switch\s*\(' --type ts $EXCLUDE -- $SCOPE
 
 # NotImplemented / Unsupported throws (LSP signal)
-rg -i 'not.?implemented|unsupported' --type ts $EXCLUDE
+rg -i 'not.?implemented|unsupported' --type ts $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Evaluate Each Class and Interface
@@ -209,7 +233,16 @@ For each inheritance relationship:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-solid-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # SOLID Hunter Audit — {date}
@@ -220,6 +253,8 @@ Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs fol
 - Files: {count or list}
 - Exclusions: {list}
 - Architecture style: {class-based / mixed / functional (limited findings)}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## SRP Violations — God Classes
 
@@ -253,20 +288,18 @@ Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs fol
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {god classes with 5+ responsibilities, broken substitution causing runtime errors}
-2. **Should-fix**: {rigid extension points touched by every new variant, fat interfaces with stub methods}
-3. **Consider**: {concrete dependency chains limiting testability, speculative interface splits}
+1. **Critical**: {broken substitution already causing runtime errors on production paths}
+2. **High**: {god classes with 5+ responsibilities, broken substitution}
+3. **Medium**: {rigid extension points touched by every new variant, fat interfaces with stub methods}
+4. **Low**: {concrete dependency chains limiting testability, speculative interface splits}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: class and interface design only.** Do not flag module boundary issues (→ boundary-hunter-ts), type invariants
-  (→ invariant-hunter-ts), type design (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation
-  (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), performance
-  (→ perf-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts).
-  If a finding doesn't answer "is this class/interface designed for change?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: class and interface design only.** If a finding doesn't answer "is this class/interface designed for
+  change?", it belongs to another hunter — do not flag it here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Pragmatism over dogma.** SOLID principles exist to manage change, not to achieve theoretical purity. A class with
   two related responsibilities that change together is fine. An interface with five methods that every implementor uses

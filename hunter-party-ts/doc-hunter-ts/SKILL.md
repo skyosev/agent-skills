@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing TypeScript code for long-term maintainability, onboarding new team members,
   auditing undocumented business logic, or preparing code for handoff.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Doc Hunter
@@ -44,6 +43,11 @@ comment restates what the code already says.**
 5. **Not every line needs a comment.** Straightforward code — standard patterns, clear naming, obvious control flow —
    should stand on its own. Only flag missing documentation where a competent reader of the language and domain would
    genuinely pause and ask "why?".
+
+**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+- Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
+- Comment present and the code trivial → slop-hunter (delete the redundant comment).
+- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
 
 ## What to Hunt
 
@@ -108,7 +112,9 @@ and under what conditions the workaround can be removed.
 
 ### 5. Implicit Ordering and Timing Dependencies
 
-Code where the execution order matters but isn't enforced by the type system or control flow.
+Ordering constraints that are *staying* — enforced by neither the type system nor control flow — and are
+undocumented. The coupling itself is smell-hunter's finding (temporal coupling, with a redesign recommendation);
+doc-hunter's role is the fallback when the constraint will remain: make it visible.
 
 **Signals:**
 
@@ -118,7 +124,8 @@ Code where the execution order matters but isn't enforced by the type system or 
 - Async operations that depend on a prior operation having completed (without explicit await)
 - Array operations that assume sorted input without asserting it
 
-**Action:** Flag for a comment explaining the ordering constraint and what breaks if violated.
+**Action:** Flag for a comment explaining the ordering constraint and what breaks if violated. Cross-reference
+smell-hunter's temporal-coupling finding when the API could instead be redesigned to make the order implicit.
 
 ### 6. Surprising Behavior and Edge Cases
 
@@ -154,38 +161,60 @@ internal functions, a brief inline comment suffices.
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: judging whether a "why" is recoverable
+   often requires reading the surrounding module, even outside the scope.
 2. Understand the project's domain — what business rules, algorithms, or protocols does it implement?
 3. Note existing documentation patterns (JSDoc style, inline comment conventions, README structure).
 
 ### Phase 2: Scan for Documentation Gaps
 
+Run every scan against the target scope (`SCOPE=.` in codebase mode).
+
 ```bash
-EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/** --glob !**/dist/**'
-
-# Magic numbers in logic (numeric literals in non-trivial expressions)
-rg --pcre2 '[^0-9][2-9]\d{1,}[^0-9]|0x[0-9a-f]{2,}|\d+\.\d+' --type ts $EXCLUDE
-
-# Regex literals (often need explanation)
-rg --pcre2 '/[^/]{15,}/' --type ts $EXCLUDE
-
-# Bitwise operations
-rg --pcre2 '<<|>>|[^&]&[^&]|[^|]\|[^|]|\^' --type ts $EXCLUDE
+# Production-scan exclusions: dependencies, build output, generated code, tests
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # setTimeout / setInterval with non-obvious delays
-rg 'setTimeout|setInterval|delay|sleep' --type ts $EXCLUDE
+rg 'setTimeout|setInterval|delay|sleep' --type ts $EXCLUDE -- $SCOPE
 
 # Workaround signals in code (but missing actual comments)
-rg -i 'hack|workaround|fixme|todo' --type ts $EXCLUDE
+rg -i 'hack|workaround|fixme|todo' --type ts $EXCLUDE -- $SCOPE
 ```
+
+There is deliberately **no grep for magic numbers, bitwise operations, or regex literals**: in TypeScript, `|`, `>>`,
+and `<` are regex-indistinguishable from union types and generics, and any digit pattern either misses common
+constants or matches every file — verified noise, not signal. Magic numbers have a durable detector in
+`@typescript-eslint/no-magic-numbers` (the extension rule; the base `no-magic-numbers` must be disabled alongside
+it): use its output if the project has it configured, and otherwise recommend enabling it *in the report* — do not
+install packages or reconfigure ESLint to run this audit.
 
 These are heuristic starting points. The primary method is **reading the code and identifying where a competent reader
 would ask "why?"** — no grep pattern can substitute for that judgment.
@@ -208,7 +237,16 @@ Classify each as:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-doc-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Doc Hunter Audit — {date}
@@ -218,6 +256,8 @@ Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folde
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -265,20 +305,21 @@ Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folde
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {undocumented business rules, workarounds without context, magic numbers in core logic}
-2. **Should-fix**: {non-obvious algorithms, surprising behavior, API contracts}
-3. **Consider**: {ordering dependencies, minor magic numbers in non-critical paths}
+1. **High**: {undocumented business rules, workarounds without context, magic numbers in core logic}
+2. **Medium**: {non-obvious algorithms, surprising behavior, API contracts}
+3. **Low**: {ordering dependencies, minor magic numbers in non-critical paths}
 ```
+
+(Missing documentation is rarely Critical on its own; use Critical only when the missing "why" conceals an active
+production hazard.)
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: missing "why" documentation only.** Do not flag redundant or verbose comments (→ slop-hunter-ts), structural
-  complexity (→ simplicity-hunter-ts), type invariants (→ invariant-hunter-ts), type design (→ type-hunter-ts), module boundary
-  issues (→ boundary-hunter-ts), class/interface design (→ solid-hunter-ts), security (→ security-hunter-ts), error handling
-  design (→ error-hunter-ts), performance (→ perf-hunter-ts), or test quality (→ test-hunter-ts). If a finding doesn't
-  answer "would a reader pause here and ask why?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: missing "why" documentation only.** If a finding doesn't answer "would a reader pause here and ask
+  why?", it belongs to another hunter — do not flag it here. Apply the comment ownership rule above for the
+  doc/slop/smell split.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Judgment over pattern-matching.** Grep can find magic numbers and regex literals, but only reading the code reveals
   whether the "why" is truly missing. Prioritize manual review of complex logic over mechanical scanning.

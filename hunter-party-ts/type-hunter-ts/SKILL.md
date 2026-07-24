@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing type definitions for maintainability, reducing type duplication, simplifying
   over-engineered type-level logic, or reorganizing type architecture after growth.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Type Hunter
@@ -145,20 +144,20 @@ Hand-rolled type utilities that replicate built-in TypeScript utility types.
 
 **Action:** Replace with the built-in. If the custom version has genuinely different semantics, document the difference.
 
-### 7. Missing Modern Type Features
+### 7. Schema-Type Duplication and Missed Literal Inference
 
-Opportunities to use `satisfies`, `as const`, or const type parameters to improve type safety without adding complexity.
+Parallel manual types that duplicate a runtime source of truth, and generic signatures that lose literal inference.
+(The *adoption* of `satisfies`, `as const`, and type predicates as enforcement fixes is invariant-hunter's — this
+hunter owns the *duplication* angle: two definitions of one shape.)
 
 **Signals:**
 
-- Object literals assigned to a typed variable where `satisfies` would catch typos without widening the type
-- Configuration objects or lookup tables without `as const`, losing literal type information
-- Generic functions that infer wide types where `const` type parameters would preserve literal inference
 - Validation schemas (Zod, io-ts) that could derive their TypeScript type via `z.infer<>` but instead maintain a
-  parallel manual type
+  parallel manual type — a drift trap identical to §1's type duplication
+- Generic functions that infer wide types where `const` type parameters would preserve literal inference
 
-**Action:** Apply `satisfies` for shape validation at assignment. Use `as const` on fixed data. Use const type
-parameters where literal inference matters. Derive types from schemas instead of maintaining parallel definitions.
+**Action:** Derive types from schemas (`type User = z.infer<typeof UserSchema>`) instead of maintaining parallel
+definitions. Use const type parameters where literal inference matters.
 
 ### 8. Redundant Explicit Annotations
 
@@ -209,57 +208,107 @@ Type definitions that have drifted into the wrong locations or accumulated into 
 **Action:** Collocate implementation-local types with their code. Centralize shared domain types. Split god type files
 by domain concept. Ensure one canonical import path per type.
 
+### 11. Enum Abuse
+
+Using TypeScript `enum` where a string literal union type would be simpler, more type-safe, and more idiomatic.
+
+**Signals:**
+
+- `enum Status { Active = 'active', Inactive = 'inactive' }` where `type Status = 'active' | 'inactive'` suffices
+- Numeric enums used for values that aren't truly ordered or bitwise-combinable
+- `enum` values compared with `===` against string literals (defeating the purpose of the enum)
+- `const enum` used for values that need to be preserved at runtime (e.g., serialized, logged)
+- `enum` with a single member
+- Enums used as object keys where `Record<Status, T>` with a union would be simpler
+- Enum values imported across the codebase creating coupling to the enum module
+
+**Action:** Replace with string literal union types for simple value sets. Use `as const` objects when you need both
+a type and runtime access — derive the union from the runtime value (see §2 Missing Derivations):
+```typescript
+const Status = { Active: 'active', Inactive: 'inactive' } as const;
+type Status = typeof Status[keyof typeof Status]; // 'active' | 'inactive'
+// or: const roles = ['admin', 'user'] as const; type Role = (typeof roles)[number];
+```
+Keep `enum` only when you need: reverse mapping (numeric enums), bitwise flags, or compatibility with non-TS
+consumers. When a recommendation would affect serialization behavior or non-TS consumers, note the risk in the
+Action column.
+
 ## Audit Workflow
 
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: duplication analysis (Phase 3) searches
+   the whole project for the canonical type and its variants.
 2. Identify type-heavy areas: dedicated type files, shared type directories, barrel exports.
 3. Note the project's type conventions (interface vs type alias, naming patterns, file organization).
 
 ### Phase 2: Scan for Type Design Signals
 
+Run every scan against the target scope (`SCOPE=.` in codebase mode).
+
 ```bash
-EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/** --glob !**/dist/**'
+# Production-scan exclusions: dependencies, build output, generated code, tests
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
-# Type definitions (interfaces, type aliases)
-rg '(interface|type)\s+\w+' --type ts $EXCLUDE
-
-# Generic type parameters
-rg --pcre2 '<\w+(\s+extends\s+\w+)?' --type ts $EXCLUDE
+# Type definitions (interfaces, type aliases) — the starting point for generics review too;
+# a bare `<\w+` scan is deliberately omitted (it matches JSX, comparisons, and every generic use)
+rg '(interface|type)\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
 # Conditional types (nested extends with ?)
-rg --pcre2 'extends\s+.*\?\s+' --type ts $EXCLUDE
+rg --pcre2 'extends\s+.*\?\s+' --type ts $EXCLUDE -- $SCOPE
 
 # Mapped types
-rg '\[.*\s+in\s+keyof' --type ts $EXCLUDE
+rg '\[.*\s+in\s+keyof' --type ts $EXCLUDE -- $SCOPE
 
 # Utility type usage (to measure adoption vs hand-rolling)
-rg '(Partial|Required|Readonly|Pick|Omit|Record|Exclude|Extract|NonNullable|ReturnType|Parameters)<' --type ts $EXCLUDE
+rg '(Partial|Required|Readonly|Pick|Omit|Record|Exclude|Extract|NonNullable|ReturnType|Parameters)<' --type ts $EXCLUDE -- $SCOPE
 
 # Large type files
-rg -c '(interface|type)\s+\w+' --type ts $EXCLUDE --sort path
+rg -c '(interface|type)\s+\w+' --type ts $EXCLUDE --sort path -- $SCOPE
 
-# satisfies usage (adoption check)
-rg 'satisfies\s' --type ts $EXCLUDE
+# Enum declarations (then evaluate for enum abuse, §11)
+rg 'enum\s+\w+' --type ts $EXCLUDE -- $SCOPE
 
-# as const usage
-rg 'as\s+const\b' --type ts $EXCLUDE
+# Schema definitions with potential parallel manual types (§7)
+rg 'z\.object\(|z\.infer<' --type ts $EXCLUDE -- $SCOPE
+
+# as const usage (derivation source check, §2)
+rg 'as\s+const\b' --type ts $EXCLUDE -- $SCOPE
 
 # Redundant explicit annotations on literals
-rg --pcre2 'const\s+\w+\s*:\s*(string|number|boolean)\s*=' --type ts $EXCLUDE
+rg --pcre2 'const\s+\w+\s*:\s*(string|number|boolean)\s*=' --type ts $EXCLUDE -- $SCOPE
 
 # Template literal types
-rg --pcre2 'type\s+\w+\s*=\s*`' --type ts $EXCLUDE
+rg --pcre2 'type\s+\w+\s*=\s*`' --type ts $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Analyze Duplication
@@ -281,7 +330,16 @@ For each explicit annotation: Does it add precision, or duplicate/widen inferenc
 
 ## Output Format
 
-Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-type-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Type Hunter Audit — {date}
@@ -291,6 +349,8 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -342,6 +402,12 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 | - | ---------- | -------- | ----- | ------ |
 | 1 | `eventName: string` | file:line | Missed opportunity | Use `` `user:${string}` `` union or template type |
 
+### Enum Abuse
+
+| # | Location | Enum | Members | Action |
+| - | -------- | ---- | ------- | ------ |
+| 1 | file:line | `enum Status` | 3 string values | Replace with `type Status = 'active' \| 'inactive' \| 'suspended'` |
+
 ### Type Organization
 
 | # | File | Location | Issue | Action |
@@ -350,22 +416,24 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {type duplication with drift risk, phantom generics adding complexity}
-2. **Should-fix**: {missing derivations, reinvented utilities, under-constrained generics}
-3. **Consider**: {type organization, over-engineered types with limited usage, template literal opportunities,
+1. **High**: {type duplication with drift risk, phantom generics adding complexity}
+2. **Medium**: {missing derivations, reinvented utilities, under-constrained generics, enum abuse}
+3. **Low**: {type organization, over-engineered types with limited usage, template literal opportunities,
    redundant annotations}
 ```
+
+(Type design debt is rarely Critical on its own; use Critical only when a drifted duplicate type is actively
+producing wrong behavior in production.)
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: type design and architecture only.** Do not flag type enforcement issues like loose optionality, unnecessary
-  casts, or discriminated union enforcement (→ invariant-hunter-ts), module boundary issues (→ boundary-hunter-ts),
-  class/interface design (→ solid-hunter-ts), structural complexity (→ simplicity-hunter-ts), missing documentation
-  (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design (→ error-hunter-ts), performance
-  (→ perf-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts).
-  If a finding doesn't answer "is this type well-designed and maintainable?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: type design and architecture only.** If a finding doesn't answer "is this type well-designed and
+  maintainable?", it belongs to another hunter — do not flag it here. Boundary with invariant-hunter: it owns type
+  *enforcement* (loose optionality, unnecessary casts, discriminated-union enforcement, and the adoption of
+  `satisfies` / `as const` / type predicates); this hunter owns type *structure* — duplication, derivation,
+  complexity, and organization.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact type definition.
 - **Complexity is sometimes justified.** Library-level types, framework constraints, and serialization boundaries may
   genuinely need advanced type-level logic. Flag the complexity, but acknowledge the justification.

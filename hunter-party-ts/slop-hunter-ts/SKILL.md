@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing AI-assisted TypeScript code before merge, cleaning up generated code,
   enforcing project style on new contributions, or reducing review noise.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Slop Hunter
@@ -53,6 +52,11 @@ Comments that narrate obvious behavior, restate function/variable names, or expl
 
 **Action:** Delete. If the code needs explanation, it should be rewritten for clarity first.
 
+**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+- Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
+- Comment present and the code trivial → slop-hunter (delete the redundant comment).
+- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
+
 ### 2. Verbose Documentation
 
 Over-documentation that adds noise without insight — typically AI-generated JSDoc on every function including trivial
@@ -79,7 +83,8 @@ Patterns that diverge from the project's established conventions in naming, form
 - Different file/folder organization than existing modules
 - Template strings where project uses concatenation (or vice versa)
 
-**Action:** Conform to existing project conventions. Cite the existing pattern as evidence.
+**Action:** Conform to existing project conventions. Cite the existing pattern as evidence. If a lint rule could
+enforce the convention, recommend enabling the rule rather than listing every occurrence.
 
 ### 4. Trivially Dead Code
 
@@ -115,34 +120,62 @@ references.
 ### Phase 1: Establish Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **diff**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (`SCOPE=.`)
+
+   If unspecified, default to **diff** — slop is introduced by new contributions, so the diff is this hunter's
+   natural surface (other hunters default to codebase).
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`). Established files outside
+   the surface are read as **context** — they define the conventions that new code is measured against.
 2. Identify the project's style conventions by examining established files outside the audit surface.
 3. Note the project's documentation patterns (JSDoc style, comment conventions, naming).
 
 ### Phase 2: Scan for Noise
 
-In **diff mode**, focus on added lines to isolate new noise from pre-existing patterns:
+Test files are deliberately **in scope** for this hunter — AI noise (redundant comments, narration, dead code)
+lands in tests as readily as in production code.
+
+In **diff mode**, focus on added lines to isolate new noise from pre-existing patterns (untracked files have no
+diff — scan them directly with the path-mode commands below):
 
 ```bash
-# Added comments
-git diff $(git merge-base HEAD $BASE)...HEAD | rg '^\+.*\/\/'
+# Added comments (committed + working tree)
+{ git diff "$BASE"...HEAD; git diff HEAD; } | rg '^\+.*\/\/'
 
-# Added JSDoc
-git diff $(git merge-base HEAD $BASE)...HEAD | rg '^\+.*(\*\*|@param|@returns)'
+# Added JSDoc (committed + working tree)
+{ git diff "$BASE"...HEAD; git diff HEAD; } | rg '^\+.*(\*\*|@param|@returns)'
 ```
 
 In **path/codebase mode**, scan the resolved surface directly:
 
 ```bash
-EXCLUDE='--glob !**/node_modules/** --glob !**/dist/**'
+# Dependencies, build output, and generated code excluded; tests stay in scope
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
 
 # Comments (then classify manually)
 rg '^\s*//' --type ts $EXCLUDE -- $SCOPE
@@ -173,7 +206,16 @@ For each finding, determine:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-slop-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Slop Hunter Audit — {date}
@@ -183,6 +225,8 @@ Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -218,20 +262,19 @@ Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs fold
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {style drift that breaks project conventions}
-2. **Should-fix**: {redundant comments, dead code}
-3. **Consider**: {verbose docs, AI verbal patterns}
+1. **Medium**: {style drift that breaks project conventions}
+2. **Low**: {redundant comments, dead code, verbose docs, AI verbal patterns}
 ```
+
+(Surface noise is by nature Low/Medium; Critical/High are available but a slop finding that rises to them — e.g.
+narration logging that leaks secrets — usually belongs to another hunter and should be cross-referenced.)
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: surface noise only.** Do not flag type invariants (→ invariant-hunter-ts), type design (→ type-hunter-ts),
-  structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts), class/interface design
-  (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts), error handling design
-  (→ error-hunter-ts), performance (→ perf-hunter-ts), or test quality (→ test-hunter-ts). If a finding doesn't answer
-  "is this noise?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: surface noise only.** If a finding doesn't answer "is this noise?", it belongs to another hunter — do
+  not flag it here. Apply the comment ownership rule above for the doc/slop/smell split.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
 - **Preserve intent.** Flag noise, not substance. If a comment captures genuine design intent, keep it regardless of
   verbosity.

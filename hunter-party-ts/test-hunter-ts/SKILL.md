@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing TypeScript test suites for reliability, reducing false-positive test
   failures, improving coverage of critical business logic, or cleaning up test debt.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Test Hunter
@@ -127,6 +126,8 @@ boundary conditions in core logic first.
 ### 6. Test Duplication and Setup Bloat
 
 Repeated setup, shared fixtures, and copied test blocks that make the suite fragile and hard to maintain.
+Duplication *within test code* is owned here (simplicity-hunter owns duplication across production code and
+excludes test files).
 
 **Signals:**
 
@@ -151,47 +152,87 @@ Patterns that cause tests to pass or fail non-deterministically.
 - Network calls in unit tests without mocking
 - Assertions on `Date.now()` or random values without seeding
 - File system operations without cleanup (leftover state between runs)
+- HTTP servers, database clients, or connections created in tests without `close()` in `afterAll`/`afterEach`
+  (leaks state between runs and hangs test processes)
 
 **Action:** Replace timing waits with polling/event-based assertions. Mock `Date.now()` and random sources. Isolate
-tests from shared state and external dependencies.
+tests from shared state and external dependencies. Close every server/client opened by a test in a teardown hook.
 
 ## Audit Workflow
 
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop — deleted test files are themselves
+   coverage-relevant context. If the resolved surface exceeds what can be read within the context budget, report
+   the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. The prod-to-test mapping is inherently two-sided **context**: for in-scope production files,
+   read their tests even when the tests are outside the scope (and vice versa); anchor coverage-gap findings at
+   the in-scope file.
 2. Identify the test framework (Jest, Vitest, Mocha, Playwright, etc.) and test file conventions.
 3. Identify critical business logic modules — these are the priority for coverage analysis.
 
 ### Phase 2: Scan for Test Quality Signals
 
-```bash
-# Test files
-rg -l '(describe|it|test)\s*\(' --type ts --glob '**/*.test.*' --glob '**/*.spec.*'
+Run every scan against the target scope (`SCOPE=.` in codebase mode). Test *discovery* deliberately has no test
+exclusions — this hunter audits the files the other hunters exclude.
 
-# Assertion-free tests (test blocks without expect/assert)
-rg -U 'it\s*\([^)]+,\s*(async\s+)?(\([^)]*\)\s*=>|function)\s*\{[^}]*\}' --type ts --glob '**/*.test.*'
+```bash
+# Base exclusions only: dependencies, build output, generated code — tests stay in
+EXCLUDE_BASE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
+
+# Test-discovery globs — covers *.test.*, *.spec.*, __tests__/ directories, and *.e2e.* (Playwright et al.)
+TESTS='--glob **/*.test.* --glob **/*.spec.* --glob **/__tests__/** --glob **/*.e2e.*'
+
+# Test files
+rg -l '(describe|it|test)\s*\(' --type ts $EXCLUDE_BASE $TESTS -- $SCOPE
+
+# Short test bodies — inspect manually. This CANNOT detect the absence of assertions
+# (a regex has no per-test-block AST view); the durable detector is the `expect-expect`
+# rule from eslint-plugin-jest / eslint-plugin-vitest. Use its output if configured;
+# otherwise recommend enabling it in the report — do not install or reconfigure lint.
+rg -U 'it\s*\([^)]+,\s*(async\s+)?(\([^)]*\)\s*=>|function)\s*\{[^}]*\}' --type ts $EXCLUDE_BASE $TESTS -- $SCOPE
 
 # Mock density (count mock calls per file)
-rg -c '(jest|vi)\.(mock|fn|spyOn)' --type ts --glob '**/*.test.*' --sort path
+rg -c '(jest|vi)\.(mock|fn|spyOn)' --type ts $EXCLUDE_BASE $TESTS --sort path -- $SCOPE
 
 # Snapshot tests
-rg 'toMatchSnapshot|toMatchInlineSnapshot' --type ts --glob '**/*.test.*'
+rg 'toMatchSnapshot|toMatchInlineSnapshot' --type ts $EXCLUDE_BASE $TESTS -- $SCOPE
 
 # Timing-dependent patterns
-rg 'setTimeout|sleep|delay|waitFor' --type ts --glob '**/*.test.*'
+rg 'setTimeout|sleep|delay|waitFor' --type ts $EXCLUDE_BASE $TESTS -- $SCOPE
 
-# Shared mutable state
-rg '(let|var)\s+\w+' --type ts --glob '**/*.test.*' | rg -v 'const'
+# Module-level mutable state in test files (word-bounded so 'outlet'/'variable' don't match)
+rg '\b(let|var)\s+\w+' --type ts $EXCLUDE_BASE $TESTS -- $SCOPE
+
+# Unclosed servers/clients in tests (check for close() in afterAll/afterEach)
+rg 'listen\(|createServer\(|new PrismaClient\(|new Redis\(' --type ts $EXCLUDE_BASE $TESTS -- $SCOPE
 
 # Coverage gaps: source files without corresponding test files
 # (compare src file list to test file list — project-specific)
@@ -217,7 +258,16 @@ For each test file:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-test-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-test-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels (including the Risk column) and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Test Hunter Audit — {date}
@@ -228,6 +278,8 @@ Save as `YYYY-MM-DD-test-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - Files: {count or list}
 - Test framework: {Jest / Vitest / Mocha / etc.}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Coverage Gaps
 
@@ -275,20 +327,19 @@ Save as `YYYY-MM-DD-test-hunter-audit-{$LLM-name}.md` in the project's docs fold
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {missing coverage on critical paths, assertion-free tests, flaky indicators}
-2. **Should-fix**: {brittle tests, over-mocking, missing edge cases}
-3. **Consider**: {test duplication, snapshot overuse, weak assertions on non-critical code}
+1. **Critical**: {zero coverage on payment/auth/data-integrity paths where a bug ships silently}
+2. **High**: {missing coverage on critical paths, assertion-free tests, flaky indicators}
+3. **Medium**: {brittle tests, over-mocking, missing edge cases}
+4. **Low**: {test duplication, snapshot overuse, weak assertions on non-critical code}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: test quality and coverage only.** Do not flag production code issues — type invariants (→ invariant-hunter-ts),
-  type design (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts),
-  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts),
-  error handling design (→ error-hunter-ts), performance (→ perf-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "does this test catch real bugs?", it doesn't belong
-  here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: test quality and coverage only.** If a finding doesn't answer "does this test catch real bugs?", it
+  belongs to another hunter — do not flag it here. Duplication within test code is owned here; duplication across
+  production code is simplicity-hunter's.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact test code.
 - **Risk-based prioritization.** Coverage gaps in payment logic matter more than coverage gaps in a logging utility.
   Weight findings by the business risk of the untested code.

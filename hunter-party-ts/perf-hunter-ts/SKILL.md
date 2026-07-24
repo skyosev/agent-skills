@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing async correctness, auditing resource lifecycle, hunting N+1 query
   patterns, checking connection pool configuration, or profiling structurally inefficient code.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Perf Hunter
@@ -34,9 +33,10 @@ is truly non-blocking, every resource has a bounded lifecycle, and every data ac
    or blocking I/O call in a request handler stalls *all* concurrent requests. Every I/O operation inside a request
    path must be non-blocking.
 
-2. **Concurrency is the point.** Independent async operations should run concurrently. Sequential `await` on
-   independent calls wastes the concurrency that async provides. Use `Promise.all()`, `Promise.allSettled()`, or
-   `Promise.race()` for independent operations.
+2. **Concurrency is the point — but bounded.** Independent async operations should run concurrently. Sequential
+   `await` on independent calls wastes the concurrency that async provides. Use `Promise.all()`,
+   `Promise.allSettled()`, or `Promise.race()` for independent operations — and bound the fan-out when the
+   collection is unbounded (see §10): pools, sockets, and file descriptors are finite.
 
 3. **Batch over loop.** One query returning N results is almost always faster than N queries returning 1 result each.
    The network round-trip dominates, not the query complexity.
@@ -140,7 +140,9 @@ conditions.
 - `fetch()` responses where `.body` is not consumed or cancelled (keeps connection open)
 - Event listeners added without corresponding `removeListener()` or `AbortSignal` cleanup
 - `setInterval()` / `setTimeout()` without `clearInterval()` / `clearTimeout()` on cleanup
-- HTTP servers or database clients created in tests without `close()` in `afterAll`
+
+(Unclosed servers/clients *in test files* are test-hunter's finding — its flaky-test category owns in-test resource
+cleanup; this hunter's scans exclude test files.)
 
 **Action:** Use `try/finally`, `using` (TC39 Explicit Resource Management), `stream.pipeline()`, or `AbortController`
 for cleanup. For resources that span scopes, register cleanup in shutdown handlers. Prefer `using` declarations where
@@ -178,8 +180,8 @@ Loading entire result sets or files into memory as arrays when streaming or incr
 - `response.json()` on API responses with unbounded array payloads
 
 **Action:** Use database cursors, `LIMIT`/`OFFSET` pagination, or streaming queries. Use `fs.createReadStream()`
-with line-by-line processing. Use async iterators and process items incrementally. For JSON, consider streaming
-parsers (`JSONStream`, `stream-json`).
+with line-by-line processing. Use async iterators and process items incrementally. For JSON, consider a streaming
+parser (`stream-json` — current and ships TypeScript declarations; avoid the long-unmaintained `JSONStream`).
 
 ### 7. Missing Connection Pool Configuration
 
@@ -237,63 +239,106 @@ Event listener accumulation, closure captures, and reference retention that prev
 Avoid capturing request-scoped data in long-lived closures. Use `WeakMap` for caches keyed by objects. Clear
 intervals in cleanup/destroy methods.
 
+### 10. Unbounded Concurrency
+
+Concurrent fan-out over collections with no size limit — the mirror image of sequential awaits. `Promise.all()`
+over thousands of items opens thousands of simultaneous connections, exhausting pools, sockets, and file
+descriptors.
+
+**Signals:**
+
+- `Promise.all(items.map(async item => ...))` where `items` is unbounded (user-supplied lists, full table reads)
+- Concurrent fetch/query fan-out with no concurrency limiter and no batching
+- Recursive async spawning (crawlers, tree walkers) without a semaphore
+- Fan-out against a pooled resource where the fan-out width exceeds the pool size
+
+**Action:** Bound the fan-out: `p-limit` / `p-map` with a `concurrency` option, or process in fixed-size batches.
+Match the bound to the downstream resource (pool size, rate limit).
+
 ## Audit Workflow
 
 ### Phase 1: Identify Runtime Architecture
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: N+1 call-chain tracing and pool/client
+   sharing checks follow code wherever it lives, even outside the scope.
 2. Determine the runtime and framework (Express, Fastify, NestJS, Next.js, serverless, etc.) and whether async
    patterns are prevalent.
 3. Note the ORM / database client in use (Prisma, TypeORM, Drizzle, Knex, pg, etc.) and caching strategy.
 
 ### Phase 2: Scan for Performance Signals
 
+Run every scan against the target scope (`SCOPE=.` in codebase mode).
+
 ```bash
-EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/** --glob !**/dist/**'
+# Production-scan exclusions: dependencies, build output, generated code, tests
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # Event loop blocking
-rg 'readFileSync|writeFileSync|existsSync|accessSync|mkdirSync|readdirSync' --type ts $EXCLUDE
-rg 'execSync|spawnSync' --type ts $EXCLUDE
+rg 'readFileSync|writeFileSync|existsSync|accessSync|mkdirSync|readdirSync' --type ts $EXCLUDE -- $SCOPE
+rg 'execSync|spawnSync' --type ts $EXCLUDE -- $SCOPE
 
-# Sequential awaits
-rg -U 'await.*\n\s*\w+\s*=\s*await' --type ts $EXCLUDE
+# Sequential awaits (assignment-form; also inspect any two adjacent await lines)
+rg -U 'await[^\n]*\n\s*(const |let |var )?\w+\s*=?\s*await' --type ts $EXCLUDE -- $SCOPE
 
 # N+1 patterns (loop with await/query inside)
-rg -U 'for\s*\(.*of\s+\w+\)\s*\{[^}]*await' --type ts $EXCLUDE
-rg 'findUnique\(|findOneBy\(|findOne\(' --type ts $EXCLUDE
+rg -U 'for\s*\(.*of\s+\w+\)\s*\{[^}]*await' --type ts $EXCLUDE -- $SCOPE
+rg 'findUnique\(|findOneBy\(|findOne\(' --type ts $EXCLUDE -- $SCOPE
+
+# Unbounded concurrency fan-out
+rg 'Promise\.all(Settled)?\(\s*\w+\.map\(' --type ts $EXCLUDE -- $SCOPE
 
 # Unclosed resources
-rg 'createReadStream|createWriteStream' --type ts $EXCLUDE
-rg 'pool\.connect\(' --type ts $EXCLUDE
+rg 'createReadStream|createWriteStream' --type ts $EXCLUDE -- $SCOPE
+rg 'pool\.connect\(' --type ts $EXCLUDE -- $SCOPE
 
 # Unbounded caches
-rg 'new Map\(\)|new Set\(\)' --type ts $EXCLUDE
-rg --pcre2 'cache\s*[:=]\s*new\s+Map' --type ts $EXCLUDE
+rg 'new Map\(\)|new Set\(\)' --type ts $EXCLUDE -- $SCOPE
+rg --pcre2 'cache\s*[:=]\s*new\s+Map' --type ts $EXCLUDE -- $SCOPE
 
 # Eager materialization
-rg '\.toArray\(\)' --type ts $EXCLUDE
-rg 'readFile\(' --type ts $EXCLUDE
+rg '\.toArray\(\)' --type ts $EXCLUDE -- $SCOPE
+rg 'readFile\(' --type ts $EXCLUDE -- $SCOPE
 
 # Connection pool configuration
-rg 'new Pool\(|PrismaClient\(|createConnection\(|createPool\(' --type ts $EXCLUDE
+rg 'new Pool\(|PrismaClient\(|createConnection\(|createPool\(' --type ts $EXCLUDE -- $SCOPE
 
 # Hot path operations
-rg 'new RegExp\(' --type ts $EXCLUDE
-rg 'JSON\.parse|JSON\.stringify' --type ts $EXCLUDE
+rg 'new RegExp\(' --type ts $EXCLUDE -- $SCOPE
+rg 'JSON\.parse|JSON\.stringify' --type ts $EXCLUDE -- $SCOPE
 
 # Memory leak patterns
-rg '\.on\(|\.addEventListener\(' --type ts $EXCLUDE
-rg 'setInterval\(' --type ts $EXCLUDE
-rg 'setMaxListeners\(0\)' --type ts $EXCLUDE
+rg '\.on\(|\.addEventListener\(' --type ts $EXCLUDE -- $SCOPE
+rg 'setInterval\(' --type ts $EXCLUDE -- $SCOPE
+rg 'setMaxListeners\(0\)' --type ts $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Evaluate Async Correctness
@@ -324,8 +369,16 @@ For each opened resource:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-perf-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs
-folder exists).
+Save as `YYYY-MM-DD-perf-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Perf Hunter Audit — {date}
@@ -338,6 +391,8 @@ folder exists).
 - Framework: {Express / Fastify / NestJS / Next.js / etc.}
 - ORM: {Prisma / TypeORM / Drizzle / none}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Runtime Architecture
 
@@ -402,23 +457,26 @@ folder exists).
 | - | -------- | ------- | ------ |
 | 1 | file:line | `.on('data', ...)` without `.off()` | Clean up on request end |
 
+### Unbounded Concurrency
+
+| # | Location | Fan-Out | Bound | Action |
+| - | -------- | ------- | ----- | ------ |
+| 1 | file:line | `Promise.all(userIds.map(fetchUser))` | none | Use `p-limit` (e.g. 10) or batch |
+
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {event loop blocking in request path, N+1 in critical paths, unclosed resources, unbounded caches}
-2. **Should-fix**: {sequential awaits, missing pool configuration, eager materialization of large datasets}
-3. **Consider**: {hot path optimizations, memory leak patterns, streaming conversions for moderate datasets}
+1. **Critical**: {event loop blocking or unbounded fan-out already exhausting production resources}
+2. **High**: {event loop blocking in request path, N+1 in critical paths, unclosed resources, unbounded caches, unbounded concurrency}
+3. **Medium**: {sequential awaits, missing pool configuration, eager materialization of large datasets}
+4. **Low**: {hot path optimizations, memory leak patterns, streaming conversions for moderate datasets}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: performance and resource management only.** Do not flag type invariants (→ invariant-hunter-ts), type design
-  (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts),
-  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security
-  (→ security-hunter-ts), error handling design (→ error-hunter-ts), test quality (→ test-hunter-ts), or cosmetic
-  style (→ slop-hunter-ts). If a finding doesn't answer "does this code waste resources or block unnecessarily?",
-  it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: performance and resource management only.** If a finding doesn't answer "does this code waste resources
+  or block unnecessarily?", it belongs to another hunter — do not flag it here.
 - **Boundary with simplicity-hunter**: simplicity-hunter flags unnecessary abstractions and dead code from a structural
   perspective. Perf-hunter flags patterns that are structurally correct but operationally wasteful (blocking I/O, N+1,
   unbounded caches). If the code is over-engineered, it's simplicity. If it's under-optimized, it's perf.

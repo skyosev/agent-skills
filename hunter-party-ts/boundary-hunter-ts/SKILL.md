@@ -6,8 +6,7 @@ description: |
 
   Use when: reviewing module structure, shrinking public API surface, enforcing encapsulation,
   preparing modules for replacement, or untangling tight coupling between layers.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Boundary Hunter
@@ -15,6 +14,13 @@ disable-model-invocation: true
 Audit TypeScript code for **module boundary violations** — places where implementation details leak through exports,
 where modules reach into each other's internals, or where coupling makes replacement impossible. The goal: **every
 module is a black box, replaceable from its interface alone.**
+
+**Tool-assisted variant:** when machine-verifiable evidence is required — CI gates on architecture contracts,
+validating a large refactor, or any audit where grep heuristics are insufficient proof — follow
+[`references/boundary-hunter-tooling.md`](references/boundary-hunter-tooling.md) instead of Phases 2–4 below: it
+derives cycles, direction violations, deep imports, and export-surface findings from `dependency-cruiser` and
+`ts-morph` instead of regex. Use this SKILL.md's judgment-based workflow for exploratory reviews and when the
+tools are unavailable.
 
 ## When to Use
 
@@ -170,15 +176,36 @@ dependency injection, factory, or configuration.
 ### Phase 1: Map Module Boundaries
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Graph analysis is inherently project-wide: build the module map, import graph, and consumer
+   counts over the whole project as **context** — a cycle or dead export cannot be established from changed files
+   alone. Report only violations that involve the **target scope** (`$SCOPE`), anchored at an in-scope file.
 2. **Identify modules.** A module is a directory with an `index.ts` or a standalone file that other files import from.
    If the project uses `package.json` `exports` or tsconfig path aliases to define boundaries, use those as the source
    of truth. List all modules and their barrel files.
@@ -221,7 +248,8 @@ For each module's consumers:
 1. **Deep imports.** Are consumers importing from internal paths (bypassing the barrel)?
    Replace `(module-name)` and `@alias` below with actual module names and tsconfig path aliases from the project:
    ```bash
-   EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/**'
+   # Production-scan exclusions: dependencies, build output, generated code, tests
+   EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
    # Relative deep imports (substitute actual module directory name)
    rg --pcre2 "from ['\"]\..*/(module-name)/(?!index)" --type ts $EXCLUDE
@@ -251,7 +279,16 @@ For each module, answer:
 
 ## Output Format
 
-Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit-{model-name}.md` — `{model-name}` is the
+executing model's short name (e.g. `fable-5`) — in the project's docs folder (or project root if no docs folder
+exists). If the caller specifies an output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Boundary Hunter Audit — {date}
@@ -261,6 +298,8 @@ Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.m
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Module Map
 
@@ -323,20 +362,18 @@ Produce a single report. Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.m
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {runtime cycles, direction violations, external leaks in domain layer}
-2. **Should-fix**: {dead exports, leaked internals, deep imports}
-3. **Consider**: {replaceability improvements, barrel cleanup, train wrecks}
+1. **Critical**: {runtime cycles breaking production behavior (initialization-order failures)}
+2. **High**: {runtime cycles, direction violations, external leaks in domain layer}
+3. **Medium**: {dead exports, leaked internals, deep imports}
+4. **Low**: {replaceability improvements, barrel cleanup, train wrecks}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: module boundaries only.** Encapsulation, coupling, dependency direction, API surface. Do not flag type
-  invariants (→ invariant-hunter-ts), type design (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts),
-  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security (→ security-hunter-ts),
-  error handling design (→ error-hunter-ts), performance (→ perf-hunter-ts), test quality (→ test-hunter-ts), or
-  cosmetic style (→ slop-hunter-ts). If a finding doesn't answer "is this boundary clean?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: module boundaries only.** Encapsulation, coupling, dependency direction, API surface. If a finding
+  doesn't answer "is this boundary clean?", it belongs to another hunter — do not flag it here.
 - **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code or import statement.
 - **Architecture-first.** Understand the project's intended layering before flagging violations. Ask if unclear.
 - **Pragmatism over purism.** Not every coupling is worth breaking. Small utilities shared between two closely related

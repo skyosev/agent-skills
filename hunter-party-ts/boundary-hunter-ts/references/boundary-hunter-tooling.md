@@ -1,16 +1,9 @@
----
-name: boundary-hunter-tooling
-description: |
-  Audit TypeScript module boundaries with machine-verifiable evidence from dependency-cruiser and ts-morph only.
-  Detect cycles, direction violations, deep imports, dead exports, leaked internals, and external type leaks.
+# Boundary Hunter Tooling — Tool-Assisted Audit Reference
 
-  Use when: gating CI on architecture contracts, validating refactors, or replacing regex-only boundary audits.
----
-
-# Boundary Hunter Tooling
-
-Companion skill to `boundary-hunter`. This one is strict: boundary findings must come from `dependency-cruiser` and
-`ts-morph`, not grep heuristics.
+Reference for `boundary-hunter-ts` (linked from its SKILL.md). This workflow is strict: boundary findings must come
+from `dependency-cruiser` and `ts-morph`, not grep heuristics. Use it when machine-verifiable evidence is required —
+gating CI on architecture contracts, validating refactors, or replacing regex-only boundary audits. For exploratory
+reviews, the parent SKILL.md's judgment-based workflow applies instead.
 
 ## Scope
 
@@ -20,30 +13,42 @@ Companion skill to `boundary-hunter`. This one is strict: boundary findings must
 
 ## Tool Roles
 
-1. **`dependency-cruiser`**: dependency graph truth
+1. **`dependency-cruiser`**: dependency graph evidence
    - Runtime and type-only cycles
    - Layer direction violations
    - Deep import violations
    - Fan-in and fan-out hotspots
-2. **`ts-morph`**: symbol/API truth
+2. **`ts-morph`**: symbol/API evidence
    - Public export inventory
    - Dead export candidates with real reference counts
    - Exported signatures that leak external package types
    - Exports that expose implementation details
+
+Both tools provide **stronger static evidence than grep** — not completeness. Dynamic access, reflection, and
+consumers outside the analyzed project remain invisible to them.
 
 ## Preconditions
 
 1. Confirm a TypeScript project root and `tsconfig.json` path.
 2. Confirm source roots (for example `{app_source}`, `packages/*/src`).
 3. Confirm layer map with the requester before enforcing direction rules.
-4. Ensure tools are available:
+4. Resolve the tools — in this order, never mutating the project:
    ```bash
+   # Prefer an existing local installation
    npm ls dependency-cruiser ts-morph --depth=0
    ```
-   If missing, request approval and install:
+   If both are present locally, use the project's binaries (`node_modules/.bin/depcruise`).
+   If missing, install **explicitly pinned versions into a scratch prefix** — do not modify the project's
+   `package.json` or lockfile, and do not run unpinned remote code via `npx --yes`:
    ```bash
-   npm install -D dependency-cruiser ts-morph
+   SCRATCH={scratch-dir}   # e.g. the session scratchpad; never the project root
+   npm install --prefix "$SCRATCH" dependency-cruiser@{pinned-version} ts-morph@{pinned-version}
+   DEPCRUISE="$SCRATCH/node_modules/.bin/depcruise"
    ```
+   Place the ts-morph script (Phase 3) under `$SCRATCH` as well so its `require`/`import` of `ts-morph` resolves
+   against the scratch `node_modules`. If a project-local install is truly unavoidable, get explicit approval
+   first, report the mutation in the audit output, and leave cleanup to the user — do **not** auto-revert
+   `package.json`/lockfile with `git checkout`, which can clobber pre-existing uncommitted edits.
 
 Before running the audit, fill these placeholders for the target codebase:
 
@@ -63,7 +68,7 @@ Before running the audit, fill these placeholders for the target codebase:
 Create a temporary rules file (customize path regexes to the current codebase):
 
 ```js
-// /tmp/{agent-name}-depcruise.boundary.cjs
+// {scratch-dir}/{agent-name}-depcruise.boundary.cjs
 /** @type {import('dependency-cruiser').IConfiguration} */
 module.exports = {
     // Fill placeholders before running:
@@ -71,10 +76,23 @@ module.exports = {
     // {infrastructure_layers_regex}, {source_roots_regex}, {test_exclude_regex}
     forbidden: [
         {
-            name: 'no-circular-runtime',
+            // Flags only cycles that are not purely type-only. `viaOnly` matches against
+            // ALL modules in the cycle; a bare `to.dependencyTypesNot` would filter only the
+            // directly examined edge and misclassify mixed cycles.
+            name: 'no-circular-at-runtime',
             severity: 'error',
             from: {},
-            to: { circular: true, dependencyTypesNot: ['type-only'] }
+            to: {
+                circular: true,
+                viaOnly: { dependencyTypesNot: ['type-only'] }
+            }
+        },
+        {
+            // Complement: cycles consisting purely of type-only edges (triage separately)
+            name: 'no-circular-type-only',
+            severity: 'warn',
+            from: {},
+            to: { circular: true }
         },
         {
             name: 'no-domain-to-application',
@@ -95,12 +113,17 @@ module.exports = {
             to: { path: '^{app_source}/{infrastructure_layers_regex}' }
         },
         {
+            // Cross-MODULE deep imports only. The `from` capture group + `$1` in `to.pathNot`
+            // exempts same-module sibling imports; a bare `path: '^{app_source}/.+/.+'` from
+            // anywhere would flag virtually every import two directories deep.
+            // Where package.json `exports` or tsconfig aliases define real entrypoints, derive
+            // the allowed paths from those instead.
             name: 'no-deep-imports',
             severity: 'warn',
-            from: {},
+            from: { path: '^{app_source}/([^/]+)/' },
             to: {
-                path: '^{app_source}/.+/.+',
-                pathNot: 'index\\.ts$'
+                path: '^{app_source}/[^/]+/.+',
+                pathNot: '^{app_source}/$1/|/index\\.ts$'
             }
         }
     ],
@@ -115,27 +138,34 @@ module.exports = {
 };
 ```
 
+Cycles flagged by `no-circular-at-runtime` are runtime findings; cycles flagged **only** by `no-circular-type-only`
+are type-only findings. The must-fix/should-fix triage below depends on this distinction, so verify both rules fire
+as expected on a known cycle before trusting the classification.
+
 ### Phase 2: Run Graph Analysis
+
+`$DEPCRUISE` is the resolved binary from Preconditions (project-local or scratch-prefix — never bare `npx`).
 
 ```bash
 # Human-readable rule breaches
-npx depcruise --config /tmp/{agent-name}-depcruise.boundary.cjs --output-type err-long {source_roots_args} \
-  > /tmp/{agent-name}-depcruise.boundary.err.txt
+"$DEPCRUISE" --config {scratch-dir}/{agent-name}-depcruise.boundary.cjs --output-type err-long {source_roots_args} \
+  > {scratch-dir}/{agent-name}-depcruise.boundary.err.txt
 
 # Full machine-readable graph (for cycle/fan-in/fan-out analysis)
-npx depcruise --config /tmp/{agent-name}-depcruise.boundary.cjs --output-type json {source_roots_args} \
-  > /tmp/depcruise.boundary.json
+"$DEPCRUISE" --config {scratch-dir}/{agent-name}-depcruise.boundary.cjs --output-type json {source_roots_args} \
+  > {scratch-dir}/{agent-name}-depcruise.boundary.json
 ```
 
 Required outputs from this phase:
 
-- Rule violations by rule name (`no-circular-runtime`, direction rules, deep imports)
+- Rule violations by rule name (`no-circular-at-runtime`, direction rules, deep imports)
 - Runtime cycles vs type-only cycles
 - Module fan-in/fan-out list (top 10 each)
 
 ### Phase 3: Run `ts-morph` Export Surface Audit
 
-Write and run a temporary `ts-morph` script that outputs JSON evidence. The script must:
+Write and run a temporary `ts-morph` script (placed under the scratch prefix) that outputs JSON evidence. The
+script must:
 
 1. Load the project from `tsconfig.json`.
 2. Identify module entry files (`index.ts` and package entrypoints from `exports`).
@@ -145,13 +175,18 @@ Write and run a temporary `ts-morph` script that outputs JSON evidence. The scri
 6. Flag exported signatures that include types imported from package specifiers (non-relative imports).
 7. Emit `file:line` for each finding.
 
+**Library caveat:** zero references *inside the audited project* does not prove a published library's export is
+dead — external consumers are invisible to this analysis. Exempt package-entrypoint exports (anything reachable
+from `package.json` `exports`/`main`/`types`) from the dead-export table, or label them "unused internally" rather
+than "dead".
+
 Run the script and persist output:
 
 ```bash
-node /tmp/{agent-name}-ts-morph-boundary-audit.mjs \
+node {scratch-dir}/{agent-name}-ts-morph-boundary-audit.mjs \
   --tsconfig tsconfig.json \
   --roots {source_roots_csv} \
-  --out /tmp/{agent-name}-tsmorph.boundary.json
+  --out {scratch-dir}/{agent-name}-tsmorph.boundary.json
 ```
 
 ### Phase 4: Correlate and Classify Findings
@@ -165,7 +200,10 @@ Correlate both artifacts before reporting:
 
 ## Output Format
 
-Save report as `Y-m-d-boundary-audit-tooling-{agent-name}.md` (for example under `docs/dev-specs/`).
+This reference feeds the parent skill's report. Standalone, save as
+`Y-m-d-boundary-audit-tooling-{model-name}.md` (for example under `docs/dev-specs/`); in a boundary-hunter run,
+merge the findings into its report instead. Severity uses the suite's Critical / High / Medium / Low definitions
+from the parent SKILL.md.
 
 ```md
 # Boundary Audit (Tool-Assisted) — {date}
@@ -175,11 +213,11 @@ Save report as `Y-m-d-boundary-audit-tooling-{agent-name}.md` (for example under
 - tsconfig: {path}
 - Source roots: {list}
 - Layer map used: {list}
-- depcruise config: {/tmp/{agent-name}-depcruise.boundary.cjs}
+- depcruise config: {scratch-dir}/{agent-name}-depcruise.boundary.cjs
 - Artifacts:
-  - {/tmp/{agent-name}-depcruise.boundary.err.txt}
-  - {/tmp/{agent-name}-depcruise.boundary.json}
-  - {/tmp/{agent-name}-tsmorph.boundary.json}
+  - {scratch-dir}/{agent-name}-depcruise.boundary.err.txt
+  - {scratch-dir}/{agent-name}-depcruise.boundary.json
+  - {scratch-dir}/{agent-name}-tsmorph.boundary.json
 
 ## Dependency Graph Findings (`dependency-cruiser`)
 
@@ -208,9 +246,9 @@ Save report as `Y-m-d-boundary-audit-tooling-{agent-name}.md` (for example under
 
 ### Dead Export Candidates
 
-| # | Module | Export | Kind | External Consumers | Evidence  |
-| - | ------ | ------ | ---- | ------------------ | --------- |
-| 1 | ...    | ...    | ...  | 0                  | file:line |
+| # | Module | Export | Kind | External Consumers | Entrypoint-Exempt? | Evidence  |
+| - | ------ | ------ | ---- | ------------------ | ------------------ | --------- |
+| 1 | ...    | ...    | ...  | 0                  | no                 | file:line |
 
 ### External Type Leaks in Public Signatures
 
@@ -226,16 +264,20 @@ Save report as `Y-m-d-boundary-audit-tooling-{agent-name}.md` (for example under
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: runtime cycles, inward direction violations, external type leaks into `{domain_layer}` /
+1. **Critical / High**: runtime cycles, inward direction violations, external type leaks into `{domain_layer}` /
    `{application_layer}` APIs
-2. **Should-fix**: type-only cycles without justification, deep imports, dead exports with zero consumers
-3. **Consider**: API simplification for replaceability and fan-out reduction
+2. **Medium**: type-only cycles without justification, deep imports, dead exports with zero consumers (and not
+   entrypoint-exempt)
+3. **Low**: API simplification for replaceability and fan-out reduction
 ```
 
 ## Operating Constraints
 
-- **Tool purity**: findings must be derived from `dependency-cruiser` and `ts-morph` outputs.
-- **No grep-only evidence**: regex search can help orient exploration but is insufficient as proof.
+- **Tool-derived findings**: boundary findings must be derived from `dependency-cruiser` and `ts-morph` outputs.
+- **No grep-only evidence**: regex search can help orient exploration but is insufficient as proof in this
+  workflow. (The parent SKILL.md's grep-based phases are the exploratory alternative, not part of this one.)
 - **Evidence required**: every finding includes `file:line` and artifact source.
 - **Architecture-first**: do not enforce direction rules without an explicit layer map.
-- **No implementation edits**: this skill ends at an audit report.
+- **No project mutation**: tools run from an existing local install or a pinned scratch prefix; any unavoidable
+  project-local install needs approval and is reported.
+- **No implementation edits**: this workflow ends at an audit report.

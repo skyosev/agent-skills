@@ -9,8 +9,7 @@ description: |
   Use when: reviewing error handling strategy, tightening exception design before deployment,
   auditing error propagation paths, standardizing API error responses, or establishing
   error handling conventions after rapid feature development.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Error Hunter
@@ -74,6 +73,7 @@ Not every finding requires action. Document these but do not flag as "must-fix":
 | Generic `Error` in pure utilities | Input validation in pure utility functions with no domain context |
 | `catch` in test helpers | Test utilities where failure mode doesn't matter |
 | `.catch()` on fire-and-forget | Explicitly discarded promises with documented reason |
+| `void promise` with a justifying comment | `void` is the sanctioned explicit-discard marker — acceptable when a comment states why discarding is safe |
 
 ## What to Hunt
 
@@ -94,7 +94,10 @@ without `Error` suffix.
 
 **Action:** Create a domain error hierarchy: `ApplicationError` → `NotFoundError`, `ValidationError`,
 `AuthorizationError`, etc. Use `Error` suffix consistently. Keep the hierarchy shallow (2–3 levels max). Set the
-`name` property in constructors for reliable `instanceof` checks after minification.
+`name` property explicitly in constructors so logs and serialized errors keep the domain name after minification
+(`instanceof` itself is unaffected by minification — it uses the prototype chain, not `name`). Only if the audited
+tsconfig targets below ES2015: add `Object.setPrototypeOf(this, new.target.prototype)` in constructors — ES5-downleveled
+`Error` subclasses otherwise get a broken prototype chain and `instanceof` checks fail.
 
 ### 2. Missing Error Cause Chaining
 
@@ -158,7 +161,7 @@ recovery or re-throw.
 - `return []` or `return {}` or `return null` as silent fallbacks in catch blocks
 - `.catch(() => undefined)` on promises without documented reason
 - `continue` in catch blocks inside loops, silently skipping failed items without reporting
-- Swallowed promise rejections: `promise.catch(noop)` or `void promise`
+- Swallowed promise rejections: `promise.catch(noop)`, or `void promise` without a justifying comment
 
 **Action:** Either recover meaningfully or re-throw. At error boundaries (middleware, top-level handlers), catch and
 convert to appropriate response. Elsewhere, let errors propagate.
@@ -236,22 +239,51 @@ Unhandled promise rejections, missing `.catch()` on fire-and-forget promises, an
 
 **Action:** Always `await` or attach `.catch()` to promises. Use `Promise.allSettled()` when partial failures
 should not reject the aggregate. Add `unhandledRejection` handler at process level. Wrap Express async handlers
-with middleware that forwards rejections to `next(error)`.
+with middleware that forwards rejections to `next(error)`. Treat `void promise` as the sanctioned explicit-discard
+marker — flag it only when no comment justifies the discard.
+
+The durable detector for this category is `@typescript-eslint/no-floating-promises` (requires type-aware linting via
+`parserOptions.project`; its default `ignoreVoid: true` matches the `void`-as-sanctioned-discard policy above). If the
+project has it configured, use its output. If not, recommend enabling it *in the report* — do not install packages or
+reconfigure ESLint to run this audit.
 
 ## Audit Workflow
 
 ### Phase 1: Map Error Boundaries
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or layers
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context** to discover, validate, or trace a finding.
+   For this hunter: the Phase 2 scans run against the target scope; boundary mapping (steps 2–4 below) and
+   propagation tracing (Phases 4–5) read the whole project as context, because in-scope throw sites propagate
+   through boundaries that may lie outside the scope.
 
 2. Identify error boundaries: API route handlers, middleware, CLI entry points, background job runners, event
    listeners, webhook handlers, GraphQL resolvers. These are the places where errors should be caught and converted.
@@ -263,45 +295,50 @@ with middleware that forwards rejections to `next(error)`.
 
 ### Phase 2: Scan for Error Handling Signals
 
+These scans produce candidates for manual validation, run against the target scope (`SCOPE=.` in codebase mode).
+
 ```bash
-EXCLUDE='--glob !**/*.test.* --glob !**/*.spec.* --glob !**/node_modules/** --glob !**/dist/**'
+# Production-scan exclusions: dependencies, build output, generated code, tests
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # Error hierarchy
-rg 'class\s+\w+Error\s+extends' --type ts $EXCLUDE
-rg 'throw new Error\(' --type ts $EXCLUDE
-rg 'throw new TypeError\(' --type ts $EXCLUDE
+rg 'class\s+\w+Error\s+extends' --type ts $EXCLUDE -- $SCOPE
+rg 'throw new Error\(' --type ts $EXCLUDE -- $SCOPE
+rg 'throw new TypeError\(' --type ts $EXCLUDE -- $SCOPE
 
 # Missing cause chaining
-rg -U 'catch\s*\([^)]*\)\s*\{[^}]*throw new' --type ts $EXCLUDE
+rg -U 'catch\s*\([^)]*\)\s*\{[^}]*throw new' --type ts $EXCLUDE -- $SCOPE
 
 # Return-undefined in catch
-rg -U 'catch\s*\([^)]*\)\s*\{[^}]*return (undefined|null)' --type ts $EXCLUDE
+rg -U 'catch\s*\([^)]*\)\s*\{[^}]*return (undefined|null)' --type ts $EXCLUDE -- $SCOPE
 
 # Broad/empty catch blocks
-rg -U 'catch\s*\([^)]*\)\s*\{\s*\}' --type ts $EXCLUDE
-rg -U 'catch\s*\([^)]*\)\s*\{\s*console\.(log|error)' --type ts $EXCLUDE
+rg -U 'catch\s*\([^)]*\)\s*\{\s*\}' --type ts $EXCLUDE -- $SCOPE
+rg -U 'catch\s*\([^)]*\)\s*\{\s*console\.(log|error)' --type ts $EXCLUDE -- $SCOPE
 
 # Silent suppression via .catch()
-rg '\.catch\s*\(\s*\(\s*\)\s*=>' --type ts $EXCLUDE
-rg '\.catch\s*\(\s*noop\s*\)' --type ts $EXCLUDE
+rg '\.catch\s*\(\s*\(\s*\)\s*=>' --type ts $EXCLUDE -- $SCOPE
+rg '\.catch\s*\(\s*noop\s*\)' --type ts $EXCLUDE -- $SCOPE
 
 # Throw non-Error values
-rg --pcre2 'throw\s+["\x27`\d]' --type ts $EXCLUDE
+rg --pcre2 'throw\s+["\x27`\d]' --type ts $EXCLUDE -- $SCOPE
 
 # Error handler registrations
-rg 'app\.use\(.*err.*req.*res.*next' --type ts $EXCLUDE
-rg '@Catch\(' --type ts $EXCLUDE
-rg 'onError|errorHandler|handleError' --type ts $EXCLUDE
+rg 'app\.use\(.*err.*req.*res.*next' --type ts $EXCLUDE -- $SCOPE
+rg '@Catch\(' --type ts $EXCLUDE -- $SCOPE
+rg 'onError|errorHandler|handleError' --type ts $EXCLUDE -- $SCOPE
 
 # Error.cause usage (adoption check)
-rg 'cause:' --type ts $EXCLUDE | rg -v 'node_modules'
+rg 'cause:' --type ts $EXCLUDE -- $SCOPE
 
-# Promise handling
-rg -U 'async\s+\w+.*\{[^}]*\}(?!.*\.(catch|then))' --type ts $EXCLUDE
-rg 'unhandledRejection' --type ts $EXCLUDE
+# Promise handling candidates — inspect each for a terminal .catch(), an awaiting caller,
+# or a justifying comment; the durable detector is @typescript-eslint/no-floating-promises (see §9)
+rg -n '\.then\(' --type ts $EXCLUDE -- $SCOPE
+rg -n '\bvoid\s+[A-Za-z_$][\w$.]*\(' --type ts $EXCLUDE -- $SCOPE
+rg 'unhandledRejection' --type ts $EXCLUDE -- $SCOPE
 
 # Error response shapes
-rg --pcre2 'res\.(status|json|send)\(.*error|message|detail' --type ts $EXCLUDE
+rg 'res\.(status|json|send)\(.*(error|message|detail)' --type ts $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Evaluate Error Design
@@ -336,8 +373,16 @@ chain during wrapping.
 
 ## Output Format
 
-Save as `YYYY-MM-DD-error-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs
-folder exists).
+Save as `YYYY-MM-DD-error-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Error Hunter Audit — {date}
@@ -348,6 +393,8 @@ folder exists).
 - Files: {count or list}
 - Framework: {Express / Fastify / NestJS / Next.js / tRPC / etc.}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Error Boundary Map
 
@@ -418,20 +465,18 @@ folder exists).
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {silent suppression, missing cause chaining, unhandled domain errors at API boundary, promise gaps}
-2. **Should-fix**: {missing hierarchy, return-undefined antipattern, over-broad try/catch}
-3. **Consider**: {error response standardization, Result type adoption, poor error context}
+1. **Critical**: {silently swallowed errors on production paths, unhandled rejections that crash or corrupt state}
+2. **High**: {silent suppression, missing cause chaining, unhandled domain errors at API boundary, promise gaps}
+3. **Medium**: {missing hierarchy, return-undefined antipattern, over-broad try/catch}
+4. **Low**: {error response standardization, Result type adoption, poor error context}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: error handling design only.** Do not flag type invariants (→ invariant-hunter-ts), type design
-  (→ type-hunter-ts), structural complexity (→ simplicity-hunter-ts), module boundary issues (→ boundary-hunter-ts),
-  class/interface design (→ solid-hunter-ts), missing documentation (→ doc-hunter-ts), security patterns other than
-  error-related (→ security-hunter-ts), test quality (→ test-hunter-ts), or cosmetic style (→ slop-hunter-ts). If a
-  finding doesn't answer "is this error handling well-designed?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: error handling design only.** If a finding doesn't answer "is this error handling well-designed?", it
+  belongs to another hunter — do not flag it here.
 - **Boundary with invariant-hunter**: invariant-hunter owns type-system bypasses (`as any`, `@ts-ignore`,
   `@ts-expect-error`) and loose optionality from a type-enforcement perspective. Error-hunter owns how errors are
   structured, propagated, caught, and converted — the *design* of the error handling strategy. If the finding is about
