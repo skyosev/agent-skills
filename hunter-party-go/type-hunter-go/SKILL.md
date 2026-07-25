@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing type definitions for maintainability, reducing type duplication,
   simplifying over-engineered generics, or reorganizing type architecture after growth.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Type Hunter
@@ -131,19 +130,22 @@ Generic type parameters with no meaningful constraint.
 
 **Action:** Add the tightest constraint that matches actual usage. If the generic accepts only one type, remove it.
 
-### 6. Type Alias and Named Type Confusion
+### 6. Type Alias and Named Type Mechanics
 
-Misuse of type aliases (`=`) vs named types, or missing named types where they'd add clarity.
+Misuse of type aliases (`=`) vs named types — the *mechanics* of the two constructs. **Ownership:** raw primitives
+used for domain identifiers (UserID, OrderID, Email) are smell-hunter's primitive-obsession finding, which owns the
+domain-modeling analysis; this section covers only alias-vs-named-type construct misuse.
 
 **Signals:**
 
-- Type alias used where a named type with methods would be more appropriate
-- Raw `string` or `int` used for domain identifiers (UserID, OrderID) where a named type would prevent mixing
+- Type alias used where a named type with methods would be more appropriate (`type UserID = string` prevents
+  nothing — the alias is identical to `string`)
 - Named type that never has methods and doesn't prevent misuse — just adds indirection
 - `type X = Y` alias that serves no purpose (not for gradual migration)
 
-**Action:** Use named types for domain identifiers to prevent mixing. Use type aliases only for gradual migration or
-compatibility layers. Remove aliases that add no value.
+**Action:** Use named types (not aliases) where compile-time separation is the goal. Use type aliases only for
+gradual migration or compatibility layers. Remove aliases and method-less named types that add no value. Route
+"this primitive should be a domain type" findings to smell-hunter.
 
 ### 7. Type Organization Debt
 
@@ -170,49 +172,75 @@ Split large type files by domain concept. Ensure one canonical import path per t
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: duplication analysis compares in-scope
+   types against types anywhere in the module.
 2. Identify type-heavy areas: dedicated type files, domain packages, shared type directories.
 3. Note the project's type conventions (struct naming, enum patterns, generic usage).
 
 ### Phase 2: Scan for Type Design Signals
 
+Run every scan against the target scope (`SCOPE=.` in codebase mode):
+
 ```bash
-EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/**'
+# Generated code excluded (authoritative marker: a "// Code generated .* DO NOT EDIT." line before the
+# first non-comment text; globs approximate) — .pb.go structs would otherwise read as "type duplication".
+EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Struct definitions
-rg 'type\s+\w+\s+struct' --type go $EXCLUDE
+rg 'type\s+\w+\s+struct' --type go $EXCLUDE -- $SCOPE
 
 # Interface definitions
-rg 'type\s+\w+\s+interface' --type go $EXCLUDE
+rg 'type\s+\w+\s+interface' --type go $EXCLUDE -- $SCOPE
 
 # Generic type parameters
-rg '\[\w+\s+(any|comparable|\w+\.\w+)' --type go $EXCLUDE
+rg '\[\w+\s+(any|comparable|\w+\.\w+)' --type go $EXCLUDE -- $SCOPE
 
 # Type aliases
-rg 'type\s+\w+\s*=' --type go $EXCLUDE
+rg 'type\s+\w+\s*=' --type go $EXCLUDE -- $SCOPE
 
 # Named types (non-struct, non-interface)
-rg 'type\s+\w+\s+(string|int|int64|float64|uint)' --type go $EXCLUDE
+rg 'type\s+\w+\s+(string|int|int64|float64|uint)' --type go $EXCLUDE -- $SCOPE
 
 # iota enums
-rg 'iota' --type go $EXCLUDE
+rg 'iota' --type go $EXCLUDE -- $SCOPE
 
-# Embedding
-rg '^\s+\*?\w+$' --type go $EXCLUDE
+# Embedding: no reliable regex exists — bare-identifier patterns match return/break/continue, and
+# qualified embeds (sync.Mutex, pkg.Client) don't match at all. Enumerate the `type X struct` sites
+# found above and inspect their bodies by eye.
 
 # Large type files
-rg -c 'type\s+\w+\s+' --type go $EXCLUDE --sort path
+rg -c 'type\s+\w+\s+' --type go $EXCLUDE --sort path -- $SCOPE
 
-# sync.Mutex embedding
-rg 'sync\.(Mutex|RWMutex)' --type go $EXCLUDE
+# sync.Mutex usage (triage embedding-vs-field manually)
+rg 'sync\.(Mutex|RWMutex)' --type go $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Analyze Duplication
@@ -231,7 +259,16 @@ For each enum pattern: Is the type safe? Is there validation?
 
 ## Output Format
 
-Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-type-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Type Hunter Audit — {date}
@@ -241,6 +278,8 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -274,11 +313,11 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 | - | ------------- | -------- | --------- | ------ |
 | 1 | `process[T any]()` | file:line | `T` always comparable | Add `comparable` constraint |
 
-### Type Alias Misuse
+### Type Alias / Named Type Mechanics
 
 | # | Type | Location | Issue | Action |
 | - | ---- | -------- | ----- | ------ |
-| 1 | `type UserID = string` | file:line | Alias doesn't prevent mixing with OrderID | Use named type |
+| 1 | `type UserID = string` | file:line | Alias is identical to string — prevents nothing | Use named type (`type UserID string`) |
 
 ### Type Organization
 
@@ -288,20 +327,18 @@ Save as `YYYY-MM-DD-type-hunter-audit-{$LLM-name}.md` in the project's docs fold
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {type duplication with drift risk, embedding leaking sensitive API surface}
-2. **Should-fix**: {generic overuse, poor enum patterns, under-constrained generics}
-3. **Consider**: {type organization, alias cleanup, named type introduction}
+1. **High**: {type duplication with drift risk, embedding leaking sensitive API surface}
+2. **Medium**: {generic overuse, poor enum patterns, under-constrained generics}
+3. **Low**: {type organization, alias cleanup}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: type design and architecture only.** Do not flag type safety issues like unchecked errors or nil panics
-  (→ invariant-hunter-go), package boundary issues (→ boundary-hunter-go), interface design (→ solid-hunter-go), structural
-  complexity (→ simplicity-hunter-go), missing documentation (→ doc-hunter-go), security (→ security-hunter-go), test quality
-  (→ test-hunter-go), or cosmetic style (→ slop-hunter-go). If a finding doesn't answer "is this type well-designed and
-  maintainable?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: type design and architecture only.** If a finding doesn't answer "is this type well-designed and
+  maintainable?", it belongs to another hunter — do not flag it here. Named boundary: primitive obsession (raw
+  primitives for domain concepts) belongs to smell-hunter-go; §6 here keeps only alias-vs-named-type mechanics.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact type definition.
 - **Complexity is sometimes justified.** Library-level generics, serialization boundaries, and framework types may
   genuinely need advanced type constructs. Flag the complexity, but acknowledge the justification.

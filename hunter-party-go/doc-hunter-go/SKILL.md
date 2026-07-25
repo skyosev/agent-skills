@@ -8,8 +8,7 @@ description: |
 
   Use when: reviewing Go code for long-term maintainability, onboarding new team members,
   auditing undocumented business logic, or preparing code for handoff.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Doc Hunter
@@ -50,6 +49,11 @@ exported symbol has a godoc comment, and no comment restates what the code alrea
 6. **Not every line needs a comment.** Straightforward code — standard patterns, clear naming, obvious control flow —
    should stand on its own. Only flag missing documentation where a competent Go developer would genuinely pause and
    ask "why?".
+
+**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+- Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
+- Comment present and the code trivial → slop-hunter (delete the redundant comment).
+- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
 
 ## What to Hunt
 
@@ -130,7 +134,10 @@ and under what conditions the workaround can be removed.
 
 ### 6. Implicit Ordering and Timing Dependencies
 
-Code where the execution order matters but isn't enforced by the type system or control flow.
+Ordering constraints that are *staying* — enforced by neither the type system nor control flow — and are
+undocumented. The coupling itself is smell-hunter's finding (temporal coupling, with a redesign recommendation);
+doc-hunter's role is the fallback when the constraint will remain (redesign rejected or out of scope): make it
+visible.
 
 **Signals:**
 
@@ -140,7 +147,8 @@ Code where the execution order matters but isn't enforced by the type system or 
 - `sync.Once` usage where the initialization dependency isn't obvious
 - Deferred function calls where the order of defers matters for correctness
 
-**Action:** Flag for a comment explaining the ordering constraint and what breaks if violated.
+**Action:** Flag for a comment explaining the ordering constraint and what breaks if violated. Cross-reference
+smell-hunter's temporal-coupling finding when the API could instead be redesigned to make the order implicit.
 
 ### 7. Surprising Behavior and Edge Cases
 
@@ -189,53 +197,91 @@ Exported API that would benefit from executable examples for documentation and t
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: judging whether a "why" is recoverable
+   often requires reading the surrounding package, even outside the scope.
 2. Understand the project's domain — what business rules, algorithms, or protocols does it implement?
 3. Note existing documentation patterns (godoc style, inline comment conventions, README structure).
 
 ### Phase 2: Scan for Documentation Gaps
 
-```bash
-EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/**'
+**Godoc coverage — delegate before scanning.** grep cannot enumerate exported Go symbols reliably (exported
+*methods* and grouped `const (...)`/`var (...)` declarations — the dominant forms — don't match line-anchored
+patterns). Prefer a configured documentation linter: golangci-lint's `godoclint`, or `revive` with its `exported`
+rule (the golint successor for missing comments on exported symbols). Use its output when the project has one
+configured, and otherwise recommend enabling it *in the report* — never install or reconfigure tools for the audit.
+Absent a linter, enumerate procedurally when a Go toolchain is available: list packages with `go list ./...` and
+fail if discovery fails; inspect each with `go doc -all -cmd <pkg>` (`-cmd` because `package main`'s exported
+symbols are otherwise hidden; if scripting through xargs, guard empty input — GNU xargs runs the command once on
+empty input without `-r`). Treat `go doc` output as strong evidence for missing documentation, not ground truth.
+If no toolchain: state the blind spots and review the exported surface manually.
 
-# Exported symbols (check for preceding comment)
-rg '^func\s+[A-Z]|^type\s+[A-Z]|^var\s+[A-Z]|^const\s+[A-Z]' --type go $EXCLUDE
+Run every scan against the target scope (`SCOPE=.` in codebase mode):
+
+```bash
+# Design/doc-scan exclusions: vendor, testdata, tests, and generated code (authoritative marker:
+# a "// Code generated .* DO NOT EDIT." line before the first non-comment text; globs approximate).
+# Generated files are exactly where godoc findings would flood the report — the fix is "regenerate", never hand-editing.
+EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Package comments
-rg '^// Package\s+\w+' --type go $EXCLUDE
+rg '^// Package\s+\w+' --type go $EXCLUDE -- $SCOPE
 
-# Magic numbers in logic
-rg --pcre2 '[^0-9][2-9]\d{1,}[^0-9]|0x[0-9a-f]{2,}|\d+\.\d+' --type go $EXCLUDE
+# Magic numbers — incomplete discovery aid, not a detector. Where golangci-lint's mnd is configured,
+# use it (AST-aware). This regex matches numbers inside comments/strings and misses scientific notation;
+# it deliberately ignores single-digit values as noise control — flagging every digit would drown the report.
+rg --pcre2 '([^0-9.]|^)\d{2,}([^0-9.]|$)|0x[0-9a-f]{2,}|\d+\.\d+' --type go $EXCLUDE -- $SCOPE
 
 # Regex literals
-rg 'regexp\.(Compile|MustCompile)\(' --type go $EXCLUDE
+rg 'regexp\.(Compile|MustCompile)\(' --type go $EXCLUDE -- $SCOPE
 
-# Bitwise operations
-rg --pcre2 '<<|>>|[^&]&[^&]|[^|]\|[^|]|\^' --type go $EXCLUDE
+# Bitwise operations (shifts and xor only — a bare '&' pattern matches Go's ubiquitous address-of;
+# note &^ is bit-clear, not a typo, when triaging xor matches)
+rg --pcre2 '<<|>>|\^' --type go $EXCLUDE -- $SCOPE
 
 # Timeouts and delays
-rg 'time\.Sleep|time\.After|time\.NewTicker|Timeout|timeout' --type go $EXCLUDE
+rg 'time\.Sleep|time\.After|time\.NewTicker|Timeout|timeout' --type go $EXCLUDE -- $SCOPE
 
 # Workaround signals
-rg -i 'hack|workaround|fixme|todo|XXX' --type go $EXCLUDE
+rg -i 'hack|workaround|fixme|todo|XXX' --type go $EXCLUDE -- $SCOPE
 
 # Example functions
-rg '^func Example' --type go --glob '*_test.go'
+rg '^func Example' --type go --glob '*_test.go' -- $SCOPE
 
 # Build constraints
-rg '//go:build|// \+build' --type go $EXCLUDE
+rg '//go:build|// \+build' --type go $EXCLUDE -- $SCOPE
 ```
 
-These are heuristic starting points. The primary method is **reading the code and identifying where a competent reader
-would ask "why?"** — no grep pattern can substitute for that judgment.
+These are heuristic starting points — candidate generators with stated blind spots, not detectors. The primary
+method is **reading the code and identifying where a competent reader would ask "why?"** — no grep pattern can
+substitute for that judgment.
 
 ### Phase 3: Evaluate Each Gap
 
@@ -256,7 +302,16 @@ Classify each as:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-doc-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Doc Hunter Audit — {date}
@@ -266,6 +321,8 @@ Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folde
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -326,19 +383,22 @@ Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folde
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {missing godoc on public API, undocumented business rules, workarounds without context}
-2. **Should-fix**: {non-obvious algorithms, surprising behavior, API contracts, magic numbers in core logic}
-3. **Consider**: {ordering dependencies, example functions, minor magic numbers in non-critical paths}
+1. **High**: {undocumented business rules, workarounds without context, missing godoc on heavily used public API}
+2. **Medium**: {non-obvious algorithms, surprising behavior, API contracts, magic numbers in core logic}
+3. **Low**: {ordering dependencies, example functions, minor magic numbers in non-critical paths}
 ```
+
+(Missing documentation is rarely Critical on its own; use Critical only when the missing "why" conceals an active
+production hazard.)
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: missing "why" documentation only.** Do not flag redundant or verbose comments (→ slop-hunter-go), structural
-  complexity (→ simplicity-hunter-go), type safety (→ invariant-hunter-go), type design (→ type-hunter-go), package boundary
-  issues (→ boundary-hunter-go), interface design (→ solid-hunter-go), security (→ security-hunter-go), or test quality
-  (→ test-hunter-go). If a finding doesn't answer "would a reader pause here and ask why?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: missing "why" documentation only.** If a finding doesn't answer "would a reader pause here and ask
+  why?", it belongs to another hunter — do not flag it here. Apply the comment ownership rule above for the
+  doc/slop/smell split; temporal coupling with a viable redesign belongs to smell-hunter (§6 here keeps only
+  constraints that are staying).
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Godoc conventions matter.** Go has specific documentation conventions: comments start with the symbol name, package
   comments start with "Package X", examples are executable test functions. Follow these conventions in recommendations.
@@ -347,4 +407,4 @@ Save as `YYYY-MM-DD-doc-hunter-audit-{$LLM-name}.md` in the project's docs folde
 - **Suggest, don't prescribe.** The "Suggested Comment" column is a starting point. The author knows the actual "why" —
   the audit identifies where it's missing, not what it should say.
 - **Respect domain expertise.** Code that looks obscure to a generalist may be obvious to a domain expert. When
-  uncertain, flag as "Consider" rather than "Must-fix".
+  uncertain, flag as Low rather than High.

@@ -7,8 +7,7 @@ description: |
 
   Use when: tightening domain models, reducing panic risks, increasing error handling
   discipline, or establishing a safety baseline before refactoring.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Invariant Hunter
@@ -133,7 +132,11 @@ Structs whose zero value is invalid but can be created without a constructor.
 - `sync.Mutex` or `sync.WaitGroup` copied after first use (detected via `go vet`)
 
 **Action:** Provide a constructor. Make the struct unexported if zero-value construction is dangerous. Document zero-
-value behavior. Use `sync.Locker` interface for mutexes that shouldn't be copied.
+value behavior. For types that must not be copied: **Go cannot make a struct non-copyable** — the mitigations are API
+design and detection, not enforcement. Keep such types behind pointers (constructors return `*T`; don't accept or
+return the struct by value), document the no-copy invariant, and run `go vet`'s `copylocks` analyzer, which is what
+actually catches violations. (The unexported `noCopy` marker used by the standard library exists solely to make
+`copylocks` fire — a vet convention, not a language guarantee.)
 
 ### 5. Error Wrapping and Sentinel Errors
 
@@ -150,6 +153,10 @@ Poor error handling patterns that lose context or prevent `errors.Is`/`errors.As
 
 **Action:** Use `%w` in `fmt.Errorf` for wrappable errors. Use `errors.Is`/`errors.As` for comparison. Add meaningful
 context when wrapping: package name, operation, relevant parameters.
+
+**Ownership split with slop-hunter:** invariant-hunter owns *correctness* of the error chain (`%w`, `Unwrap`,
+`errors.Is`/`errors.As`); slop-hunter owns *redundancy* of the wrapping messages (double-wrapping, noise words). The
+two recommendations compose: wrap correctly, and wrap once where the context is meaningful.
 
 ### 6. Context Misuse
 
@@ -186,6 +193,11 @@ crash prevention in server code.
 
 Shared mutable state accessed without proper synchronization.
 
+**Ownership:** invariant-hunter owns data-race and synchronization *correctness* ("shared state is always accessed
+under synchronization" is an invariant). security-hunter's concurrency section is narrowed to exploitability-framed
+findings (unbounded goroutine creation from user input, deadlocks reachable from external requests, TOCTOU races on
+auth decisions); goroutine-leak and `-race` discipline in *tests* stays with test-hunter.
+
 **Signals:**
 
 - Map read/write from multiple goroutines without mutex
@@ -202,51 +214,86 @@ Shared mutable state accessed without proper synchronization.
 ### Phase 1: Establish Baseline
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
 
-2. Check tooling configuration: `go vet` settings, `staticcheck` or `golangci-lint` config, race detection in CI.
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: judging whether every caller handles an
+   error often requires reading callers outside the scope.
 
-3. Scan for patterns:
+2. **Run the toolchain first — prefer the repository's existing invocation.** If the project has a configured
+   vet/lint entry point (Makefile target, CI step, `golangci-lint` config), run that and triage its output.
+   Otherwise run `go vet ./...` when a Go toolchain is available and dependencies resolve. Delegate where the
+   project has the tools configured: **`errcheck`** is the canonical detector for unchecked errors (use the
+   project's pinned version — current errcheck requires a recent toolchain to build), **`errcheck -asserts`** or
+   golangci-lint's **`forcetypeassert`** for unchecked type assertions, and `go vet`'s `copylocks` for copied
+   locks. Never install or reconfigure tools for the audit; if a tool is unavailable or fails to load packages,
+   record "skipped/unavailable" in the Tooling Context section and fall back to the heuristic scans below. If a
+   relevant tool is absent from the project, recommend enabling it *in the report*. Note: vet's checks are
+   heuristic — low-false-positive, not zero; triage rather than transcribe.
+
+3. Scan for patterns. These are candidate generators with stated blind spots, not detectors — the analyzers in
+   step 2 are the reliable versions where available. Run every scan against the target scope (`SCOPE=.` in
+   codebase mode):
    ```bash
-   EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/**'
+   EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
+   # Generated code is authoritatively marked by a "// Code generated .* DO NOT EDIT." line before the first
+   # non-comment text; the globs are the cheap approximation.
 
-   # Unchecked errors (discarded with _)
-   rg '\b_\s*=\s*\w+\(' --type go $EXCLUDE
+   # Explicitly discarded errors (note: cannot see implicitly ignored return values — that is errcheck's job)
+   rg '\b_\s*=\s*\w+\(' --type go $EXCLUDE -- $SCOPE
 
-   # Bare type assertions (no ok check)
-   rg --pcre2 '\.\(\*?\w+\)(?!\s*$)' --type go $EXCLUDE
+   # Type assertion candidate census — manual triage required. Regex cannot reliably separate bare assertions
+   # from checked ones; use errcheck -asserts / forcetypeassert (step 2) for the real detection.
+   rg '\.\(\*?\w+\)' --type go $EXCLUDE -- $SCOPE | rg -v '\.\(type\)'
 
    # Panic calls
-   rg 'panic\(' --type go $EXCLUDE
+   rg 'panic\(' --type go $EXCLUDE -- $SCOPE
 
    # Recover calls
-   rg 'recover\(\)' --type go $EXCLUDE
+   rg 'recover\(\)' --type go $EXCLUDE -- $SCOPE
 
    # log.Fatal / os.Exit outside main
-   rg 'log\.Fatal|os\.Exit' --type go $EXCLUDE
+   rg 'log\.Fatal|os\.Exit' --type go $EXCLUDE -- $SCOPE
 
    # context.Background() / context.TODO() in non-main
-   rg 'context\.(Background|TODO)\(\)' --type go $EXCLUDE
+   rg 'context\.(Background|TODO)\(\)' --type go $EXCLUDE -- $SCOPE
 
    # fmt.Errorf without %w
-   rg 'fmt\.Errorf' --type go $EXCLUDE
+   rg 'fmt\.Errorf' --type go $EXCLUDE -- $SCOPE
 
    # Error string comparison
-   rg 'err\.Error\(\)\s*==|strings\.Contains\(err' --type go $EXCLUDE
+   rg 'err\.Error\(\)\s*==|strings\.Contains\(err' --type go $EXCLUDE -- $SCOPE
 
    # Nil map/channel field access
-   rg 'make\(map|make\(chan' --type go $EXCLUDE
+   rg 'make\(map|make\(chan' --type go $EXCLUDE -- $SCOPE
 
    # Deferred close without error check
-   rg 'defer\s+\w+\.Close\(\)' --type go $EXCLUDE
+   rg 'defer\s+\w+\.Close\(\)' --type go $EXCLUDE -- $SCOPE
    ```
 
 4. Produce counts by category, grouped by package.
@@ -277,7 +324,16 @@ For each sync primitive: Is it used correctly and consistently?
 
 ## Output Format
 
-Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-invariant-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
+(e.g. `fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies
+an output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Invariant Hunter Audit — {date}
@@ -287,11 +343,13 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Tooling Context
 
-- `go vet`: {enabled/disabled in CI}
-- Static analysis: {golangci-lint / staticcheck / none}
+- `go vet`: {run for this audit / skipped-unavailable / enabled in CI}
+- Static analysis: {golangci-lint / staticcheck / errcheck / none — run or skipped}
 - Race detection: {enabled/disabled in CI}
 
 ## Baseline
@@ -358,19 +416,21 @@ Save as `YYYY-MM-DD-invariant-hunter-audit-{$LLM-name}.md` in the project's docs
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {unchecked errors on critical paths, nil dereference risks, bare type assertions on external data}
-2. **Should-fix**: {error wrapping without %w, context misuse, panic in library code}
-3. **Consider**: {zero-value documentation, deferred close error handling, race detection in CI}
+1. **Critical**: {unchecked errors on critical paths, nil dereference risks, bare type assertions on external data}
+2. **High**: {race conditions on shared state, panic in library code reachable by callers}
+3. **Medium**: {error wrapping without %w, context misuse, zero-value traps}
+4. **Low**: {zero-value documentation, deferred close error handling, race detection in CI}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: invariant enforcement only.** Do not flag type design/architecture (→ type-hunter-go), package boundary issues
-  (→ boundary-hunter-go), structural complexity (→ simplicity-hunter-go), interface design (→ solid-hunter-go), missing
-  documentation (→ doc-hunter-go), security (→ security-hunter-go), test quality (→ test-hunter-go), or cosmetic style
-  (→ slop-hunter-go). If a finding doesn't answer "is this invariant enforced?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: invariant enforcement only.** If a finding doesn't answer "is this invariant enforced?", it belongs to
+  another hunter — do not flag it here. Named boundaries: race-condition and synchronization *correctness* is owned
+  here (security-hunter keeps only exploitability-framed concurrency; test-hunter keeps `-race` discipline in tests);
+  error-chain *correctness* (`%w`, `errors.Is`) is owned here while wrapping-message *redundancy* belongs to
+  slop-hunter.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Architecture-first.** Understand the project's error handling conventions before flagging violations.
 - **Complexity honesty.** Some invariants are expensive to encode in Go's type system. When recommending a runtime

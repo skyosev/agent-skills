@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing Go code for over-engineering, reducing complexity after prototyping,
   enforcing reuse over addition, or simplifying before a refactor.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Simplicity Hunter
@@ -23,7 +22,7 @@ intended behavior.**
 - Reducing complexity after initial prototyping
 - Enforcing reuse over addition before merging
 - Preparing code for long-term maintainability
-- Deduplicating logic across packages or tests
+- Deduplicating logic across packages (duplication *within test code* belongs to test-hunter-go)
 
 ## Core Principles
 
@@ -61,9 +60,10 @@ Repeated logic across functions, packages, or tests.
 **Signals:**
 
 - Two functions with near-identical bodies differing only in a value or branch
-- Test files with copied setup/assertion blocks
 - Multiple implementations of the same algorithm
 - Identical error handling patterns repeated across handlers
+
+(Duplicated setup/assertion blocks in test files are test-hunter-go's finding — do not flag test duplication here.)
 
 **Action:** Choose one canonical implementation; delete the rest; extract shared logic only if it serves 2+ genuine
 consumers.
@@ -91,14 +91,18 @@ Unreachable branches, unused internal functions, stale feature flags, and leftov
 - `if` branches that can never be true given the input types or call sites
 - Unexported functions with zero call sites (exported dead symbols are boundary-hunter territory)
 - Feature flags that are always on/off
-- Commented-out alternate implementations
 - `default` cases in type switches that can never trigger (all types handled)
+
+(Commented-out code blocks are slop-hunter's finding — this skill keeps unreachable *logic*, not dead text.)
 
 **Action:** Delete. If uncertain, flag with evidence of zero usage.
 
 ### 4. Over-Parameterized APIs
 
 Functions with many parameters, boolean flags, or option structs that create a combinatorial explosion.
+**Ownership:** boolean-parameter findings are owned here (this section carries the calibrated do-not-flag rule).
+solid-hunter claims only booleans that select between behaviors that will grow variants (an OCP setup);
+smell-hunter does not flag them at all.
 
 **Signals:**
 
@@ -185,50 +189,76 @@ for actual parallelism.
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: confirming that a helper is single-use or
+   an interface single-implementation requires checking call sites outside the scope.
 2. Understand the project's existing helpers, utilities, and conventions.
 3. Note any stated design decisions (e.g., intentional duplication for performance).
 
 ### Phase 2: Scan for Complexity Signals
 
+Run every scan against the target scope (`SCOPE=.` in codebase mode):
+
 ```bash
-EXCLUDE='--glob !**/vendor/** --glob !**/testdata/**'
+# Generated code excluded (authoritative marker: a "// Code generated .* DO NOT EDIT." line before
+# the first non-comment text; globs approximate). Non-test scans deliberately include test files —
+# complexity in tests is in scope here; *duplication* in tests is not (test-hunter-go owns it).
+EXCLUDE='--glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Deep nesting (4+ indentation levels, tab-indented)
-rg '^\t{4,}\S' --type go $EXCLUDE
+rg '^\t{4,}\S' --type go $EXCLUDE -- $SCOPE
 
 # Boolean parameters
-rg --pcre2 '\w+\s+bool[,)]' --type go $EXCLUDE --glob '!**/*_test.go'
+rg --pcre2 '\w+\s+bool[,)]' --type go $EXCLUDE --glob '!**/*_test.go' -- $SCOPE
 
 # Functions with many parameters
-rg --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\([^)]{80,}\)' --type go $EXCLUDE
+rg --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\([^)]{80,}\)' --type go $EXCLUDE -- $SCOPE
 
 # Interfaces with single implementation
-rg 'type\s+\w+\s+interface' --type go $EXCLUDE
+rg 'type\s+\w+\s+interface' --type go $EXCLUDE -- $SCOPE
 
 # Unused unexported functions (candidates)
-rg 'func\s+[a-z]\w+\(' --type go $EXCLUDE --glob '!**/*_test.go'
+rg 'func\s+[a-z]\w+\(' --type go $EXCLUDE --glob '!**/*_test.go' -- $SCOPE
 
 # Channel complexity
-rg 'chan\s+chan|<-\s*<-' --type go $EXCLUDE
+rg 'chan\s+chan|<-\s*<-' --type go $EXCLUDE -- $SCOPE
 
 # Goroutine launches
-rg 'go\s+func|go\s+\w+\(' --type go $EXCLUDE
+rg 'go\s+func|go\s+\w+\(' --type go $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Scan for Duplication
 
 1. Identify repeated patterns across files using targeted searches.
-2. Check test files for copied setup and assertion blocks.
-3. Look for multiple implementations of the same logic with minor variations.
+2. Look for multiple implementations of the same logic with minor variations.
+   (Copied setup/assertion blocks in test files belong to test-hunter-go — do not flag them here.)
 
 ### Phase 4: Evaluate Each Finding
 
@@ -242,7 +272,16 @@ For each complexity signal, determine:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-simplicity-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-simplicity-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
+(e.g. `fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies
+an output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Simplicity Hunter Audit — {date}
@@ -252,6 +291,8 @@ Save as `YYYY-MM-DD-simplicity-hunter-audit-{$LLM-name}.md` in the project's doc
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -305,19 +346,20 @@ Save as `YYYY-MM-DD-simplicity-hunter-audit-{$LLM-name}.md` in the project's doc
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {high-impact duplication, dead code with confidence}
-2. **Should-fix**: {unnecessary abstractions, over-parameterized APIs, interface pollution}
-3. **Consider**: {control flow improvements, concern separation, channel simplification}
+1. **High**: {high-impact duplication, dead code with confidence}
+2. **Medium**: {unnecessary abstractions, over-parameterized APIs, interface pollution}
+3. **Low**: {control flow improvements, concern separation, channel simplification}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: structural complexity only.** Do not flag type safety (→ invariant-hunter-go), type design (→ type-hunter-go),
-  package boundary issues (→ boundary-hunter-go), interface design (→ solid-hunter-go), missing documentation
-  (→ doc-hunter-go), security (→ security-hunter-go), test quality (→ test-hunter-go), or cosmetic style (→ slop-hunter-go).
-  If a finding doesn't answer "is this simpler than it could be?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: structural complexity only.** If a finding doesn't answer "is this simpler than it could be?", it belongs
+  to another hunter — do not flag it here. Named boundaries: interface *segregation and contract* design belongs to
+  solid-hunter-go, while interface *existence/pollution* stays here (§5) — solid-hunter's Pragmatic Boundaries
+  defers single-implementation speculative interfaces to this skill; boolean parameters are owned here (§4);
+  duplication within test code belongs to test-hunter-go; commented-out code belongs to slop-hunter-go.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Reuse over addition.** When recommending a fix, prefer existing functions or deletion over new code.
 - **Preserve behavior.** Never recommend changes that alter what the code does, only how it's structured.

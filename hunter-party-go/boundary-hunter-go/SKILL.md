@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing package structure, shrinking public API surface, enforcing encapsulation,
   preparing packages for replacement, or untangling tight coupling between layers.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Boundary Hunter
@@ -55,7 +54,9 @@ packages), but many boundary violations are still possible within those constrai
 
 7. **Primitives flow; implementation types stay home.** Data that flows between packages should be expressed as
    primitive types, standard library types, or shared domain types — not as package-internal structs that force
-   consumers to import from the implementation.
+   consumers to import from the implementation. (No tension with smell-hunter's primitive-obsession hunt: "not
+   implementation structs" and "model domain concepts as owned types" reconcile in shared domain types — a
+   `UserID` named type flowing between packages satisfies both.)
 
 ## What to Hunt
 
@@ -146,7 +147,9 @@ imports from the external. Consumers depend on the owned type.
 
 ### 7. Package Naming and Organization Issues
 
-Packages named by what they contain rather than what they provide.
+Packages named by what they contain rather than what they provide. **Ownership:** package naming and organization
+is owned here as a boundary-legibility question — solid-hunter analyzes the same packages through a
+responsibility/change lens (multiple actors, reasons to change), not naming.
 
 **Signals:**
 
@@ -164,15 +167,37 @@ nesting.
 ### Phase 1: Map Package Boundaries
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no analysis: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** This hunter analyzes an import graph, so the *analysis* (import mapping, fan-in/fan-out,
+   dead-export consumer counting) legitimately runs project-wide — a package's consumers live outside any diff
+   scope. Findings are still *reported* only against the target scope: every finding anchors (file:line) to
+   in-scope packages.
 2. **Identify packages.** List all Go packages and their import paths. Note `internal/` packages.
 3. **Catalogue exports.** For each package, list exported types, functions, and variables. Classify each as:
    type, function, constant, variable.
@@ -186,8 +211,8 @@ nesting.
    # List all imports per file
    rg '^import' --type go -A 20 --glob '!**/vendor/**' --glob '!**/*_test.go'
 
-   # Or use go list for structured data
-   go list -json ./... 2>/dev/null | rg '"(Imports|ImportPath)"'
+   # Or use go list for structured data (one line per package: import path, then its imports)
+   go list -f '{{.ImportPath}} {{join .Imports " "}}' ./...
    ```
 2. **Check direction.** If the project has an intended layering (domain → application → infrastructure), verify all
    import arrows point in the correct direction.
@@ -201,15 +226,24 @@ For each package:
 
 1. **Dead exports.** Is every exported symbol consumed by at least one external package?
    ```bash
-   EXCLUDE='--glob !**/vendor/** --glob !**/*_test.go'
+   EXCLUDE='--glob !**/vendor/** --glob !**/testdata/** --glob !**/*_test.go --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
-   # Find all exported symbols
+   # Exported-symbol census — incomplete discovery aid: line-anchored patterns miss exported *methods*
+   # and members of grouped const (...)/var (...) blocks, the dominant forms of both. Enumerate the
+   # exported surface by reading declarations, not from this list alone.
    rg 'func\s+[A-Z]|type\s+[A-Z]|var\s+[A-Z]|const\s+[A-Z]' --type go $EXCLUDE
 
    # For each exported symbol, check external usage
    rg 'SymbolName' --type go $EXCLUDE
    ```
    Verify each candidate finding manually — a grep miss is not proof of zero usage.
+
+   **Library caveat.** Zero *in-module* references does not make an exported symbol dead when the module is
+   imported by external consumers. Check whether the module is a published library (`go.mod` module path, known
+   importers) and label such candidates **"unused internally"**, not dead. `golang.org/x/tools/cmd/deadcode`
+   gives call-graph (RTA) evidence of unreachable *functions* in modules with executable `main` packages —
+   useful supporting evidence, but not a symbol-level census: it says nothing about exported types, constants,
+   or variables, and cannot establish deadness of a library's public API.
 2. **Leaked internals.** Do any exports expose implementation details?
 3. **External type leaks.** Do any exports use third-party types in their signatures?
 
@@ -233,7 +267,16 @@ For each package, answer:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-boundary-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
+(e.g. `fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies
+an output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Boundary Hunter Audit — {date}
@@ -243,6 +286,8 @@ Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.md` in the project's docs 
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Package Map
 
@@ -301,20 +346,18 @@ Save as `YYYY-MM-DD-boundary-hunter-audit-{$LLM-name}.md` in the project's docs 
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {direction violations, external leaks in domain layer}
-2. **Should-fix**: {dead exports, missing internal/, over-exported API}
-3. **Consider**: {replaceability improvements, package naming, deep imports}
+1. **High**: {direction violations, external leaks in domain layer}
+2. **Medium**: {dead exports, missing internal/, over-exported API}
+3. **Low**: {replaceability improvements, package naming, deep imports}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: package boundaries only.** Encapsulation, coupling, dependency direction, API surface. Do not flag type
-  safety (→ invariant-hunter-go), type design (→ type-hunter-go), structural complexity (→ simplicity-hunter-go),
-  interface design (→ solid-hunter-go), missing documentation (→ doc-hunter-go), security (→ security-hunter-go),
-  test quality (→ test-hunter-go), or cosmetic style (→ slop-hunter-go). If a finding doesn't answer "is this boundary
-  clean?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: package boundaries only.** Encapsulation, coupling, dependency direction, API surface. If a finding
+  doesn't answer "is this boundary clean?", it belongs to another hunter — do not flag it here. Named boundary:
+  package naming and organization is owned here (§7); solid-hunter keeps SRP as responsibility/change analysis.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code or import statement.
 - **Architecture-first.** Understand the project's intended layering before flagging violations. Ask if unclear.
 - **Pragmatism over purism.** Not every coupling is worth breaking. Small utilities shared between two closely related

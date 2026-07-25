@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing package structure, preparing for extension with new variants,
   reducing coupling between packages, or improving testability.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # SOLID Hunter
@@ -86,13 +85,16 @@ SOLID principles are guidelines for managing change, not rules to apply universa
 
 Packages or structs that accumulate responsibilities from multiple domain concerns.
 
+SRP here is *responsibility and change analysis* — multiple actors, independent reasons to change, constructor
+fan-in. Package *naming and organization* (vague names like `utils`/`common`, name-vs-directory mismatches) is
+owned by boundary-hunter-go §7; the two lenses should produce different findings for the same package.
+
 **Signals:**
 
-- Package with files spanning different domain concepts (e.g., `user.go`, `email.go`, `billing.go` in same package)
+- Package serving multiple actors — changes requested by different stakeholders land in the same files
 - Struct with 10+ methods spanning different domain concepts
 - Constructor (`New*`) with 5+ dependencies (high fan-in = multiple reasons to change)
 - Package that imports from many unrelated packages (persistence, HTTP, formatting, crypto)
-- Package name using vague terms: `utils`, `helpers`, `common`, `misc`, `service` with broad scope
 
 **Action:** Identify distinct responsibilities. Extract each into a focused package. The original package becomes a
 coordinator that delegates, or is dissolved entirely.
@@ -107,7 +109,9 @@ Code that must be modified — not extended — when a new variant, strategy, or
 - Adding a new variant requires editing multiple files beyond the variant definition itself
 - Hard-coded strategy selection (`if typ == "email" { sendEmail() } else if typ == "sms" { sendSMS() }`)
 - Factory functions with growing `switch` statements and no registration mechanism
-- Boolean parameters that toggle between two fundamentally different behaviors
+- Boolean parameters that select between behaviors *that will grow variants* (a genuine OCP setup — a bool that
+  will become a three-way choice). Boolean-parameter findings in general are owned by simplicity-hunter-go, which
+  carries the calibrated do-not-flag rule; claim only this growth case here, with a cross-reference
 
 **Action:** Introduce an interface for the variant behavior, implement per variant, dispatch polymorphically via a map
 or registry. The core package should not know about individual variants.
@@ -164,44 +168,69 @@ dependencies that represent behavior, not data construction.
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Consumer counting (ISP "avg used by consumers", OCP occurrence counts, implementation
+   enumeration) legitimately runs project-wide — an interface's consumers live outside any diff scope. Findings
+   are still *reported* only against the target scope: every finding anchors (file:line) there.
 2. Identify whether the project uses struct-based architecture (services, repositories, handlers) or
    functional-style composition. If primarily functional, note this in the report — SOLID findings will be limited.
 3. Identify the composition root (where dependencies are wired: `main()`, `cmd/`, wire/fx setup).
 
 ### Phase 2: Scan for SOLID Signals
 
+Run the anchoring scans against the target scope (`SCOPE=.` in codebase mode); consumer-counting follow-ups may
+search project-wide.
+
 ```bash
-EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/**'
+EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Structs (starting point for SRP, DIP analysis)
-rg 'type\s+\w+\s+struct' --type go $EXCLUDE
+rg 'type\s+\w+\s+struct' --type go $EXCLUDE -- $SCOPE
 
 # Interfaces (starting point for ISP analysis)
-rg 'type\s+\w+\s+interface' --type go $EXCLUDE
+rg 'type\s+\w+\s+interface' --type go $EXCLUDE -- $SCOPE
 
-# Embedding (composition relationships)
-rg '^\s+\w+\.\w+$|^\s+\*?\w+$' --type go $EXCLUDE
+# Embedding (composition relationships): no reliable regex exists — bare-identifier patterns match
+# return/break/continue, and qualified embeds (sync.Mutex, pkg.Client) defeat case anchoring.
+# Enumerate the `type X struct` sites found above and inspect their bodies by eye.
 
 # Direct instantiation in non-factory code (DIP signal)
-rg '&\w+\{|new\(\w+\)' --type go $EXCLUDE
+rg '&\w+\{|new\(\w+\)' --type go $EXCLUDE -- $SCOPE
 
 # Type assertions/switches (LSP signal — consumer sniffing implementations)
-rg '\.\(\w+\)|switch\s+\w+\.\(type\)' --type go $EXCLUDE
+rg '\.\(\w+\)|switch\s+\w+\.\(type\)' --type go $EXCLUDE -- $SCOPE
 
 # switch chains on discriminants (OCP signal)
-rg 'switch\s+\w+' --type go $EXCLUDE
+rg 'switch\s+\w+' --type go $EXCLUDE -- $SCOPE
 
 # Not-implemented panics (LSP signal)
-rg -i 'not.?implemented|unsupported|panic\(' --type go $EXCLUDE
+rg -i 'not.?implemented|unsupported|panic\(' --type go $EXCLUDE -- $SCOPE
 ```
 
 ### Phase 3: Evaluate Each Struct and Interface
@@ -227,7 +256,16 @@ For each interface implementation:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-solid-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # SOLID Hunter Audit — {date}
@@ -237,6 +275,8 @@ Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs fol
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 - Architecture style: {struct-based / mixed / functional (limited findings)}
 
 ## SRP Violations — God Packages/Structs
@@ -271,19 +311,19 @@ Save as `YYYY-MM-DD-solid-hunter-audit-{$LLM-name}.md` in the project's docs fol
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {god packages with 5+ responsibilities, broken interface contracts causing panics}
-2. **Should-fix**: {rigid extension points touched by every new variant, fat interfaces with no-op methods}
-3. **Consider**: {concrete dependency chains limiting testability, speculative interface splits}
+1. **High**: {god packages with 5+ responsibilities, broken interface contracts causing panics}
+2. **Medium**: {rigid extension points touched by every new variant, fat interfaces with no-op methods}
+3. **Low**: {concrete dependency chains limiting testability, speculative interface splits}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: struct, interface, and package design only.** Do not flag package boundary issues (→ boundary-hunter-go), type
-  safety (→ invariant-hunter-go), type design (→ type-hunter-go), structural complexity (→ simplicity-hunter-go), missing
-  documentation (→ doc-hunter-go), security (→ security-hunter-go), test quality (→ test-hunter-go), or cosmetic style
-  (→ slop-hunter-go). If a finding doesn't answer "is this type/package designed for change?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: struct, interface, and package design only.** If a finding doesn't answer "is this type/package designed
+  for change?", it belongs to another hunter — do not flag it here. Named boundaries: package naming/organization
+  belongs to boundary-hunter-go (§1 here keeps responsibility/change analysis); boolean parameters belong to
+  simplicity-hunter-go except the will-grow-variants OCP case (§2).
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Pragmatism over dogma.** SOLID principles exist to manage change, not to achieve theoretical purity. A struct with
   two related responsibilities that change together is fine. An interface with five methods that every implementor uses

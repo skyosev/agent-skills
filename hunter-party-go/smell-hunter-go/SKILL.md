@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing Go code for structural design problems, preparing for a refactor,
   auditing code after rapid feature development, or hunting for misplaced responsibilities.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Smell Hunter
@@ -20,7 +19,8 @@ modeled explicitly, and Go idioms are respected.**
 
 **Not covered (owned by other hunters):** long method / mixed concerns (→ simplicity-hunter), dead code
 (→ simplicity-hunter / slop-hunter), speculative generality (→ simplicity-hunter), magic numbers (→ doc-hunter),
-interface pollution (→ simplicity-hunter / solid-hunter). See Operating Constraints for handoff rules.
+boolean parameters (→ simplicity-hunter, which carries the calibrated do-not-flag rule), interface pollution
+(→ simplicity-hunter / solid-hunter). See Operating Constraints for handoff rules.
 
 Code smells are symptoms, not diagnoses. Each finding indicates a *likely* design problem that warrants investigation.
 Context determines whether the smell is a genuine issue or an acceptable trade-off.
@@ -115,6 +115,10 @@ and E, then X's logic is spread too thin. Consider:
 ### 4. Primitive Obsession
 
 Using primitive types (`string`, `int`, `float64`, `bool`) for domain concepts that deserve their own named types.
+**Ownership:** primitive obsession as *domain modeling* is owned here; type-hunter keeps only alias-vs-named-type
+*mechanics* (`type X = Y` misuse, method-less named types). Boolean parameters belong to simplicity-hunter. (No
+tension with boundary-hunter's "primitives flow" principle: both resolve in shared domain types — a `UserID` named
+type flowing between packages satisfies both.)
 
 **Signals:**
 
@@ -124,16 +128,16 @@ Using primitive types (`string`, `int`, `float64`, `bool`) for domain concepts t
 - Validation logic for a "typed" string scattered across multiple call sites instead of enforced at construction
 - `float64` used for money calculations (precision loss)
 - `int` used for durations without unit clarity (seconds? milliseconds?)
-- Boolean parameters that control behavior: `Process(data []byte, compress bool, encrypt bool)`
 - Raw `string` comparisons for status/state values instead of typed constants
 
 **Action:** Define a named type: `type UserID string`, `type Email string`, `type Money int64` (cents). Add a
-constructor that validates. The type system then prevents mixing `UserID` with `OrderID` at compile time. For boolean
-flags, consider typed constants with `iota` or functional options.
+constructor that validates. The type system then prevents mixing `UserID` with `OrderID` at compile time.
 
 ### 5. Temporal Coupling
 
 Functions or operations that must be called in a specific order, but nothing in the API enforces that order.
+**Ownership:** the coupling and the redesign recommendation are owned here; doc-hunter's ordering section covers
+only constraints that are *staying* (redesign rejected or out of scope) and need documenting.
 
 **Signals:**
 
@@ -152,6 +156,11 @@ Functions or operations that must be called in a specific order, but nothing in 
 ### 6. Comments as Deodorant
 
 Comments that explain *what* confusing code does rather than *why* — masking a design problem instead of fixing it.
+
+**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+- Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
+- Comment present and the code trivial → slop-hunter (delete the redundant comment).
+- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
 
 **Signals:**
 
@@ -230,7 +239,8 @@ variables (`var Version = "1.0"`) are fine — the smell is mutability.
 ### 10. Stuttering Names
 
 Exported identifiers that repeat the package name, violating Go's naming convention where the package name provides
-context.
+context. **Boundary with slop-hunter:** stuttering as a package-design smell is owned here; slop-hunter owns Go
+naming-convention *drift introduced by the audited change* (its diff orientation).
 
 **Signals:**
 
@@ -250,15 +260,37 @@ in Effective Go.
 ### Phase 1: Gain Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project
-   If unspecified, default to **codebase**. For diff mode, resolve the file list:
+   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Related files may still be *read* as **context**: judging feature envy or a data clump often
+   requires reading the envied type's package. The co-change analysis (Phase 4) reads git history project-wide by
+   nature; its findings still anchor to in-scope packages.
 2. Understand the project's domain model — what are the core entities, value objects, and operations?
 3. Note the project's conventions for naming, struct design, and package organization.
 
@@ -319,10 +351,30 @@ is not shotgun surgery — the signal is many *unrelated* files changing togethe
 # Per-commit file sets: show which files change together in each commit
 git log --pretty=format:'--- %h %s' --name-only -30 | head -200
 
-# Package co-occurrence: for each commit, list distinct packages touched
+# Package co-occurrence: for each commit, list distinct packages touched.
+# Each commit's package set is sorted before printing (awk's `for (p in pkgs)` order is unspecified,
+# and uniq -c only groups identical lines); the END block flushes the final commit; root-level files
+# (no "/") count as package ".".
 git log --pretty=format:'COMMIT' --name-only -50 | awk '
-  /^COMMIT/ { if (NR>1) { for (p in pkgs) printf "%s ", p; print "" } delete pkgs; next }
-  /\// { sub(/\/[^\/]*$/, ""); pkgs[$0]=1 }
+  function flush(   n, i, j, t, keys, s) {
+    n = 0
+    for (p in pkgs) keys[++n] = p
+    if (n) {
+      for (i = 1; i < n; i++)
+        for (j = i + 1; j <= n; j++)
+          if (keys[j] < keys[i]) { t = keys[i]; keys[i] = keys[j]; keys[j] = t }
+      s = keys[1]
+      for (i = 2; i <= n; i++) s = s " " keys[i]
+      print s
+    }
+    delete pkgs
+  }
+  /^COMMIT/ { flush(); next }
+  NF {
+    if ($0 ~ /\//) sub(/\/[^\/]*$/, ""); else $0 = "."
+    pkgs[$0] = 1
+  }
+  END { flush() }
 ' | sort | uniq -c | sort -rn | head -20
 ```
 
@@ -348,7 +400,16 @@ For each exported identifier:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-smell-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Smell Hunter Audit — {date}
@@ -358,6 +419,8 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -423,21 +486,21 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{$LLM-name}.md` in the project's docs fol
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {data clumps with 5+ occurrences, primitive obsession causing type confusion, init() with error paths}
-2. **Should-fix**: {feature envy, shotgun surgery patterns, package-level mutable state, temporal coupling}
-3. **Consider**: {stuttering names, comments as deodorant, temporary fields}
+1. **High**: {data clumps with 5+ occurrences, primitive obsession causing type confusion, init() with error paths}
+2. **Medium**: {feature envy, shotgun surgery patterns, package-level mutable state, temporal coupling}
+3. **Low**: {stuttering names, comments as deodorant, temporary fields}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: classic code smells and Go-specific antipatterns only.** Do not flag SOLID violations (→ solid-hunter-go),
-  type design debt (→ type-hunter-go), package boundary issues (→ boundary-hunter-go), invariant enforcement
-  (→ invariant-hunter-go), structural complexity (→ simplicity-hunter-go), missing documentation (→ doc-hunter-go),
-  security (→ security-hunter-go), test quality (→ test-hunter-go), or AI-generated noise (→ slop-hunter-go).
-  If a finding is better described as a SOLID principle violation, type design issue, or boundary problem, defer to
-  the specialized hunter.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: classic code smells and Go-specific antipatterns only.** If a finding doesn't answer "is this a
+  structural smell?", it belongs to another hunter — do not flag it here. Named boundaries: primitive obsession as
+  domain modeling is owned here (type-hunter keeps alias mechanics); temporal coupling and its redesign are owned
+  here (doc-hunter documents constraints that stay); boolean parameters belong to simplicity-hunter; apply the
+  comment ownership rule (§6) for the doc/slop/smell split; stuttering is owned here, naming drift in the audited
+  change belongs to slop-hunter.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Context matters.** A smell in a prototype is less urgent than a smell in a payment system. Assess severity
   relative to the code's criticality and change frequency.

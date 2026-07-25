@@ -7,8 +7,7 @@ description: |
 
   Use when: reviewing AI-assisted Go code before merge, cleaning up generated code,
   enforcing project style on new contributions, or reducing review noise.
-  Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
-disable-model-invocation: true  
+disable-model-invocation: true
 ---
 
 # Slop Hunter
@@ -41,6 +40,11 @@ following existing project idioms and `gofmt` standards.**
 
 5. **Go idioms are the standard.** Effective Go, the Go Code Review Comments wiki, and the project's existing patterns
    define the style. AI-generated code often brings patterns from other languages.
+
+**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+- Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
+- Comment present and the code trivial → slop-hunter (delete the redundant comment).
+- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
 
 ## What to Hunt
 
@@ -92,6 +96,9 @@ Patterns that diverge from the project's established conventions or Go idioms.
 
 **Action:** Conform to existing project conventions. Cite the existing pattern as evidence.
 
+**Boundary with smell-hunter:** slop owns Go naming-convention *drift introduced by the audited change* (this
+skill's diff orientation); *stuttering* names (`user.UserName`) as a package-design smell belong to smell-hunter.
+
 ### 4. Trivially Dead Code
 
 Unused imports, unused variables, commented-out code blocks, and placeholder TODOs.
@@ -119,8 +126,9 @@ Hedging language, apologetic comments, and over-explanation typical of AI-genera
 - `// For safety, we also check...` (unnecessary hedging)
 - `// New, improved version..` (references old code that doesn't exist)
 - Logging that narrates execution flow (`log.Println("entering function X")`)
-- Over-wrapping errors: `fmt.Errorf("failed to do X: %w", fmt.Errorf("error doing X: %w", err))`
 - Excessive `nil` checks already guaranteed by preceding logic
+
+(Over-wrapped errors belong to §6 below — one category, not two.)
 
 **Action:** Delete hedging and narration. Keep only comments that document concrete constraints or known issues with
 references.
@@ -133,6 +141,7 @@ Error handling that adds noise without context.
 
 - `return fmt.Errorf("error: %w", err)` — the word "error" adds nothing
 - `return fmt.Errorf("failed to X: failed to Y: %w", err)` — double-wrapping with redundant context
+- Over-wrapping at call sites: `fmt.Errorf("failed to do X: %w", fmt.Errorf("error doing X: %w", err))`
 - Wrapping errors at every level of the call stack, creating messages like
   `"failed to process: failed to validate: failed to parse: invalid syntax"`
 - Error messages that repeat the function name: `func Save() { return fmt.Errorf("Save: %w", err) }`
@@ -140,64 +149,98 @@ Error handling that adds noise without context.
 **Action:** Wrap errors once at the boundary where context is meaningful. Use the package/operation name, not redundant
 verbiage. Let `errors.Is`/`errors.As` handle the chain.
 
+**Ownership split with invariant-hunter:** slop owns *redundancy* of the wrapping messages; invariant-hunter owns
+*correctness* of the error chain (`%w`, `Unwrap`, `errors.Is`/`errors.As`). The two recommendations compose: wrap
+correctly, and wrap once where the context is meaningful.
+
 ## Audit Workflow
 
 ### Phase 1: Establish Context
 
 1. **Resolve audit surface.** The prompt may specify the scope as:
-   - **Diff**: files changed on the current branch vs base (`main`/`master`)
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
    - **Path**: specific files, folders, or packages
    - **Codebase**: the entire project
-   If unspecified, default to **diff**. For diff mode, resolve the file list:
+
+   If unspecified, default to **diff** — unlike the other hunters, which default to codebase: this skill's purpose
+   is reviewing freshly introduced (typically AI-assisted) changes, so the diff is its natural surface.
+
+   **Party mode:** when the orchestrator supplies a scope snapshot (a resolved file list), use it verbatim and do
+   not re-resolve. The resolution below applies to standalone runs only.
+
+   For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo main)
-   SCOPE=$(git diff --name-only $(git merge-base HEAD $BASE)...HEAD)
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   if [ -z "$BASE" ]; then
+     for b in origin/main origin/master main master; do
+       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+     done
+   fi
+   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
+
+   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
+              git diff --name-only --diff-filter=d HEAD;
+              git ls-files --others --exclude-standard; } | sort -u )
+   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
+                git diff --name-only --diff-filter=D HEAD; } | sort -u )
    ```
-   Constrain all subsequent scans to the resolved surface.
+   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
+   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
+   read within the context budget, report the file count and ask to narrow or chunk.
+
+   **Two surfaces.** Findings are reported only against the **target scope** (`$SCOPE`) — every finding anchors
+   (file:line) there. Established files outside the scope are still *read* as **context** — that is how project
+   conventions are identified (step 2).
 2. Identify the project's style conventions by examining established files outside the audit surface.
 3. Note the project's documentation patterns (godoc style, comment conventions, naming, import grouping).
 
 ### Phase 2: Scan for Noise
 
+```bash
+# Generated code is excluded (authoritative marker: a "// Code generated .* DO NOT EDIT." line before
+# the first non-comment text; globs approximate) — noise in generated files is fixed by regenerating,
+# not editing. Test files stay in scope: AI noise lands in tests too.
+EXCLUDE='--glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
+```
+
 In **diff mode**, focus on added lines to isolate new noise from pre-existing patterns:
 
 ```bash
 # Added comments (single-line)
-git diff $(git merge-base HEAD $BASE)...HEAD | rg '^\+\s*//'
+git diff "$BASE"...HEAD -- $SCOPE | rg '^\+\s*//'
 
 # Added godoc blocks (multi-line doc comments)
-git diff $(git merge-base HEAD $BASE)...HEAD | rg '^\+\s*/\*\*|^\+\s*//\s*[A-Z]\w+\s'
+git diff "$BASE"...HEAD -- $SCOPE | rg '^\+\s*/\*\*|^\+\s*//\s*[A-Z]\w+\s'
 ```
 
-In **path/codebase mode**, scan the resolved surface directly:
+In **path/codebase mode**, scan the resolved surface directly (`SCOPE=.` in codebase mode):
 
 ```bash
-EXCLUDE='--glob !**/vendor/** --glob !**/testdata/**'
-
 # Comments (then classify manually)
-rg '^\s*//' --type go $EXCLUDE
+rg '^\s*//' --type go $EXCLUDE -- $SCOPE
 
 # Godoc on unexported functions
-rg -B1 '^func\s+[a-z]' --type go $EXCLUDE --glob '!**/*_test.go'
+rg -B1 '^func\s+[a-z]' --type go $EXCLUDE --glob '!**/*_test.go' -- $SCOPE
 ```
 
-In all modes:
+In all modes, constrained to the resolved surface:
 
 ```bash
 # TODO/FIXME markers
-rg 'TODO|FIXME|HACK|XXX' --type go
+rg 'TODO|FIXME|HACK|XXX' --type go $EXCLUDE -- $SCOPE
 
 # Log statements that narrate flow
-rg 'log\.\w+\("(entering|exiting|starting|finished|begin|end)' --type go
+rg 'log\.\w+\("(entering|exiting|starting|finished|begin|end)' --type go $EXCLUDE -- $SCOPE
 
 # Redundant error wrapping
-rg 'fmt\.Errorf\("(error|failed|err)' --type go
+rg 'fmt\.Errorf\("(error|failed|err)' --type go $EXCLUDE -- $SCOPE
 
 # nolint without justification
-rg 'nolint' --type go
+rg 'nolint' --type go $EXCLUDE -- $SCOPE
 
-# gofmt check
-gofmt -l .
+# gofmt check — gofmt -l has no exclusion mechanism and will list vendored/generated files;
+# filter its output through the same exclusions before reporting
+gofmt -l . | rg -v '^vendor/|/vendor/|\.pb\.go$|_gen\.go$|_generated\.go$'
 ```
 
 ### Phase 3: Classify Each Finding
@@ -212,7 +255,16 @@ For each finding, determine:
 
 ## Output Format
 
-Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs folder (or project root if no docs folder exists).
+Save as `YYYY-MM-DD-slop-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
+`fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
+output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
+
+Severity levels, used for per-finding labels and the Recommendations grouping:
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk.
 
 ```md
 # Slop Hunter Audit — {date}
@@ -222,6 +274,8 @@ Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs fold
 - Surface: {diff / path / codebase}
 - Files: {count or list}
 - Exclusions: {list}
+- {Deleted in diff: {list} — only for diff scope with deletions}
+- Audit completed: {N} findings
 
 ## Findings
 
@@ -264,19 +318,20 @@ Save as `YYYY-MM-DD-slop-hunter-audit-{$LLM-name}.md` in the project's docs fold
 
 ## Recommendations (Priority Order)
 
-1. **Must-fix**: {style drift that breaks project conventions, gofmt violations}
-2. **Should-fix**: {redundant comments, dead code, unnecessary error wrapping}
-3. **Consider**: {verbose godoc, AI verbal patterns}
+1. **High**: {style drift that breaks project conventions, gofmt violations}
+2. **Medium**: {redundant comments, dead code, unnecessary error wrapping}
+3. **Low**: {verbose godoc, AI verbal patterns}
 ```
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
-- **Scope: surface noise only.** Do not flag type safety (→ invariant-hunter-go), type design (→ type-hunter-go),
-  structural complexity (→ simplicity-hunter-go), package boundary issues (→ boundary-hunter-go), interface design
-  (→ solid-hunter-go), missing documentation (→ doc-hunter-go), security (→ security-hunter-go), or test quality
-  (→ test-hunter-go). If a finding doesn't answer "is this noise?", it doesn't belong here.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **Scope: surface noise only.** If a finding doesn't answer "is this noise?", it belongs to another hunter — do
+  not flag it here. Named boundaries: apply the comment ownership rule above for the doc/slop/smell split;
+  commented-out code is owned here (simplicity keeps unreachable *logic*); error-wrapping *redundancy* is owned
+  here while chain *correctness* belongs to invariant-hunter-go; naming drift in the audited change is owned here
+  while stuttering belongs to smell-hunter-go.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Preserve intent.** Flag noise, not substance. If a comment captures genuine design intent, keep it regardless of
   verbosity. In particular, comments that explain **why a non-obvious design was chosen over the seemingly simpler
