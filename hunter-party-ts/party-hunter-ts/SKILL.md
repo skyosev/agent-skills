@@ -146,9 +146,14 @@ Your report must include:
   examples where applicable
 - Omitted severity groups and finding categories when they have zero items
 - The "Audit completed: N findings" line in its Scope section
+- A note for any category the skill declares ineligible for this run's scope, recorded as
+  skipped rather than omitted
 
 After writing the file, return exactly one status line:
 {hunter-name}: completed — N findings   (or: {hunter-name}: failed — {reason})
+
+If the skill declared a category ineligible for this scope, append it:
+{hunter-name}: completed — N findings ({category} skipped: requires {scope})
 ```
 
 ### 6. Write summary
@@ -212,6 +217,12 @@ implement all suggestions without consulting the individual hunter reports.
   status and finding count. A hunter that returned no status line or wrote no report is
   recorded as `failed`. Execution status is not a finding — this section is exempt from
   the no-empty-sections rule.
+- A hunter that skipped a **scope-ineligible category** still counts as `completed`, with
+  the skip carried into its Run Status row: `completed (N findings; {category} skipped —
+  requires {scope})`. Currently the only such category is simplicity-hunter's coexisting
+  generations, which needs codebase or path scope and is skipped on a diff. A skipped
+  category is execution status, not a finding, and must never be silently dropped — a
+  reader has to be able to tell "no lava layers here" from "nobody looked."
 - Include **only actionable items** in the findings sections — omit a category's section
   entirely if it has no findings
 - Do **not** include empty tables, placeholder headings, or negative statements ("no dead

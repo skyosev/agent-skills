@@ -2,11 +2,13 @@
 name: simplicity-hunter-ts
 description: |
   Audit TypeScript code for unnecessary structural complexity — duplication, avoidable
-  abstractions, dead logic paths, flag-heavy APIs, deep nesting, and mixed concerns.
+  abstractions, dead logic paths, flag-heavy APIs, deep nesting, mixed concerns, and
+  coexisting abstraction generations left behind by unfinished migrations.
   Recommends the simplest shape that preserves intended behavior.
 
   Use when: reviewing TypeScript code for over-engineering, reducing complexity after
-  prototyping, enforcing reuse over addition, or simplifying before a refactor.
+  prototyping, enforcing reuse over addition, simplifying before a refactor, or auditing
+  a codebase after a framework or library migration.
 disable-model-invocation: true
 ---
 
@@ -30,7 +32,9 @@ behavior.**
    it. If it can be replaced by an existing helper, replace it.
 
 2. **One canonical path.** When two implementations do the same thing, pick one and remove the other. Avoid "shared
-   helper + keep both paths" unless required by genuinely different consumers.
+   helper + keep both paths" unless required by genuinely different consumers. When the two paths are *near-identical*,
+   the remedy is deletion; when they are *different designs that are both in use*, the finding is the unfinished
+   migration itself, and the remedy is a retirement plan naming the stratum that survives.
 
 3. **Abstractions must earn their place.** Reject new wrappers, managers, and factories unless they reduce total
    complexity through reuse. An abstraction that serves one call site is indirection, not simplification.
@@ -134,6 +138,33 @@ Deep nesting, nested ternaries, long `if/else if` chains, convoluted loops, and 
 loop bodies into named functions when complex. Convert callback pyramids and long `.then()` chains to `async`/`await`
 with `try`/`catch`; use `Promise.all()`/`Promise.allSettled()` for genuinely parallel work.
 
+### 7. Coexisting Generations (Lava Layers)
+
+Two or more **live**, structurally different solutions to the same concern, left behind by a migration that was
+started and never finished. Each generation hardens where it stopped: new code picks whichever stratum its author
+happened to know about, and every reader has to learn all of them.
+
+**The test that makes this a finding: every stratum must be live.** If the older stratum has no call sites, it is
+dead code (§3) — delete it. If the two bodies are near-identical, it is duplication (§1) — pick one and delete the
+rest. This category covers only the case where the designs genuinely differ *and* all of them are in use, because
+that is the only case whose remedy is a migration rather than a deletion.
+
+**Signals:**
+
+- `v1/`/`v2/`, `legacy/`, `old/`, `new/` directories, or `*Legacy`/`*V2`/`*Old`/`*Deprecated` symbols, where the
+  older path still has importers
+- `@deprecated` JSDoc on symbols that still have live import sites
+- Overlapping dependencies in `package.json` that solve one concern — `axios` + `node-fetch` + `got`, `moment` +
+  `date-fns` + `dayjs`, `jest` + `vitest`, two state or validation libraries
+- Two or more role abstractions for the same concept, all still constructed somewhere: `UserRepository` +
+  `UserStore` + `UserDao`
+- Environment- or config-selected parallel implementations where both branches are reachable (a flag that is always
+  on or always off is a stale flag — §3)
+
+**Action:** Report the strata, name the one that should survive — git recency and the stratum newer call sites
+choose usually settle it — and recommend a retirement plan for the rest: which call sites move, and which stratum
+gets deleted once empty. Never recommend a rewrite; the surviving generation is already written.
+
 ## Audit Workflow
 
 ### Phase 1: Gain Context
@@ -204,15 +235,59 @@ rg --pcre2 '\.then\([^)]*\)\s*\.then\([^)]*\)\s*\.then' --type ts $EXCLUDE -- $S
 1. Identify repeated patterns across files using targeted searches.
 2. Look for multiple implementations of the same logic with minor variations.
 
-### Phase 4: Evaluate Each Finding
+### Phase 4: Scan for Coexisting Generations — codebase and path scope only
+
+**Scope gate.** This phase needs a view of the whole repository:
+
+- **Codebase scope** — run it fully.
+- **Path scope** — run it. Findings anchor inside the target path; the rest of the repository is read as *context* to
+  establish what the competing generations are.
+- **Diff scope** — **skip it.** Coexisting strata are invisible through a changed-file window: the scan would either
+  find nothing or anchor a whole-stratum claim to an arbitrary changed line. Record the skip in the report's Scope
+  section — do not omit it silently, and do not substitute a narrower diff-only heuristic.
+
+The scans below read the whole tree regardless of scope, and the dependency check reads `package.json`, so Phase 2's
+production `$EXCLUDE` profile does not apply here. Pass an explicit path to every `rg` invocation: with no path
+argument, `rg` blocks reading stdin in a non-interactive shell.
+
+1. **Read `package.json`** and list dependencies that solve the same concern (HTTP, dates, state, validation, test
+   runners). Two test runners or two HTTP clients is the cheapest high-precision signal in this category, and it
+   needs no pattern matching.
+
+2. **Find generation-named symbols and paths:**
+
+   ```bash
+   rg -l --type ts 'Legacy|Deprecated|V1|V2' --glob '!**/node_modules/**' --glob '!**/dist/**' .
+   find . -type d \( -name 'v[0-9]*' -o -name legacy -o -name old -o -name new \) \
+     -not -path '*/node_modules/*' -not -path './dist/*'
+   ```
+
+3. **Find deprecation markers:**
+
+   ```bash
+   rg -n --type ts '@deprecated' --glob '!**/node_modules/**' --glob '!**/dist/**' .
+   ```
+
+4. **Confirm liveness for every candidate stratum.** Search the whole project for its import and construction sites.
+   A stratum with zero sites is a §3 finding, not a §7 one — reclassify it and move on.
+
+5. **Establish which generation is current** where the evidence allows: `git log -1 --format=%as -- <path>` per
+   stratum, and which stratum the most recently added call sites use.
+
+These scans nominate candidates only. A name containing `V2` proves nothing on its own; the finding is the pair of
+live strata, not the label.
+
+### Phase 5: Evaluate Each Finding
 
 For each complexity signal, determine:
 
 - Is this genuinely unnecessary, or does it serve a purpose?
 - What is the simplest change that eliminates it?
 - Does the simplification break any public API? If so, flag but default to follow-up.
+- For a coexisting-generations candidate: are *all* strata live, and do the designs actually differ? If only one is
+  live, reclassify to §3; if the bodies are near-identical, reclassify to §1.
 
-### Phase 5: Produce Report
+### Phase 6: Produce Report
 
 ## Output Format
 
@@ -236,6 +311,7 @@ Severity levels, used for per-finding labels and the Recommendations grouping:
 - Files: {count or list}
 - Exclusions: {list}
 - {Deleted in diff: {list} — only for diff scope with deletions}
+- {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
 - Audit completed: {N} findings
 
 ## Findings
@@ -276,24 +352,41 @@ Severity levels, used for per-finding labels and the Recommendations grouping:
 | - | -------- | ------- | ----- | ------ |
 | 1 | file:line | Nested ternary | 3 | Replace with conditional |
 
+### Coexisting Generations
+
+| # | Concern | Strata | Live evidence | Current | Action |
+| - | ------- | ------ | ------------- | ------- | ------ |
+| 1 | HTTP client | `src/api/http.ts:12` (axios), `src/lib/fetchJson.ts:8` (node-fetch) | 14 vs 3 import sites | axios — newer call sites | Move the 3 sites to `http.ts`; drop `node-fetch` |
+
 ## Recommendations (Priority Order)
 
-1. **High**: {high-impact duplication, dead code with confidence}
-2. **Medium**: {unnecessary abstractions, over-parameterized APIs}
+1. **High**: {high-impact duplication, dead code with confidence, generations whose behavior diverges}
+2. **Medium**: {unnecessary abstractions, over-parameterized APIs, generations with equivalent behavior}
 3. **Low**: {control flow improvements, concern separation}
 ```
 
 (Structural complexity is rarely Critical on its own; use Critical only when a duplicated or dead path is actively
-producing wrong behavior in production.)
+producing wrong behavior in production. Coexisting generations are **Medium** by default; raise to **High** when the
+strata *behave* differently — two HTTP clients with different retry and timeout policies, two validators enforcing
+different rules — because that is a live behavioral divergence, not only maintenance debt.)
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
-- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line in the Scope section is always present, even at zero findings.
+- **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line, and the coexisting-generations skip line when the scope is a diff, are always present in the Scope section even at zero findings.
 - **Scope: structural complexity in production code only.** If a finding doesn't answer "is this simpler than it
   could be?", it belongs to another hunter — do not flag it here. Test-code duplication and setup bloat belong to
   test-hunter; class-level responsibility analysis belongs to solid-hunter.
-- **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code.
+- **Coexisting generations: adjacent categories.** Shotgun surgery — one logical change spreading across many
+  modules — is smell-hunter's; §7 is the inverse, many generations stacked on one concern. An external dependency
+  with no wrapper at all is boundary-hunter's Missing Abstraction Over Externals; two wrappers of different vintage
+  are §7. A feature flag that is always on or off is a stale flag (§3); a flag whose branches are both live with no
+  removal plan is §7.
+- **Retire, don't rewrite.** A coexisting-generations finding moves call sites onto a stratum that already exists and
+  deletes the others. Never recommend a third generation.
+- **Evidence required.** Every finding must cite `file/path.ext:line` with the exact code. A coexisting-generations
+  finding cites file:line for *every* stratum, plus a live import or call site for each — a stratum whose liveness
+  is not shown is not part of the finding.
 - **Reuse over addition.** When recommending a fix, prefer existing helpers or deletion over new code.
 - **Preserve behavior.** Never recommend changes that alter what the code does, only how it's structured.
 - **Pragmatism.** Not every abstraction is wrong. Flag, assess, and acknowledge intentional complexity. If a
