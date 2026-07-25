@@ -85,7 +85,8 @@ This document serves as the **input** for a future precise requirements or imple
 - **Assume nothing**: if a term has multiple interpretations, define it or ask.
 - **No weak assumptions**: if something "should probably work", verify it or flag it as a risk. Underestimated risks
   poison downstream plans.
-- **YAGNI ruthlessly**: Remove unnecessary features from all designs
+- **YAGNI ruthlessly**: Remove unnecessary features from all designs. No gold plating or bike-shedding,
+- **Watch for architectural antipatterns**: leaky abstractions, cargo cult refactoring, lava layering or premature optimization. 
 - **Focus**: Keep the conversation and artifacts anchored to the chosen initial theme. Do not expand scope or
   switch to adjacent concepts unless they are required to clarify, make feasible, or verify the proposed ideas.
 - **No empty sections.** Include only sections with content. Omit a heading, list, or subsection entirely when it
