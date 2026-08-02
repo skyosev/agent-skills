@@ -56,8 +56,10 @@ Context determines whether the smell is a genuine issue or an acceptable trade-o
    type-hunter-py.)
 
 6. **Use the language, not fight it.** Python has powerful features — dataclasses, NamedTuples, Protocols, descriptors,
-   context managers, generators — that eliminate entire categories of smells. When the language provides an idiom,
-   use it instead of reimplementing patterns from other languages.
+   context managers, generators — that eliminate entire categories of smells. Prefer idiomatic design over patterns
+   transplanted from other languages. Replacing a project implementation with an equivalent existing primitive
+   (stdlib or already-present dependency) is owned by simplicity-hunter-py — smell-hunter owns broader non-idiomatic
+   design patterns, not that structural substitution.
 
 7. **Refactor incrementally.** Split by responsibility, not by size. Introduce abstraction only when needed (wait for
    the second use case). Preserve behavior first — add tests before restructuring.
@@ -427,6 +429,9 @@ exists).
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
+- **Primitive replacement vs idiom.** **Simplicity owns** replacing a project implementation with an equivalent
+  existing primitive (Reinvented Primitives). **Smell owns** broader non-idiomatic design patterns. Defer
+  structural primitive-replacement findings to simplicity-hunter-py.
 - **Scope: classic code smells and Python-specific antipatterns only.** Do not flag SOLID violations
   (→ solid-hunter-py), type design debt or primitive obsession (→ type-hunter-py), module boundary issues
   (→ boundary-hunter-py), invariant enforcement (→ invariant-hunter-py), structural complexity

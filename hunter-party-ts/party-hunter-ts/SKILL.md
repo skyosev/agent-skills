@@ -73,8 +73,10 @@ DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
 For a **path or codebase** scope, expand it to a concrete file list the same way
 (for example `git ls-files -- <paths>`).
 
-Record the base SHA (diff scope) and the resolved file list — both go into `scope.txt`
-and the Run Status section.
+Record the resolved file list (manifest) and the non-path metadata separately — both are
+written in step 3 and referenced from the Run Status section. **Filenames containing
+whitespace are unsupported:** the newline-delimited manifest plus shell expansion of
+`$SCOPE` word-splits on spaces; do not include such paths in the snapshot.
 
 If the resolved surface exceeds what can be read within the context budget, report the
 file count and ask to narrow or chunk before launching.
@@ -87,9 +89,11 @@ reports/party-hunter-ts/YYYY-MM-DDTHHMM/hunters/
 ```
 
 Use the current timestamp. Create **both** folders before launching any subagents, then
-write the scope snapshot to `scope.txt` in the reports folder root: the base SHA (for
-diff scopes) on the first line, followed by one file path per line, and a
-`Deleted in diff:` list if applicable.
+write the scope snapshot as two files in the reports folder root:
+
+- `scope.txt` — **file manifest only**: one path per line. No base SHA, no Deleted list.
+- `scope-meta.txt` — metadata: base SHA (diff scope), surface type (diff / path /
+  codebase), deleted-in-diff list (if any), file count, and any other non-path metadata.
 
 Reports are **ephemeral artifacts, not part of the audited codebase** — do not commit
 them. If `reports/` is not already ignored, add it to `.gitignore` (this also keeps
@@ -135,7 +139,9 @@ Read {resolved absolute path to the hunter's SKILL.md} and follow its instructio
 exactly, with these overrides:
 
 - Scope: audit exactly the files listed in {reports_folder}/scope.txt — an immutable
-  snapshot resolved by the orchestrator. Do not re-resolve the scope.
+  file-manifest snapshot resolved by the orchestrator. Do not re-resolve the scope.
+  Non-path metadata (base SHA, surface type, deleted-in-diff, file count) is in
+  {reports_folder}/scope-meta.txt if needed — do not treat that file as audit input.
 - Output: write your report to {reports_folder}/hunters/{hunter-name}.md
   (absolute path — this overrides the skill's default output location).
 
@@ -173,7 +179,7 @@ implement all suggestions without consulting the individual hunter reports.
 |--------|--------|----------|
 | {each of the 12 hunters} | completed / failed / skipped | {N} |
 
-**Base**: {base SHA, or "codebase"} · **Scope**: {N files} (snapshot: `scope.txt`)
+**Base**: {base SHA, or "codebase"} · **Scope**: {N files} (manifest: `scope.txt`, meta: `scope-meta.txt`)
 {Deleted in diff: {list} — only when non-empty}
 
 ## Executive Summary
