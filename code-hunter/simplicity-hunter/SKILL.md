@@ -1,25 +1,22 @@
 ---
 name: simplicity-hunter
 description: |
-  Audit Go, Python, and TypeScript code for unnecessary structural complexity —
-  duplication, reinvented primitives, avoidable abstractions, dead logic paths,
-  over-parameterized APIs, deep nesting, mixed concerns, and coexisting abstraction
-  generations left behind by unfinished migrations. Recommends the simplest shape
-  that preserves intended behavior.
+  Use when reviewing Go, Python, or TypeScript code for over-engineering, reducing
+  complexity after prototyping, enforcing reuse over addition, simplifying before a
+  refactor, or auditing a codebase after a library or framework migration.
 
-  Use when: reviewing code for over-engineering, reducing complexity after
-  prototyping, enforcing reuse over addition, simplifying before a refactor, or
-  auditing a codebase after a library or framework migration.
+  Covers duplication, reinvented primitives, avoidable abstractions, dead logic paths,
+  over-parameterized APIs, deep nesting, mixed concerns, and coexisting abstraction
+  generations left behind by unfinished migrations.
 disable-model-invocation: true
 ---
 
 # Simplicity Hunter
 
-Audit code for **structural complexity** — places where logic is duplicated, abstractions don't earn their keep,
-control flow is deeper than it needs to be, or concerns are mixed. The goal: **the simplest code that preserves
-intended behavior.**
+Audit code for **structural complexity** — duplicated logic, abstractions that don't earn their keep, control flow
+deeper than needed, mixed concerns. Goal: **the simplest code that preserves intended behavior.**
 
-Supports Go, Python, and TypeScript via per-language reference files.
+Supports Go, Python, TypeScript via per-language reference files.
 
 ## When to Use
 
@@ -30,24 +27,43 @@ Supports Go, Python, and TypeScript via per-language reference files.
 - Deduplicating logic across production modules or packages (duplication *within test code* belongs to test-hunter)
 - Auditing a codebase after a library or framework migration for unfinished strata
 
+## Quick Reference
+
+Full rules per category in **What to Hunt**; every finding must also clear Not-a-finding and the Phase 5 reporting
+gate.
+
+| Category | Core signal | Action | Belongs to another hunter |
+| -------- | ----------- | ------ | ------------------------- |
+| Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback | Duplication *within test code* → test-hunter |
+| Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold | Non-idiomatic patterns generally → smell-hunter |
+| Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline | Class/interface *design* → solid-hunter (Go interface pollution stays here) |
+| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, commented-out alternate | Delete, with liveness evidence | Exported dead symbols → boundary-hunter |
+| Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case | Booleans selecting behaviors that will grow variants → solid-hunter |
+| Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator | — |
+| Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries | Guard clauses, early returns, lookup tables | — |
+| Coexisting Generations | Two or more **live**, structurally different solutions to one concern | Name the survivor, give a retirement plan | One concern spread across many files → smell-hunter (shotgun surgery) |
+
+Hunter names throughout are unsuffixed end-state names. Until consolidation completes, live skills are
+language-suffixed (`test-hunter-go`, `test-hunter-py`, `test-hunter-ts`, and so on).
+
 ## Core Principles
 
-1. **Default to delete.** The best simplification is removal. If code can be deleted without changing behavior, delete
-   it. If it can be replaced by an existing helper, replace it.
+1. **Default to delete.** The best simplification is removal. Code deletable without changing behavior: delete it.
+   Replaceable by an existing helper: replace it.
 
 2. **One canonical path.** When two implementations do the same thing, pick one and remove the other. Avoid "shared
-   helper + keep both paths" unless required by genuinely different consumers. When the two paths are *near-identical*,
-   the remedy is deletion; when they are *different designs that are both in use*, the finding is the unfinished
-   migration itself, and the remedy is a retirement plan naming the stratum that survives.
+   helper + keep both paths" unless genuinely different consumers require it. When the paths are *near-identical*, the
+   remedy is deletion; when they are *different designs that are both in use*, the finding is the unfinished migration
+   itself, and the remedy is a retirement plan naming the surviving stratum.
 
-3. **Abstractions must earn their place.** Reject new wrappers, managers, and factories unless they reduce total
-   complexity through reuse. An abstraction that serves one call site is indirection, not simplification.
+3. **Abstractions must earn their place.** Reject new wrappers, managers, factories unless they reduce total complexity
+   through reuse. An abstraction serving one call site is indirection, not simplification.
 
-4. **Flags are complexity multipliers.** Each boolean parameter can double the logic paths. Prefer one linear flow; if
-   a flag is unavoidable, require sharp naming and a removal plan when the flag is transitional.
+4. **Flags are complexity multipliers.** Each boolean parameter can double the logic paths. Prefer one linear flow; an
+   unavoidable flag requires sharp naming and, when transitional, a removal plan.
 
-5. **Inline the trivial.** Pass-through wrappers, single-use helpers, and indirection layers that add no logic should be
-   inlined. Measure value by what the wrapper adds, not by what it hides.
+5. **Inline the trivial.** Inline pass-through wrappers, single-use helpers, indirection layers adding no logic. Measure
+   value by what the wrapper adds, not by what it hides.
 
 6. **Separate concerns, don't mix them.** A function that fetches data AND transforms it AND logs errors has three
    reasons to change. Split into focused helpers with intent-revealing names.
@@ -74,11 +90,11 @@ corresponding structural finding exists, what would:
   wrapper layers, and dead policy branches *are* findings.
 - **Duplication documented as intentional for performance** — not a finding while the rationale holds; reportable only
   if the documented reason is demonstrably stale.
-- **Abstractions serving as test seams or DI boundaries** — not indirection while a test double or injector actually uses
-  them. A seam with **no** consumer *is* a finding.
+- **Abstractions serving as test seams or DI boundaries** — not indirection while a test double or injector actually
+  uses them. A seam with **no** consumer *is* a finding.
 - **Accessibility affordances** — never a removal target.
-- **Clarity over brevity** — denser, cleverer, or more compressed code that is harder to read is not a simplification.
-  Prefer the clearer shape even when it uses more lines.
+- **Clarity over brevity** — denser, cleverer, more compressed code that is harder to read is not a simplification.
+  Prefer the clearer shape even at more lines.
 - **Over-simplification guard** — do not recommend inlining that erases a name carrying domain meaning, or merging
   distinct responsibilities into one unit.
 
@@ -93,8 +109,8 @@ repeated assertion blocks — is test-hunter's finding; do not flag it here.)
 
 **Action — elimination first, evidence over counting:**
 
-1. **Eliminate before extracting.** If the duplication can be derived from an existing source of truth — a constant,
-   an existing map, a generated value — that is the finding. A new shared helper is the fallback, not the first move.
+1. **Eliminate before extracting.** Duplication derivable from an existing source of truth — a constant, an existing
+   map, a generated value — is the finding. A new shared helper is the fallback, not the first move.
 2. Where elimination does not apply, a consolidation finding must show the shared unit **reduces total code and total
    concepts** and represents **one stable behavior**, not two behaviors that merely look alike today.
 3. **Occurrence count is supporting evidence, not a gate.** Report it; do not decide on it.
@@ -104,7 +120,7 @@ algorithm; identical non-trivial error-handling or validation *logic* repeated a
 
 ### Reinvented Primitives
 
-Project code that reimplements a stdlib (or already-present dependency) primitive with equivalent semantics, when the
+Project code reimplementing a stdlib (or already-present dependency) primitive with equivalent semantics, when the
 toolchain already supports it. Primitive lists and gates live in the language reference.
 
 **Gates — all must hold:**
@@ -117,11 +133,11 @@ toolchain already supports it. Primitive lists and gates live in the language re
 5. **Mutability and ownership parity** — must not change who may mutate what.
 6. **Demonstrable net reduction in concepts**, not merely in lines.
 
-A version that differs on any gate is not a simplification. **Action:** replace with the primitive; do not wrap further.
+A version differing on any gate is not a simplification. **Action:** replace with the primitive; do not wrap further.
 
 ### Unnecessary Abstractions
 
-Wrappers, managers, registries, or factories that serve a single call site or add no logic.
+Wrappers, managers, registries, factories serving a single call site or adding no logic.
 
 **Signals:** pass-through delegates; single-resource "managers"; one-type factories; single-implementation abstractions
 with no test double and no plan for more (unless a live test seam / DI boundary — see Not-a-finding).
@@ -148,15 +164,15 @@ flags always on/off; commented-out alternate implementations; default/`else` arm
 
 ### Over-Parameterized APIs
 
-Functions with many parameters, boolean flags, or option/config objects that create a combinatorial explosion.
-**Ownership:** boolean-parameter findings live here. solid-hunter claims only booleans that select between behaviors
-that will grow variants (OCP setup); smell-hunter does not flag them.
+Functions with many parameters, boolean flags, or option/config objects creating a combinatorial explosion.
+**Ownership:** boolean-parameter findings live here. solid-hunter claims only booleans selecting between behaviors that
+will grow variants (OCP setup); smell-hunter does not flag them.
 
 **Signals:**
 
 - **4+ parameters** — nomination only. A finding requires judgment on cohesion, call-site readability, and actual
   branching — not the count alone.
-- Booleans that create branching burden, ambiguous call sites, or reachable combinations readers must reason about.
+- Booleans creating branching burden, ambiguous call sites, or reachable combinations readers must reason about.
   Count nominates; demonstrated complexity decides. Caller count is not a complexity measure.
 - Option/config objects with mostly unused fields; catch-all kwargs / options pass-throughs.
 
@@ -164,7 +180,7 @@ that will grow variants (OCP setup); smell-hunter does not flag them.
 
 ### Mixed Concerns
 
-Single functions or types that handle multiple unrelated responsibilities.
+Single functions or types handling multiple unrelated responsibilities.
 
 **Signals:** fetch AND transform AND persist/render in one body; long functions (50+ lines) with distinct sections;
 methods or module bodies spanning abstraction levels.
@@ -205,14 +221,39 @@ once empty). Never rewrite — the surviving generation is already written.
 Test files are **in scope** for every category **except Duplication**. Test-code duplication belongs to test-hunter.
 Each language reference's scan profile enforces this: the Duplication scan excludes test paths; other scans do not.
 
+## Severity and Impact
+
+Every finding carries **both**. They answer different questions and routinely diverge.
+
+**Severity — behavioral risk if left as-is:**
+
+- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths. Structural complexity is
+  rarely Critical on its own: only when a duplicated or dead path actively produces wrong production behavior.
+- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
+- **Medium** — correctness or maintainability risk without imminent impact.
+- **Low** — hygiene; no behavioral risk. A dead branch that never executes is Low however ugly it is.
+
+**Impact — how much the change is worth:** defect exposure, cognitive burden, affected surface. Contextual; never
+derived from nesting depth, occurrence count, or pattern alone. That same never-executed dead branch, sitting in a hot
+and frequently-read file, is High impact.
+
+- **High** — substantial reduction on code read or changed often
+- **Medium** — clear improvement on a moderately reached surface
+- **Low** — clears the reporting gate but touches a small, rarely hit surface
+
+Coexisting Generations default to **Medium** severity; raise to **High** when strata *behave* differently, not merely
+when they coexist.
+
+Recommendations group by Severity (Critical → High → Medium → Low), then by Impact within each group.
+
 ## Audit Workflow
 
 ### Phase 1: Gain Context
 
-1. **Resolve the raw manifest.** The prompt may specify the scope as:
-   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, and untracked
+1. **Resolve the raw manifest.** The prompt may specify scope as:
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked
    - **Path**: specific files, folders, or packages
-   - **Codebase**: the entire project (the default when unspecified; set `SCOPE=.`)
+   - **Codebase**: the entire project (default when unspecified; set `SCOPE=.`)
 
    **Party mode:** when the orchestrator supplies a scope snapshot, treat `scope.txt` as a **file manifest only**
    (one path per line). Read run metadata (base SHA, surface kind, counts) from `scope-meta.txt` when present. Use the
@@ -274,7 +315,7 @@ Each language reference's scan profile enforces this: the Duplication scan exclu
    there. Related files may still be *read* as **context** (call sites, canonical helpers, competing strata).
 
 5. **Read repository instructions** when present (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, project convention docs)
-   for stated design decisions, intentional complexity, and toolchain conventions. Note helpers, utilities, and
+   for stated design decisions, intentional complexity, toolchain conventions. Note helpers, utilities, and
    intentional duplication for performance before scanning.
 
 ### Phase 2: Scan for Complexity Signals
@@ -308,130 +349,53 @@ Coexisting Generations. Near-identical bodies reclassify to Duplication.
 **Reporting gate.** Report only when the proposed change demonstrably reduces total concepts, duplicated behavior, or
 control-flow burden enough to outweigh new indirection and behavioral risk.
 
-For each signal: apply Not-a-finding first; clear the reporting gate; choose the simplest elimination. Public API shape
-may change; intended runtime behavior must still be preserved — do **not** default to follow-up merely because an
-exported/public API changes. Coexisting Generations: all strata live and designs differ; survivor = capability/intent.
-Reinvented primitives: all six gates with a cited toolchain requirement.
+For each signal: apply Not-a-finding first; clear the reporting gate; choose the simplest elimination. Coexisting
+Generations: all strata live and designs differ; survivor = capability/intent. Reinvented primitives: all six gates
+with a cited toolchain requirement.
 
 **Platform-guarantee rule (flag only with evidence).** When recommending removal because "the platform / framework /
 middleware already guarantees it," name the owning layer, show removal preserves every output, error, side effect and
 ordering, and cite the proof. Without that evidence, do not raise the finding — this class over-fires.
 
-**Severity vs Impact — both required on every finding.**
+Assign **Severity and Impact** to every finding (see the section above — both are required, and they diverge).
 
-- **Severity** — behavioral risk if left as-is. A dead branch that never executes is Low severity however ugly it is.
-- **Impact** — how much the change is worth (defect exposure, cognitive burden, affected surface). That same dead
-  branch in a hot, frequently-read file can be High impact.
-
-Impact bands (contextual; never by nesting depth, occurrence count, or pattern alone): **High** — substantial reduction
-on code read/changed often; **Medium** — clear improvement on a moderately reached surface; **Low** — clears the gate
-but touches a small, rarely hit surface.
-
-Nothing is held back; `Audit completed: N findings` counts every reported finding. Recommendations group by Severity,
-then by Impact within each group.
+Nothing is held back; `Audit completed: N findings` counts every reported finding.
 
 ### Phase 6: Produce Report
-
-## Output Format
 
 Save as `YYYY-MM-DD-simplicity-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
 (e.g. `fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies
 an output path or return mode (e.g. the party-hunter orchestrator), it overrides this default.
 
-Severity levels, used for per-finding labels and the Recommendations grouping:
+Read `references/report-format.md` for the report template and per-category table schemas. Language-only categories
+appended by a language reference (today: Interface Pollution, Channel & Goroutine Overuse) use the table schemas
+supplied in that reference.
 
-- **Critical** — exploitable now, causes data loss, or breaks behavior on production paths.
-- **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
-- **Medium** — correctness or maintainability risk without imminent impact.
-- **Low** — hygiene; no behavioral risk.
+## Red Flags — stop and re-check
 
-Language-only categories appended by a reference (today: Interface Pollution, Channel & Goroutine Overuse) use the
-table schemas supplied in that reference. Omit any category heading with zero findings.
-
-```md
-# Simplicity Hunter Audit — {date}
-
-## Scope
-
-- Surface: {diff / path / codebase}
-- Files (raw manifest): {count or list}
-- Eligible: {per-language counts or lists}
-- Exclusions: {list — vendored / lockfile / md-only / generated-by-marker}
-- References loaded: {go, python, typescript as present}
-- {no reference for .<ext> — language-specific categories skipped — when applicable}
-- {Deleted in diff: {list} — only for diff scope with deletions}
-- {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
-- Audit completed: {N} findings
-
-## Findings
-
-### Duplication
-
-| # | Locations | Description | Severity | Impact | Action |
-| - | --------- | ----------- | -------- | ------ | ------ |
-| 1 | a:10, b:20 | Near-identical validation | Medium | High | Eliminate via existing schema |
-
-### Reinvented Primitives
-
-| # | Location | Hand-rolled | Primitive | Toolchain | Severity | Impact | Action |
-| - | -------- | ----------- | --------- | --------- | -------- | ------ | ------ |
-| 1 | file:line | loop contains | `slices.Contains` | go 1.21 | Low | Medium | Replace |
-
-### Unnecessary Abstractions
-
-| # | Location | Abstraction | Consumers | Severity | Impact | Action |
-| - | -------- | ----------- | --------- | -------- | ------ | ------ |
-| 1 | file:line | `ConfigManager` | 1 | Medium | Medium | Inline |
-
-### Dead Code Paths
-
-| # | Location | Code | Evidence | Severity | Impact | Action |
-| - | -------- | ---- | -------- | -------- | ------ | ------ |
-| 1 | file:line | `legacyHandler()` | 0 call sites; not in registry | Low | High | Delete |
-
-### Over-Parameterized APIs
-
-| # | Location | Function | Params | Severity | Impact | Action |
-| - | -------- | -------- | ------ | -------- | ------ | ------ |
-| 1 | file:line | `render(...)` | 5 (3 bools) | Medium | Medium | Split by use case |
-
-### Mixed Concerns
-
-| # | Location | Function | Concerns | Severity | Impact | Action |
-| - | -------- | -------- | -------- | -------- | ------ | ------ |
-| 1 | file:line | `processOrder()` | fetch + transform + log | Medium | Medium | Extract 3 helpers |
-
-### Complex Control Flow
-
-| # | Location | Pattern | Depth | Severity | Impact | Action |
-| - | -------- | ------- | ----- | -------- | ------ | ------ |
-| 1 | file:line | Nested if/else | 4 | Low | Low | Flatten with guards |
-
-### Coexisting Generations
-
-| # | Concern | Strata | Live evidence | Survivor (capability/intent) | Severity | Impact | Action |
-| - | ------- | ------ | ------------- | ---------------------------- | -------- | ------ | ------ |
-| 1 | HTTP | a:12 (axios), b:8 (fetch) | migration names axios; 14 vs 3 | axios — intent | Medium | High | Move 3; drop fetch |
-
-## Recommendations (Priority Order)
-
-Group by severity (Critical → High → Medium → Low). Within each group, order by Impact (High → Medium → Low).
-```
-
-(Structural complexity is rarely Critical on its own — Critical only when a duplicated or dead path actively produces
-wrong production behavior. Coexisting generations default to **Medium**; raise to **High** when strata *behave*
-differently, not merely when they coexist.)
+| Thought | Reality |
+| ------- | ------- |
+| "The scan shows two matches — I'll cite both file:line" | Two `rg` hits are a nomination. Open both bodies before writing a finding; scan output is not evidence. |
+| "This helper has no call sites" | Grep is not liveness. Reflection, DI, registries, entrypoint config, and the language reference's channels come first. |
+| "Five parameters, that's a finding" | Count nominates; demonstrated branching or call-site confusion decides. Caller count is not a complexity measure. |
+| "This validation is repeated across four handlers" | Repetition at trust boundaries is enforcement, not duplication. A finding only if the *logic* could be one shared schema still invoked at every boundary. |
+| "The framework already guarantees this, so the check is redundant" | Name the owning layer and cite the proof, or drop it. This class over-fires. |
+| "These two names look like old and new — that's a lava layer" | Names and dependency coexistence nominate only. No identical responsibility plus intended-replacement trail, no finding. |
+| "The report looks thin — I'll note what I checked and found clean" | Zero-finding sections are omitted. A thin report is a valid result. |
+| "This is denser and fewer lines" | Fewer lines that read worse is not a simplification. Concepts, not lines. |
+| "I'll just fix it while I'm here" | No code edits. The report is the deliverable. |
+| "The language reference won't load — I'll do shared categories only" | Fail closed. Stop and report. |
 
 ## Operating Constraints
 
 - **No code edits.** This skill produces an audit report only. Implementation is a separate step.
 - **No empty finding sections.** Include only categories with findings. Omit a heading, table, or list entirely when it
-  would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead
-  exports", "none found", or "no issues". Execution status is exempt: the "Audit completed: N findings" line, and the
+  would contain zero items — no empty tables, placeholder subsections, or negative statements like "no dead
+  exports", "none found", "no issues". Execution status is exempt: the "Audit completed: N findings" line, and the
   coexisting-generations skip line when the scope is a diff, are always present in the Scope section even at zero
   findings.
-- **Scope: structural complexity only.** If a finding doesn't answer "is this simpler than it could be?", it belongs
-  elsewhere. Boundaries (unsuffixed end-state names): invariant-hunter, type-hunter, boundary-hunter, solid-hunter
+- **Scope: structural complexity only.** A finding that doesn't answer "is this simpler than it could be?" belongs
+  elsewhere. Boundaries: invariant-hunter, type-hunter, boundary-hunter, solid-hunter
   (class/interface *design*; Go interface *pollution* stays here), doc-hunter, security-hunter, test-hunter (test
   quality and test-code duplication), slop-hunter (cosmetic style; when it runs jointly it may own commented-out text
   — standalone, commented-out alternate implementations remain Dead Code Paths here), smell-hunter (broader
@@ -441,10 +405,9 @@ differently, not merely when they coexist.)
   Always-on/off flag → Dead Code Paths; both branches live with no removal plan → Coexisting Generations.
 - **Retire, don't rewrite.** Move call sites onto an existing stratum and delete the others. Never recommend a third
   generation.
-- **Evidence required.** Every finding cites `file:line` (see language reference for path form). Coexisting Generations
-  cites file:line and a live import/call site for *every* stratum. Dead-code evidence cites only channels relevant to
-  that symbol. Reinvented primitives cite the primitive, toolchain requirement, and parity evidence.
-- **Reuse over addition.** Prefer existing helpers or deletion over new code.
+- **Evidence required.** Every finding cites `file:line` (see language reference for path form); per-category evidence
+  bars are in What to Hunt.
 - **Preserve behavior.** Never alter what the code does — only how it's structured. Public API shape may change; do not
-  defer findings on backward-compatibility grounds.
+  defer findings on backward-compatibility grounds, and do not default to follow-up merely because an exported API
+  changes.
 - **Pragmatism.** Not every abstraction is wrong. Flag, assess, and acknowledge intentional complexity.
