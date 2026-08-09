@@ -118,6 +118,16 @@ repeated assertion blocks — is test-hunter's finding; do not flag it here.)
 **Signals:** two near-identical bodies differing only in a value or branch; multiple implementations of the same
 algorithm; identical non-trivial error-handling or validation *logic* repeated across handlers (see Not-a-finding).
 
+**Scope the claim to the shared region.** Cite what is actually identical after normalization — often one assembly
+block, not the whole function. Per-copy validation, policy, and value resolution stay outside the extraction, and the
+description must not inflate "one shared block" into "the whole feature lands twice."
+
+**Drifted copies that diverge behaviorally are two findings, not one.** When drift has produced a live behavioral
+difference, report the defect as its own finding — standalone, fixed by the minimal edit, dependent on no refactor —
+and judge the consolidation separately against the *post-fix* copies. A live divergence is evidence the copies drifted;
+it is **not** license to collapse them: if what remains after the one-line fix is copies that genuinely differ in
+per-copy policy, the collapse may not clear the reporting gate at all.
+
 ### Reinvented Primitives
 
 Project code reimplementing a stdlib (or already-present dependency) primitive with equivalent semantics, when the
@@ -279,6 +289,10 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
    read within the context budget, report the file count and ask to narrow or chunk.
 
+   **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
+   (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
+   commit — state that findings must be re-located by symbol name.
+
    The raw manifest is **immutable** and language-independent. Do not redefine it on a mixed scope — silently
    narrowing would break the party guarantee that all hunters audit the same surface. Mechanical-churn detection
    (formatting, lint autofix, mass rename) requires diff content, not a file list — **optional inspection, never a
@@ -381,6 +395,8 @@ supplied in that reference.
 | "This validation is repeated across four handlers" | Repetition at trust boundaries is enforcement, not duplication. A finding only if the *logic* could be one shared schema still invoked at every boundary. |
 | "The framework already guarantees this, so the check is redundant" | Name the owning layer and cite the proof, or drop it. This class over-fires. |
 | "These two names look like old and new — that's a lava layer" | Names and dependency coexistence nominate only. No identical responsibility plus intended-replacement trail, no finding. |
+| "One copy is buggy — collapsing all three fixes it" | The bug is its own finding with its own minimal fix. Judge the collapse against the post-fix copies; it may not clear the gate. |
+| "The proposal names the parameters — good enough" | Re-open the cited signature first. Every parameter, arity, and adjacency the remedy relies on must exist as written; a remedy built on a misread signature is a false positive. |
 | "The report looks thin — I'll note what I checked and found clean" | Zero-finding sections are omitted. A thin report is a valid result. |
 | "This is denser and fewer lines" | Fewer lines that read worse is not a simplification. Concepts, not lines. |
 | "I'll just fix it while I'm here" | No code edits. The report is the deliverable. |

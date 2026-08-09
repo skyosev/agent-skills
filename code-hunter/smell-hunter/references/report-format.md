@@ -21,6 +21,7 @@ module is not a package.
 ## Scope
 
 - Surface: {diff / path / codebase}
+- Commit: {short SHA}{, dirty working tree — line numbers match no commit; re-locate findings by symbol name}
 - Files (raw manifest): {count or list}
 - Eligible: {per-language counts or lists}
 - Exclusions: {list — vendored / lockfile / md-only / generated-by-marker}

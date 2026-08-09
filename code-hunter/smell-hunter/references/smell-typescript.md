@@ -52,6 +52,16 @@ Brands that encode *validated* state (parse-don't-validate) belong to invariant-
 security-sensitive strings (SQL fragments, HTML, paths) belong to security-hunter. Boolean parameters belong to
 simplicity-hunter. Cross-reference instead of duplicating.
 
+**Structural typing voids alias-only remedies.** Two plain aliases (or interfaces) over the same field set stay
+mutually assignable — "distinct named types" for same-shaped records buys zero compiler protection. Either the
+remedy brands, or the finding must stand on something other than preventing mix-ups; if branding is not worth it,
+withdraw rather than recommend a rename that enforces nothing.
+
+**Closed-union facts: exhaustive `Record`, not `Set`.** For a per-member fact over a closed union, recommend
+`Record<Union, T>` (with `satisfies` where useful) over `ReadonlySet` membership: a set makes a rename a compile
+error but lets a new member join silently as absent/false; the exhaustive record forces a decision at every
+addition.
+
 ### God Module — TypeScript signals
 
 - A file mixing unrelated functionality — line count nominates, unrelated responsibilities decide

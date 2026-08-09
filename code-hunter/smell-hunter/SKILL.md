@@ -103,6 +103,10 @@ finding exists, what would:
   every site would consume the extracted type.
 - **Feature envy in a utility function** — a helper deliberately written over a foreign type is not misplaced. *Is* a
   finding when the function's name and purpose belong to the type it envies.
+- **Switching on a foreign type's discriminant to answer the home module's own question** — consuming another
+  module's result type is what result types are for; the function belongs with the *policy* it implements, not the
+  data it reads. Moving it would make the data's module depend on one consumer's policy. "Drops one import" is not a
+  gain worth reporting.
 - **Two same-typed parameters that cannot be transposed in practice** — adjacent `string` parameters are not
   Primitive Obsession when call sites cannot plausibly swap them (different shapes, one always literal, compile-time
   keyed). *Is* a finding when a swap would type-check and silently change behavior.
@@ -145,6 +149,16 @@ The same group of parameters or fields that always travel together across signat
 parameter type; clumps across type definitions become a shared composed type. Remedy vocabulary is per-language —
 see the reference.
 
+**Evidence: read every cited signature.** The group must appear in each signature the finding lists — verified by
+opening them, not inferred from names. Count the parameters as written; a claimed adjacency, arity, or field that
+does not exist voids the finding. A group present in only one signature is at most an over-parameterized API
+(→ simplicity-hunter), not a clump.
+
+**If the justification is an invariant between the fields, the remedy must enforce it.** A plain record only stores
+the values together; recommend a factory or validating constructor that derives the dependent field, so the invariant
+moves from a comment into the construction path. Grouping without either a real transposition risk or an enforced
+invariant is convenience, not safety — say which one the extraction buys.
+
 **Test-code boundary:** duplicated *test setup* data is test-hunter's "Test Setup Duplication and Shared State" — do
 not flag it here.
 
@@ -161,6 +175,13 @@ One logical change requires edits across many unrelated files or areas.
 
 **Action:** Consolidate the scattered responsibility — registry or map-based dispatch instead of scattered switch
 cases; generation or schema-derived types for per-variant boilerplate; one area owning the concept end-to-end.
+
+**Registry gate.** A registry or dispatch table is the remedy only where the scattered arms share **one
+responsibility** — near-identical bodies answering the same question. Dispatch sites that serve different consumers
+with deliberately different answers (one resolves paint, one anchors, one classifies) do not consolidate: a record
+spanning them becomes a heterogeneous bag of weak callbacks. There, recommend the cheap standalone fix — exhaustive
+switches with `assertNever`-style arms so the next variant is a compile error — and scope any table to the one module
+family whose bodies are genuinely equal.
 
 **Evidence rule (the one exception to a purely in-file anchor).** The finding still anchors to an **in-scope source
 location**: the concrete site edited per variant — the switch, the mapper, the registration list. Commit hashes and
@@ -223,6 +244,11 @@ Fields meaningful only in certain states or operations — set for one code path
 **Action:** Extract them into a separate type used only where needed. If the type represents multiple states, use a
 discriminated pattern — one type per state — or a method-local variable instead of a field.
 
+**Enumerate the producers before recommending a type split.** When every producer of the type already pairs the field
+correctly and only a hand-built value could reach the bad state, the finding is Low and the remedy is the minimal
+guard at the consumer — a variant split with one producer and one consumer is gold plating. Recommend the split only
+when a second valid state or a second producer/consumer actually exists.
+
 ### Primitive Obsession *(conditional)*
 
 Primitive types for domain concepts deserving their own named or branded types.
@@ -261,6 +287,10 @@ Class; package-level organization is boundary-hunter's.
 
 **Action:** Split by responsibility; each file gets one clear purpose. Genuinely shared utilities group by domain
 concept (`string_utils`, `date_utils`).
+
+**Calibration.** A small, cohesive module carrying one minor misplaced group — a few constants whose sole importer is
+one other file — is *misplaced locality*, not a God Module. Report it at Low/Low with an opportunistic action ("move
+when either file is next edited"), or not at all; the God Module label on a 100-line file is noise.
 
 ### Mutable Global State *(conditional)*
 
@@ -404,6 +434,10 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
    listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds the context
    budget, report the file count and ask to narrow or chunk.
+
+   **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
+   (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
+   commit — state that findings must be re-located by symbol name.
 
    The raw manifest is **immutable** and language-independent. Do not redefine it on a mixed scope — silently
    narrowing breaks the party guarantee that all hunters audit the same surface.
@@ -552,6 +586,8 @@ appended by a language reference use the table schemas supplied in that referenc
 | "The regex matched, so it's feature envy" | Scan output is a nomination. Open the body and count what it touches. |
 | "This class has one method — Class Abuse" | Does it hold state? A stateful one-method class is not the smell. |
 | "These 6 files always change together" | One commit is not a pattern. And where is the in-scope anchor the finding cites? |
+| "Seven switch sites — recommend a registry" | Do the arms share one responsibility with near-identical bodies? Heterogeneous consumers don't consolidate; recommend exhaustiveness fixes instead. |
+| "Three functions take this trio" | Open all three signatures. A parameter miscounted, misnamed, or present in only one signature voids the clump. |
 | "`utils.py` is 700 lines — God Module" | Line count nominates. Enumerate the unrelated responsibilities or drop it. |
 | "The comment explains the code, so it's deodorant" | Only when the code is non-trivial. Trivial → slop-hunter; absent → doc-hunter. |
 | "This is a global" | Is there a write path after initialization? A read-only table is not the smell. |
