@@ -63,10 +63,11 @@ that applied.
   diff mode requires the merge-base proof
 - `const x = …` never referenced, with a side-effect-free initializer
 - Commented-out code (`// const old = …`); `TODO` / `FIXME` without owner, ticket, or condition
-- Bare `// eslint-disable`, `// eslint-disable-next-line <rule>`, `// @ts-ignore`, `// @ts-expect-error`,
-  `// biome-ignore lint/<rule>` with no trailing reason (`-- reason` for ESLint, `: reason` for Biome)
+- Bare `// eslint-disable`, `// eslint-disable-next-line <rule>`, `// biome-ignore lint/<rule>` with no trailing
+  reason (`-- reason` for ESLint, `: reason` for Biome). `// @ts-ignore` and `// @ts-expect-error` are
+  invariant-hunter's Type-System Bypasses, with or without a reason
 
-Not a finding: `// @ts-expect-error <reason>`; `import type` kept for a declaration merge with a stated reason;
+Not a finding: `import type` kept for a declaration merge with a stated reason;
 `export {}` making a file a module.
 
 Unused functions and constants → simplicity-hunter Dead Code Paths. Unused exports → boundary-hunter.
@@ -117,7 +118,7 @@ D() { git diff -U0 "$MB" -- $TS_FILES | rg "^@@|^\+($1)"; }
 D '\s*(//|/?\*)'                                             # comments and JSDoc (classify manually)
 D '.*(@param|@returns?|@description)'                            # JSDoc tags
 D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
-D '.*(eslint-disable|@ts-ignore|@ts-expect-error|biome-ignore)'  # suppressions (check for a reason)
+D '.*(eslint-disable|biome-ignore)'                              # linter suppressions (check for a reason)
 D '\s*import\s'                                                # added imports (check uses in the file)
 D '.*console\.(log|debug|info)\('                              # narration candidates
 D '.*(?i)(workaround|might need|for safety|new, improved|improved version)'   # hedging
@@ -130,7 +131,7 @@ rg -n '^\s*//' -- $TS_FILES                                    # comments (class
 rg -n '/\*\*' -- $TS_FILES                                     # JSDoc blocks
 rg -n -B2 '^\s*(async\s+)?function\s+[a-z]|^\s*const\s+[a-z]\w*\s*=\s*(async\s*)?\(' -- $TS_FILES   # non-exported functions with docs
 rg -n '\b(TODO|FIXME|HACK|XXX)\b' -- $TS_FILES
-rg -n 'eslint-disable|@ts-ignore|@ts-expect-error|biome-ignore' -- $TS_FILES
+rg -n 'eslint-disable|biome-ignore' -- $TS_FILES
 rg -n 'console\.(log|debug|info)\(' -- $TS_FILES
 rg -n -i 'workaround|might need|for safety|new, improved|improved version' -- $TS_FILES
 
@@ -158,8 +159,7 @@ For each unused-import candidate in diff mode:
 
 For each suppression:
 
-- Is there a trailing reason (`-- reason`, `: reason`, or text after `@ts-expect-error`)? Bare → Trivially Dead
-  Code. Is the suppressed rule reporting something real? Severity Medium.
+- Is there a trailing reason (`-- reason`, `: reason`)? Bare → Trivially Dead Code. Is the suppressed rule reporting something real? Severity Medium.
 
 For each `console.*`:
 

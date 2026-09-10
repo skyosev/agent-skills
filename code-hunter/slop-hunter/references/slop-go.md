@@ -39,8 +39,8 @@ Error wrapping that adds words, not context.
 **Action:** Wrap once, where the context is meaningful — the operation or resource the caller cannot infer. Let
 `errors.Is` / `errors.As` handle the chain.
 
-**Ownership:** slop-hunter owns *redundancy* of the wrapping messages; invariant-hunter owns *correctness* of the
-error chain (`%w` vs `%v`, `Unwrap`, `errors.Is` / `errors.As`). The two compose: wrap correctly, and wrap once.
+**Ownership:** slop-hunter owns *redundancy* of the wrapping messages; invariant-hunter's Error Chain Correctness
+owns *correctness* of the chain (`%w` vs `%v`, `Unwrap`, `errors.Is` / `errors.As`). The two compose: wrap correctly, and wrap once.
 
 **Report table:**
 
@@ -83,7 +83,8 @@ smell is smell-hunter's Stuttering Names.
 Go's compiler rejects unused imports and unused local variables, so those never appear in compiling code and
 `//nolint` cannot hide them. What Go does allow:
 
-- `_ = x` silencing a binding the author meant to use — here
+- `_ = x` silencing a non-error binding the author meant to use — here. `_ = f()` where `f` returns an `error` is
+  invariant-hunter's Unchecked Errors
 - Unused function parameters (after a refactor) — here
 - Unused struct fields — here
 - Bare `//nolint` or `//nolint:<linter>` with no trailing `// reason`
@@ -168,7 +169,8 @@ For each `fmt.Errorf` candidate:
 - Does the message add something the caller cannot infer — the operation, the resource, an identifier? If it only
   says "error" or "failed", it is redundant.
 - Is the inner error already wrapped with the same context one frame down? Report the outer wrap.
-- Is `%v` used where the chain needs `%w`? That is invariant-hunter's — cross-reference, do not score.
+- Is `%v` used where the chain needs `%w`? That is invariant-hunter's Error Chain Correctness — cross-reference, do
+  not score.
 
 For each `//nolint`:
 
@@ -177,7 +179,8 @@ For each `//nolint`:
 
 For each `_ = x`:
 
-- Is `x` a value the author meant to use — an error, a result — or an intentional discard the lint config demands?
+- Does the right-hand side return an `error`? Then it is invariant-hunter's Unchecked Errors — cross-reference, do
+  not score. Otherwise: is `x` a result the author meant to use, or an intentional discard the lint config demands?
 
 For each doc comment on an unexported symbol:
 

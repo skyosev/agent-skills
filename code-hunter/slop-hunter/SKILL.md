@@ -27,7 +27,8 @@ is "is this noise?", never "did an AI write this?".
 of public docs (→ doc-hunter); comments over non-trivial code (→ smell-hunter, Comments as Deodorant); live but
 unreachable logic, unused functions and constants (→ simplicity-hunter, Dead Code Paths); exported dead symbols and
 module organization (→ boundary-hunter); stuttering names as package design (→ smell-hunter); error-chain
-correctness (→ invariant-hunter); narration that leaks secrets (→ security-hunter); test quality (→ test-hunter).
+correctness, type-checker suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`), and discarded error
+returns (→ invariant-hunter); narration that leaks secrets (→ security-hunter); test quality (→ test-hunter).
 Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 ## When to Use
@@ -47,7 +48,7 @@ names are canonical: the heading here, in What to Hunt, and in the report are id
 | Redundant Comments | Comment restates trivial code, a name, or a language construct | Delete | Over non-trivial code → smell-hunter; missing "why" → doc-hunter |
 | Verbose Documentation | Doc block restates the signature it sits on | Strip the redundant part | Content quality of public docs → doc-hunter |
 | Style Drift | Breaks the per-file convention baseline | Conform; one consolidated row when a rule enforces the convention | Stuttering as package design → smell-hunter; module organization → boundary-hunter |
-| Trivially Dead Code | Commented-out code, vague `TODO`, leftover `pass`, unused import or binding, bare lint suppression | Delete, or justify the suppression | Unreachable logic, unused functions → simplicity-hunter; exported dead → boundary-hunter |
+| Trivially Dead Code | Commented-out code, vague `TODO`, leftover `pass`, unused import or binding, bare linter suppression | Delete, or justify the suppression | Unreachable logic, unused functions → simplicity-hunter; exported dead → boundary-hunter; type-checker suppressions and `_ = f()` on an error → invariant-hunter |
 | Hedging and Narration | Speculative or apologetic comments; logging that narrates flow | Delete; keep concrete constraints with references | Secrets in narration → security-hunter |
 | Unnecessary Error Wrapping *(Go only)* | Wrapping that adds words, not context | Wrap once where context is meaningful | Chain correctness → invariant-hunter |
 
@@ -98,11 +99,12 @@ finding exists, what would:
 - **A restating summary line on a public or exported symbol.** Its presence is convention; its content quality is
   doc-hunter's. *Is* a finding when the block also carries tags repeating parameter names or types.
 - **A `TODO` with an owner, ticket, or concrete condition.** *Is* a finding when it has none of the three.
-- **A lint suppression with a stated reason.** *Is* a finding when bare.
+- **A linter suppression with a stated reason.** *Is* a finding when bare. Type-checker suppressions are not judged
+  here at all (→ invariant-hunter).
 - **Go blank-identifier idioms.** `import _ "pkg"` for side effects and `var _ Iface = (*T)(nil)` compile-time
   assertions are intentional. Go's compiler rejects unused imports and unused locals outright, so those never appear
-  in compiling code and `//nolint` cannot hide them. *Is* a finding: `_ = x` silencing a binding the author meant to
-  use.
+  in compiling code and `//nolint` cannot hide them. *Is* a finding: `_ = x` silencing a non-error binding the author
+  meant to use. `_ = f()` where `f` returns an `error` is invariant-hunter's Unchecked Errors.
 - **An unused binding whose initializer has side effects.** Unused does not mean deletable; the Action must say what
   is removed and what is kept.
 - **Logging with operational intent** — request IDs, durations, error context. Only flow narration is noise.
@@ -211,9 +213,11 @@ Text and declarations that compile or parse but do nothing, and can be judged in
 - `TODO` / `FIXME` / `HACK` / `XXX` with no owner, ticket, or concrete condition
 - Leftover `pass` in a non-empty Python body
 - Unused imports and unused bindings where the language lets them compile
-- Lint suppression with no stated reason: bare `//nolint`; `# noqa`, `# type: ignore`, `# pylint: disable`;
-  `// eslint-disable*`, `// @ts-ignore`, `// @ts-expect-error` — each without a trailing reason
-- Go: `_ = x` silencing a binding the author meant to use; unused parameters; unused struct fields
+- Linter suppression with no stated reason: bare `//nolint`; `# noqa`, `# pylint: disable`, `# pragma: no cover`;
+  `// eslint-disable*`, `// biome-ignore` — each without a trailing reason. Type-checker suppressions
+  (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are invariant-hunter's Type-System
+  Bypasses, with or without a reason
+- Go: `_ = x` silencing a non-error binding the author meant to use; unused parameters; unused struct fields
 
 **Diff-mode proof.** An import whose last use the change deleted is invisible to the added-line scan. It is found by
 checking the changed file's current state and reported only with proof that a use existed at the merge base
@@ -225,6 +229,9 @@ initializer: say what is removed and what is kept.
 **Ownership:** commented-out code is here, unconditionally — text is not a code path. Live-but-unreachable *logic*
 (guards already guaranteed, stale flags, zero-call helpers), unused functions, and unused constants are
 simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported dead symbols are boundary-hunter's.
+Type-checker suppressions, reason or not, are invariant-hunter's Type-System Bypasses — "should this bypass exist?"
+subsumes "does it have a reason?", and two hunters must not score one line. `_ = f()` where `f` returns an `error` is
+invariant-hunter's Unchecked Errors.
 
 ### Hedging and Narration
 
@@ -426,7 +433,7 @@ reference.
 | "This import is unused in the changed file" | Was it used at the merge base? No proof, no finding — it predates the change. |
 | "The formatter listed this file" | Only touched lines count in diff mode, and the Convention cell must say `touched line`. |
 | "This comment restates the code" | Is the code trivial? Non-trivial → smell-hunter. Is it still accurate? Stale → doc-hunter. |
-| "This function has no callers" | Liveness is simplicity-hunter's question. Slop keeps `_ = x`, unused params, unused fields. |
+| "This function has no callers" | Liveness is simplicity-hunter's question. Slop keeps `_ = x` on non-error bindings, unused params, unused fields. |
 | "Thirty sites — this is High impact" | Count is evidence, not the derivation. Who reads this code, and how often? |
 | "The project has a Ruff config, so Ruff is the formatter" | Adoption is the command the project invokes. A config alone is lint, not format. |
 | "I'll recommend enabling the rule" | Is it already enabled? Then the sites slipped past it; the Action is to run the fixer. |

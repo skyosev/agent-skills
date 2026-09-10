@@ -49,9 +49,9 @@ Conditional categories run only where the language reference declares them appli
 | Feature Envy | Uses more foreign data than its own | Move to the data's owner | — |
 | Data Clumps | Same 3+ values travel together across signatures | Extract a named type | Duplication *in test setup* → test-hunter |
 | Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept | Dependency direction → boundary-hunter; SRP → solid-hunter |
-| Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter |
+| Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter; a type *constructible* invalid → invariant-hunter (Zero-Value Traps) |
 | Comments as Deodorant | Comment explains *what* non-trivial code does | Extract, don't annotate | See the comment ownership rule below |
-| Temporary Field | Field meaningful in only one code path | Per-state type or a local | — |
+| Temporary Field | Field meaningful in only one code path | Per-state type or a local | Discriminant already present (Python, TypeScript) → invariant-hunter (Leaky Discriminated Unions) |
 | Primitive Obsession | Primitives standing in for domain concepts | Named / branded type, validated construction | Alias mechanics → type-hunter; validated-state brands → invariant-hunter; security brands → security-hunter |
 | God Module | One file accumulating unrelated responsibilities | Split by responsibility | Sprawl *in a class* → solid-hunter |
 | Mutable Global State | Writes to global state after initialization | Explicit ownership; inject | — |
@@ -205,7 +205,10 @@ Operations that must be called in a specific order, with nothing in the API enfo
 setters.
 
 **Ownership:** the coupling and its redesign are owned here. doc-hunter covers only constraints that are *staying*
-(redesign rejected or out of scope) and need documenting — a comment is the fallback, not the fix.
+(redesign rejected or out of scope) and need documenting — a comment is the fallback, not the fix. The construction
+test with invariant-hunter: a type that can be *constructed* invalid — zero value usable, no constructor — is
+invariant-hunter's Zero-Value Traps; a validly constructed value whose *methods* must be called in order (`Init`
+before `Run`, `Build` before required setters) is here.
 
 ### Comments as Deodorant
 
@@ -243,6 +246,13 @@ Fields meaningful only in certain states or operations — set for one code path
 
 **Action:** Extract them into a separate type used only where needed. If the type represents multiple states, use a
 discriminated pattern — one type per state — or a method-local variable instead of a field.
+
+**Ownership:** the discriminant test with invariant-hunter. **No discriminant exists yet** — optional fields
+meaningful in different states, mutually exclusive optionals, "only valid when X" — is here, and the remedy introduces
+the per-state type. **A discriminant exists** and fields leak across variants, a parallel flag duplicates it, or a
+switch lacks an exhaustiveness arm → invariant-hunter's Leaky Discriminated Unions. The transfer is Python and
+TypeScript only: for Go, where that category is n/a, a tagged struct with fields meaningful only in some states stays
+here whether or not a tag exists.
 
 **Enumerate the producers before recommending a type split.** When every producer of the type already pairs the field
 correctly and only a hand-built value could reach the bad state, the finding is Low and the remedy is the minimal

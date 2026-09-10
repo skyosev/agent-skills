@@ -37,7 +37,7 @@ gate.
 | Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback | Duplication *within test code* → test-hunter |
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold | Non-idiomatic patterns generally → smell-hunter |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline | Class/interface *design* → solid-hunter (Go interface pollution stays here) |
-| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence | Commented-out code → slop-hunter; exported dead symbols → boundary-hunter |
+| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence | Commented-out code → slop-hunter; exported dead symbols → boundary-hunter; guard on a loose type → invariant-hunter |
 | Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case | Booleans selecting behaviors that will grow variants → solid-hunter |
 | Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator | — |
 | Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries | Guard clauses, early returns, lookup tables | — |
@@ -97,6 +97,8 @@ corresponding structural finding exists, what would:
   Prefer the clearer shape even at more lines.
 - **Over-simplification guard** — do not recommend inlining that erases a name carrying domain meaning, or merging
   distinct responsibilities into one unit.
+- **Exhaustiveness arms** — `default: assertNever(x)`, `case _: assert_never(x)`, `default: panic("unreachable")`
+  never execute by design. They are compile-time or convention guards, not Dead Code Paths; never a removal target.
 
 ## What to Hunt
 
@@ -163,6 +165,11 @@ by the type.
 has no liveness question. This category owns *live* code that cannot execute or is never called. Unused functions
 and constants stay here; `_ = x` silencing, unused parameters, and unused struct fields are slop-hunter's.
 
+**Guard ownership with invariant-hunter.** A null / nil / None check the *type already rules out* is here — delete the
+guard. A check compensating for an optional type whose value is always present is invariant-hunter's Defensive Access
+in Non-Boundary Code — tighten the type; the guard falls away afterwards. Exhaustiveness arms are never dead code (see
+Not-a-finding).
+
 **Liveness is mandatory.** Check runtime reachability beyond call sites — reflection, DI registration, registries,
 entrypoint configuration, and language-specific channels in the reference. Exported dead symbols → boundary-hunter.
 
@@ -172,8 +179,9 @@ Chesterton's Fence applies where there is a fence; history can be shallow, absen
 **Evidence:** cite channels *relevant to this symbol* and what they showed — not a recited checklist.
 
 **Signals:** impossible branches given types/call sites; internal helpers with zero call sites after liveness checks;
-flags always on/off; `nil` / `None` / `undefined` checks already guaranteed by preceding logic or by the type;
-default/`else` arms already ruled out.
+flags always on/off; `nil` / `None` / `undefined` checks already guaranteed by preceding logic or by the type (a
+check on a type that is still optional → invariant-hunter); default/`else` arms already ruled out — except
+exhaustiveness arms, which stay.
 
 **Action:** Delete. If uncertain, flag with evidence of zero usage via the channels checked.
 

@@ -64,10 +64,10 @@ uncertain`, no finding.
 - `x = …` never referenced, with a side-effect-free initializer
 - Leftover `pass` in a non-empty body
 - Commented-out code (`# old_result = …`); `TODO` / `FIXME` without owner, ticket, or condition
-- Bare `# noqa`, `# type: ignore`, `# pylint: disable=…`, `# pragma: no cover` with no trailing reason
+- Bare `# noqa`, `# pylint: disable=…`, `# pragma: no cover` with no trailing reason. `# type: ignore` and
+  `# pyright: ignore` are invariant-hunter's Type-System Bypasses, with or without a reason
 
-Not a finding: `# noqa: F401` on a re-export in `__init__.py` with a stated reason or an `__all__` entry;
-`# type: ignore[code]  # reason`.
+Not a finding: `# noqa: F401` on a re-export in `__init__.py` with a stated reason or an `__all__` entry.
 
 Unused functions and constants → simplicity-hunter Dead Code Paths. Exported dead symbols → boundary-hunter.
 
@@ -117,7 +117,7 @@ D() { git diff -U0 "$MB" -- $PY_FILES | rg "^@@|^\+($1)"; }
 D '\s*#'                                                       # comments (classify manually)
 D '.*("""|:param |:returns?:|Args:|Returns:)'                    # docstrings and tags
 D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
-D '.*#\s*(noqa|type:\s*ignore|pylint:\s*disable|pragma:\s*no cover)'   # suppressions (check for a reason)
+D '.*#\s*(noqa|pylint:\s*disable|pragma:\s*no cover)'   # linter suppressions (check for a reason)
 D '\s*pass\s*$'                                                # leftover pass (then read the body)
 D '\s*(import |from \S+ import )'                              # added imports (check uses in the file)
 D '.*(print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here))'   # narration
@@ -131,7 +131,7 @@ rg -n '^\s*#' -- $PY_FILES                                     # comments (class
 rg -n '"""' -- $PY_FILES                                       # docstring blocks
 rg -n -B1 '^\s*def\s+_' -- $PY_FILES                           # docstrings on private helpers
 rg -n '\b(TODO|FIXME|HACK|XXX)\b' -- $PY_FILES
-rg -n '#\s*(noqa|type:\s*ignore|pylint:\s*disable|pragma:\s*no cover)' -- $PY_FILES
+rg -n '#\s*(noqa|pylint:\s*disable|pragma:\s*no cover)' -- $PY_FILES
 rg -n '^\s*pass\s*$' -- $PY_FILES
 rg -n 'print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)' -- $PY_FILES
 rg -n -i 'workaround|might need|for safety|new, improved|improved version' -- $PY_FILES
