@@ -417,20 +417,26 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 
    For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   BASE=$(git symbolic-ref -q refs/remotes/origin/HEAD | sed 's@^refs/remotes/@@')
+   git rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 || BASE=
    if [ -z "$BASE" ]; then
      for b in origin/main origin/master main master; do
-       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+       git rev-parse -q --verify "$b^{commit}" >/dev/null && BASE=$b && break
      done
    fi
-   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
-
-   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
-              git diff --name-only --diff-filter=d HEAD;
-              git ls-files --others --exclude-standard; } | sort -u )
-   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
-                git diff --name-only --diff-filter=D HEAD; } | sort -u )
+   # BASE still empty: STOP and ask for an explicit base. Do not continue.
+   MB=$(git merge-base "$BASE" HEAD) || exit 1                        # STOP: no merge base
+   CHANGED=$(git diff --name-only --diff-filter=d "$MB") || exit 1    # STOP: diff failed
+   UNTRACKED=$(git ls-files --others --exclude-standard) || exit 1    # STOP: ls-files failed
+   DELETED=$(git diff --name-only --diff-filter=D "$MB") || exit 1    # STOP: diff failed
+   SCOPE=$(printf '%s\n%s\n' "$CHANGED" "$UNTRACKED" | sed '/^$/d' | sort -u)
    ```
+   Every command that supplies audit data is checked; only the base-discovery probes may fail, because failure
+   there means "try the next candidate". One diff from the merge base to the working tree covers committed, staged,
+   and unstaged changes. A file that existed at the merge base and is gone from the working tree lands in
+   `$DELETED`; a file added after the merge base and deleted again appears nowhere. A failed command is never an
+   empty scope.
+
    If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
    listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds the context
    budget, report the file count and ask to narrow or chunk.

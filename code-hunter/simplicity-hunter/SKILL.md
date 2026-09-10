@@ -37,7 +37,7 @@ gate.
 | Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback | Duplication *within test code* → test-hunter |
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold | Non-idiomatic patterns generally → smell-hunter |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline | Class/interface *design* → solid-hunter (Go interface pollution stays here) |
-| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, commented-out alternate | Delete, with liveness evidence | Exported dead symbols → boundary-hunter |
+| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence | Commented-out code → slop-hunter; exported dead symbols → boundary-hunter |
 | Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case | Booleans selecting behaviors that will grow variants → solid-hunter |
 | Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator | — |
 | Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries | Guard clauses, early returns, lookup tables | — |
@@ -156,8 +156,12 @@ with no test double and no plan for more (unless a live test seam / DI boundary 
 
 ### Dead Code Paths
 
-Unreachable branches, unused internal helpers, stale feature flags, leftover or commented-out alternate
-implementations.
+Unreachable branches, unused internal helpers, stale feature flags, guards already guaranteed by preceding logic or
+by the type.
+
+**Ownership:** commented-out code is slop-hunter's Trivially Dead Code, unconditionally — text is not a code path and
+has no liveness question. This category owns *live* code that cannot execute or is never called. Unused functions
+and constants stay here; `_ = x` silencing, unused parameters, and unused struct fields are slop-hunter's.
 
 **Liveness is mandatory.** Check runtime reachability beyond call sites — reflection, DI registration, registries,
 entrypoint configuration, and language-specific channels in the reference. Exported dead symbols → boundary-hunter.
@@ -168,7 +172,8 @@ Chesterton's Fence applies where there is a fence; history can be shallow, absen
 **Evidence:** cite channels *relevant to this symbol* and what they showed — not a recited checklist.
 
 **Signals:** impossible branches given types/call sites; internal helpers with zero call sites after liveness checks;
-flags always on/off; commented-out alternate implementations; default/`else` arms already ruled out.
+flags always on/off; `nil` / `None` / `undefined` checks already guaranteed by preceding logic or by the type;
+default/`else` arms already ruled out.
 
 **Action:** Delete. If uncertain, flag with evidence of zero usage via the channels checked.
 
@@ -271,20 +276,26 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 
    For diff mode, resolve fail-closed:
    ```bash
-   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/@@')
+   BASE=$(git symbolic-ref -q refs/remotes/origin/HEAD | sed 's@^refs/remotes/@@')
+   git rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 || BASE=
    if [ -z "$BASE" ]; then
      for b in origin/main origin/master main master; do
-       git rev-parse -q --verify "$b" >/dev/null && BASE=$b && break
+       git rev-parse -q --verify "$b^{commit}" >/dev/null && BASE=$b && break
      done
    fi
-   # If BASE is still empty: STOP. Ask for an explicit base. Do not continue.
-
-   SCOPE=$( { git diff --name-only --diff-filter=d "$BASE"...HEAD;
-              git diff --name-only --diff-filter=d HEAD;
-              git ls-files --others --exclude-standard; } | sort -u )
-   DELETED=$( { git diff --name-only --diff-filter=D "$BASE"...HEAD;
-                git diff --name-only --diff-filter=D HEAD; } | sort -u )
+   # BASE still empty: STOP and ask for an explicit base. Do not continue.
+   MB=$(git merge-base "$BASE" HEAD) || exit 1                        # STOP: no merge base
+   CHANGED=$(git diff --name-only --diff-filter=d "$MB") || exit 1    # STOP: diff failed
+   UNTRACKED=$(git ls-files --others --exclude-standard) || exit 1    # STOP: ls-files failed
+   DELETED=$(git diff --name-only --diff-filter=D "$MB") || exit 1    # STOP: diff failed
+   SCOPE=$(printf '%s\n%s\n' "$CHANGED" "$UNTRACKED" | sed '/^$/d' | sort -u)
    ```
+   Every command that supplies audit data is checked; only the base-discovery probes may fail, because failure
+   there means "try the next candidate". One diff from the merge base to the working tree covers committed, staged,
+   and unstaged changes. A file that existed at the merge base and is gone from the working tree lands in
+   `$DELETED`; a file added after the merge base and deleted again appears nowhere. A failed command is never an
+   empty scope.
+
    If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
    listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds what can be
    read within the context budget, report the file count and ask to narrow or chunk.
@@ -413,9 +424,9 @@ supplied in that reference.
 - **Scope: structural complexity only.** A finding that doesn't answer "is this simpler than it could be?" belongs
   elsewhere. Boundaries: invariant-hunter, type-hunter, boundary-hunter, solid-hunter
   (class/interface *design*; Go interface *pollution* stays here), doc-hunter, security-hunter, test-hunter (test
-  quality and test-code duplication), slop-hunter (cosmetic style; when it runs jointly it may own commented-out text
-  — standalone, commented-out alternate implementations remain Dead Code Paths here), smell-hunter (broader
-  non-idiomatic patterns; reinvented-primitive *replacement* stays here when all six gates hold).
+  quality and test-code duplication), slop-hunter (cosmetic style and commented-out code, in every mode),
+  smell-hunter (broader non-idiomatic patterns; reinvented-primitive *replacement* stays here when all six gates
+  hold).
 - **Coexisting generations: adjacent categories.** Shotgun surgery → smell-hunter; many generations on one concern →
   here. External with no wrapper → boundary-hunter Missing Abstraction; two wrappers of different vintage → here.
   Always-on/off flag → Dead Code Paths; both branches live with no removal plan → Coexisting Generations.
