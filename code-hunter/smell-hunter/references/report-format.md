@@ -6,8 +6,8 @@ table schemas.
 Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
 Every line of the Scope block below is filled in on every run; it is not a category and this rule does not reach it.
 
-Language-only categories appended by a language reference (today: `init()` Abuse and Stuttering Names for Go, Mutable
-Default Arguments for Python) use the table schemas supplied in that reference.
+Language-only categories appended by a language reference (today: `init()` Abuse, Stuttering Names and Pointer
+Out-Parameters for Go, Mutable Default Arguments for Python) use the table schemas supplied in that reference.
 
 **Column ceiling.** No canonical table carries more than eight columns beyond the `#` index, and Severity and Impact
 are two of them. When a category needs more detail, trim an existing column rather than appending — Feature Envy's

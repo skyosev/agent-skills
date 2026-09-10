@@ -12,7 +12,7 @@ Language-specific rules for Go.
 | Anemic Domain Model | **no** | functional domain logic over immutable data is idiomatic Go. solid-hunter explicitly does not flag packages using plain functions and closures rather than structs with methods; flagging it here would contradict a sibling hunter |
 | Class Abuse | **no** | Go has no classes |
 
-**Language-only categories added below:** `init()` Abuse, Stuttering Names.
+**Language-only categories added below:** `init()` Abuse, Stuttering Names, Pointer Out-Parameters.
 
 ## Generated-code eligibility
 
@@ -68,6 +68,75 @@ hygiene, not behavioral risk.
 | - | -------- | ------------ | -------------- | -------- | ------ | ------ |
 | 1 | user/user.go:12 | `user.UserName` | `user.Name` | Low | Low | Rename |
 
+### Pointer Out-Parameters
+
+A function that writes its result through a pointer parameter instead of returning it. Go's idiom is `x = f(x)`, which
+shows the write at the call site; `f(&x)` hides it and adds a level of indirection the reader must carry.
+
+**Boundary with simplicity-hunter:** pointer-level indirection is owned here. Abstraction-layer indirection — an
+interface or wrapper serving one call site — is simplicity-hunter's Unnecessary Abstractions.
+
+**Signals:**
+
+- `**T` anywhere in a signature: `func syncOrigin(dst **Origin, live bool)`. The caller's variable is already a `*T`,
+  so the function can take and return `*T`
+- A `*T` parameter named `dst`, `out`, `output`, `result` or `target` on a function returning nothing or only `error`
+- `*[]T` where the function only reads the slice or mutates existing elements — a slice header already aliases its
+  backing array, so the extra pointer buys nothing unless the caller must observe a reallocation
+- `*map[K]V` where the function only inserts or deletes — a map value already aliases its contents; the pointer is
+  needed only to replace the whole map
+- Two levels of nil with one meaning: the body tests `dst != nil` and `*dst != nil`, but only the inner test carries
+  information
+
+**Not a finding** — each carve-out names the construct that requires the shape:
+
+- **Reflection-based stdlib out-params.** `errors.As(err, &myErr)` with `myErr *MyError` passes a `**MyError`;
+  `json.Unmarshal(b, &p)` with `p *T` does the same. Those APIs resolve the type at runtime and cannot return a typed
+  value. Callers, and wrappers that forward the same `any` out-param, are correct as written.
+- **Rewiring a slot in a linked structure.** `func insert(n **node, v int)` takes the address of the link it replaces,
+  which removes the root special case. The returning variant usually reads better; the pointer form is a design choice,
+  not a smell.
+- **cgo, `syscall` and atomics.** `atomic.CompareAndSwapPointer(addr *unsafe.Pointer, …)` and C out-params are fixed by
+  the boundary.
+- **In-place mutation through `*T`.** That is what pointer receivers and pointer parameters are for. The smell is a
+  pointer standing in for a return value, not a pointer used to mutate.
+- **Table-driven slot binding.** A `[]struct{ … ; dest **T }` table pairing each source field with the destination
+  field it fills. The loop body cannot name the field, so the slot address *is* the binding, and the alternative is a
+  closure per row. Flag only a one- or two-row table, where the loop earns nothing over straight-line assignment.
+
+**Action:** Return the value.
+
+```go
+// before — the write is invisible at the call site and there are two nils to reason about
+func syncOrigin(dst **Origin, live bool) {
+	if !live {
+		*dst = nil
+		return
+	}
+	…
+}
+
+// after — x = f(x) shows the write; one nil left
+func syncOrigin(current *Origin, live bool) *Origin {
+	if !live {
+		return nil
+	}
+	…
+}
+```
+
+Converting lengthens each call site from `f(&x.Field, …)` to `x.Field = f(x.Field, …)`, which can cross an `lll`
+limit. Shorten the function name rather than keeping the pointer.
+
+**Severity:** **Low** by default — hygiene, no behavioral risk. **Medium** when the two nil levels carry different
+meanings the body conflates, or when the hidden write is why a caller misreads the flow.
+
+**Report table:**
+
+| # | Location | Signature | Why a return works | Severity | Impact | Action |
+| - | -------- | --------- | ------------------ | -------- | ------ | ------ |
+| 1 | model/origin.go:105 | `syncOrigin(dst **Origin, live bool)` | Sets or clears one field the caller can assign | Low | Medium | Return `*Origin` |
+
 ## Per-category Go content
 
 ### Feature Envy — Go note
@@ -117,6 +186,8 @@ Go has no widely-mandated type shape, so carve-outs are narrow and must name the
   similar static, error-free registrations are the intended use of `init()`. Not an `init()` Abuse finding.
 - **Generated protobuf/gRPC service structs** — shape is mandated by the generator; eligibility already excludes them
   by marker.
+- **Reflection-based stdlib out-params** — `errors.As`, `json.Unmarshal` and same-shaped wrappers. See Pointer
+  Out-Parameters for the full carve-out list.
 
 "This project uses framework X" is not evidence. Name the construct that requires the shape.
 
@@ -168,6 +239,16 @@ rg -n --pcre2 '^\s+\w*(?i)(temp|cached|last|pending)\w*\s+' --type go $EXCLUDE -
 # Comments as deodorant: comment blocks before code (inspect for "what" vs "why")
 rg -n -B1 -A1 '^\s*// ' --type go $EXCLUDE -- $SCOPE | head -200
 
+# Pointer out-parameters: pointer-to-pointer types. Go has no ** operator, so **Ident is a type.
+# Unanchored on purpose — it catches signatures that span lines, which the two below miss.
+rg -n --pcre2 '\*\*[A-Za-z_]' --type go $EXCLUDE -- $SCOPE
+
+# Pointer out-parameters: dst/out/result pointer params (then read the return list)
+rg -n --pcre2 'func[^{]*\b(dst|out|output|result|target)\s+\*' --type go $EXCLUDE -- $SCOPE
+
+# Pointer out-parameters: pointer-to-slice and pointer-to-map params
+rg -n --pcre2 'func[^{]*(\*\[\]|\*map\[)' --type go $EXCLUDE -- $SCOPE
+
 # Stuttering names: compare each package name against its exported symbols
 rg -n '^package\s+\w+' --type go $EXCLUDE -- $SCOPE
 rg -n '^(func|type|var|const)\s+[A-Z]\w+' --type go $EXCLUDE -- $SCOPE
@@ -195,3 +276,11 @@ For each exported identifier:
 For Primitive Obsession candidates:
 
 - Could two adjacent same-typed parameters actually be transposed at a real call site, type-checking silently?
+
+For each pointer-out-parameter candidate:
+
+- Can the function return the value, so the call site reads `x = f(x, …)`? If yes, the pointer is the finding.
+- Does the outer nil mean something the inner nil does not? If not, the second level is noise.
+- Is the type resolved only at runtime, leaving no typed return possible (`errors.As`, `json.Unmarshal`)? Carve-out.
+- For `*[]T`: must the caller observe a reallocation, or does the function only read or mutate elements in place?
+- For `*map[K]V`: does the function replace the whole map, or only insert and delete?

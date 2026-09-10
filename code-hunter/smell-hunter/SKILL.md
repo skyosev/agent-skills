@@ -360,8 +360,8 @@ implicitly audited.
 | Anemic Domain Model | **n/a** — functional domain logic over immutable data is idiomatic Go, blessed by solid-hunter | yes | yes |
 | Class Abuse | **n/a** — no classes | yes | yes |
 
-Language-only categories are defined entirely in their reference: `init()` Abuse and Stuttering Names (Go); Mutable
-Default Arguments (Python).
+Language-only categories are defined entirely in their reference: `init()` Abuse, Stuttering Names and Pointer
+Out-Parameters (Go); Mutable Default Arguments (Python).
 
 ## Test-code scope
 
