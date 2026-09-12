@@ -48,10 +48,11 @@ module is not a package.
 
 | # | Location | Concept | Areas Touched | Commits | Severity | Impact | Action |
 | - | -------- | ------- | ------------- | ------- | -------- | ------ | ------ |
-| 1 | pay/dispatch.go:60 | "Add a payment method" | 5 (`pay`, `api`, `db`, `ui`, `cfg`) | `a1b2c3d`, `e4f5g6h` | Medium | High | Registry dispatch |
+| 1 | order/mapper.go:60 | "Add a field to `Order`" | 5 (`order`, `api`, `db`, `ui`, `cfg`) | `a1b2c3d`, `e4f5g6h` | Medium | High | Generate the mappers from the schema |
 
-The `Location` column is mandatory: the in-scope site that must be edited per variant. Commits support it; they
-never replace it.
+The `Location` column is mandatory: the in-scope site that must be edited per change. Commits support it; they
+never replace it. **Variant** dispatch — a new union member editing every scattered switch — is solid-hunter's Rigid
+Extension Points and is not reported here.
 
 ### Temporal Coupling
 

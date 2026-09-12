@@ -24,6 +24,11 @@ interface that serves one call site and has one implementation is indirection, n
 - Interface that mirrors a concrete struct's full method set
 - "Just in case" interfaces that have existed for months without a second implementation
 
+**Ownership — existence, not width.** An interface a production consumer receives from outside (handwritten wiring,
+a wire or fx provider — the mechanism is irrelevant), or that a second implementation or a test double uses, is
+solid-hunter's Fat Interfaces question, not an existence question. This category owns the interface with **no live
+seam**: never held as another package's parameter or field, one implementation, no fake.
+
 **Action:** Remove the interface and use the concrete type. Introduce the interface when a second implementation or
 test double is actually needed.
 

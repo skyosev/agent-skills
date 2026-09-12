@@ -7,7 +7,7 @@ Language-specific rules for TypeScript.
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
 | Primitive Obsession | **yes** | owned here as domain modeling; type-hunter has no competing section |
-| God Module | **yes** | solid-hunter claims God *Classes* only — nothing in the party claims a file accumulating unrelated responsibilities |
+| God Module | **yes** | solid-hunter claims the class unit only (Responsibility Sprawl) — nothing in the party claims a file accumulating unrelated responsibilities |
 | Mutable Global State | **yes** | module-level `let` and stateful singletons |
 | Anemic Domain Model | **yes** | entity/service split is common in TypeScript backends |
 | Class Abuse | **yes** | classes standing in for modules and functions |
@@ -71,7 +71,7 @@ addition.
 
 **Action:** Split by responsibility; each file gets a clear single purpose. Keep barrels to re-exports.
 
-**Boundary:** responsibility sprawl *within a class* is solid-hunter's God Class. This category is the file unit.
+**Boundary:** responsibility sprawl *within a class* is solid-hunter's Responsibility Sprawl. This category is the file unit.
 
 ### Mutable Global State — TypeScript markers
 

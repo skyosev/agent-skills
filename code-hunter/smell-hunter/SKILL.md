@@ -48,13 +48,13 @@ Conditional categories run only where the language reference declares them appli
 | -------- | ----------- | ------ | ------------------------- |
 | Feature Envy | Uses more foreign data than its own | Move to the data's owner | — |
 | Data Clumps | Same 3+ values travel together across signatures | Extract a named type | Duplication *in test setup* → test-hunter |
-| Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept | Dependency direction → boundary-hunter; SRP → solid-hunter |
+| Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept | Dependency direction → boundary-hunter; SRP and *variant dispatch* → solid-hunter |
 | Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter; a type *constructible* invalid → invariant-hunter (Zero-Value Traps) |
 | Comments as Deodorant | Comment explains *what* non-trivial code does | Extract, don't annotate | See the comment ownership rule below |
 | Temporary Field | Field meaningful in only one code path | Per-state type or a local | Discriminant already present (Python, TypeScript) → invariant-hunter (Leaky Discriminated Unions) |
 | Primitive Obsession | Primitives standing in for domain concepts | Named / branded type, validated construction | Alias mechanics → type-hunter; validated-state brands → invariant-hunter; security brands → security-hunter |
 | God Module | One file accumulating unrelated responsibilities | Split by responsibility | Sprawl *in a class* → solid-hunter |
-| Mutable Global State | Writes to global state after initialization | Explicit ownership; inject | — |
+| Mutable Global State | Writes to global state after initialization | Explicit ownership; inject | The *read* inside a unit's logic → solid-hunter (Concrete Dependency Chains) |
 | Anemic Domain Model | Entity transitions live outside the entity | Move the transition onto the entity | Invariant *enforcement* → invariant-hunter |
 | Class Abuse | Class where a function or module would do | Replace with the simpler construct | Class/interface *design* → solid-hunter |
 
@@ -169,22 +169,20 @@ One logical change requires edits across many unrelated files or areas.
 **Signals:**
 
 - Adding one field to a domain type touches 5+ files (handlers, validators, mappers, serializers, tests)
-- Adding a variant touches every scattered switch/`if`-chain rather than one registry
 - One config concept, feature flags included, spans config, middleware, handlers, and templates
 - Renaming a concept means find-and-replace across the codebase
 
-**Action:** Consolidate the scattered responsibility — registry or map-based dispatch instead of scattered switch
-cases; generation or schema-derived types for per-variant boilerplate; one area owning the concept end-to-end.
+**Action:** Consolidate the scattered responsibility — generation or schema-derived types for per-field
+boilerplate; one area owning the concept end-to-end.
 
-**Registry gate.** A registry or dispatch table is the remedy only where the scattered arms share **one
-responsibility** — near-identical bodies answering the same question. Dispatch sites that serve different consumers
-with deliberately different answers (one resolves paint, one anchors, one classifies) do not consolidate: a record
-spanning them becomes a heterogeneous bag of weak callbacks. There, recommend the cheap standalone fix — exhaustive
-switches with `assertNever`-style arms so the next variant is a compile error — and scope any table to the one module
-family whose bodies are genuinely equal.
+**Ownership:** **variant dispatch is solid-hunter's.** A variant added to an open set that edits every scattered
+switch or `if`-chain is solid-hunter's Rigid Extension Points, which carries the registry gate and the openness test;
+route it, do not evaluate it here. This category keeps **non-variant** scattering: a field addition rippling through
+mappers, validators and serializers; a config concept spanning layers; a rename that is find-and-replace — including
+the scattering only git history reveals (Phase 4), where no shared discriminant exists to dispatch on.
 
 **Evidence rule (the one exception to a purely in-file anchor).** The finding still anchors to an **in-scope source
-location**: the concrete site edited per variant — the switch, the mapper, the registration list. Commit hashes and
+location**: the concrete site edited per change — the mapper, the validator, the registration list. Commit hashes and
 subjects are *supporting* evidence. History alone is not a location; a finding with only commit hashes is not
 reportable. Detection is Phase 4.
 
@@ -284,8 +282,8 @@ is per-language — see the reference.
 
 A single source file accumulating unrelated responsibilities — the dumping ground for everything.
 
-**Ownership:** scoped to the file/module unit. Responsibility accumulation *within a class* is solid-hunter's God
-Class; package-level organization is boundary-hunter's.
+**Ownership:** scoped to the file/module unit. Responsibility accumulation *within a class* is solid-hunter's
+Responsibility Sprawl; package-level organization is boundary-hunter's.
 
 **Signals:**
 
@@ -315,7 +313,10 @@ initialization**, not the declaration keyword — see Not-a-finding.
 - A global lock protecting global state (a sign the state should be owned by something)
 
 **Action:** Move state into instances passed via dependency injection. Where a global lifetime is genuinely required,
-construct it in the composition root and inject it explicitly. Constants and immutable globals are fine.
+construct it in the composition root and inject it explicitly. Constants and immutable globals are fine. A unit that
+*reads* the global instead of receiving it is solid-hunter's Concrete Dependency Chains, anchored at the consumer —
+this category anchors at the global's declaration and write sites. Two anchors, one finding each, cross-referenced;
+neither reports the other's site.
 
 **Singleton split (with Class Abuse).** A *stateful* singleton is a Mutable Global State finding; the remedy is
 explicit ownership and injection — **never** "replace with a module-level instance", which preserves the global
@@ -602,7 +603,7 @@ appended by a language reference use the table schemas supplied in that referenc
 | "The regex matched, so it's feature envy" | Scan output is a nomination. Open the body and count what it touches. |
 | "This class has one method — Class Abuse" | Does it hold state? A stateful one-method class is not the smell. |
 | "These 6 files always change together" | One commit is not a pattern. And where is the in-scope anchor the finding cites? |
-| "Seven switch sites — recommend a registry" | Do the arms share one responsibility with near-identical bodies? Heterogeneous consumers don't consolidate; recommend exhaustiveness fixes instead. |
+| "Seven switch sites — recommend a registry" | Variant dispatch is solid-hunter's Rigid Extension Points, registry gate included. Route it; this category keeps non-variant scattering. |
 | "Three functions take this trio" | Open all three signatures. A parameter miscounted, misnamed, or present in only one signature voids the clump. |
 | "`utils.py` is 700 lines — God Module" | Line count nominates. Enumerate the unrelated responsibilities or drop it. |
 | "The comment explains the code, so it's deodorant" | Only when the code is non-trivial. Trivial → slop-hunter; absent → doc-hunter. |

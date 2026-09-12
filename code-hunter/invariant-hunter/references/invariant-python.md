@@ -9,7 +9,7 @@ Language-specific rules for Python.
 | Unguarded Type Assertions | **yes** | `cast()` and checker-satisfying `assert x is not None` |
 | Loose Optionality | **yes** | `Optional[T]` / `T \| None` fields and parameters; owned here, type-hunter keeps type design |
 | Defensive Access in Non-Boundary Code | **yes** | `is not None` / `or default` on always-present values |
-| Leaky Discriminated Unions | **yes** | `Literal` discriminant over dataclass variants; class hierarchy narrowed by `isinstance`; `match` |
+| Leaky Discriminated Unions | **yes** | `Literal` discriminant over dataclass variants; a **variant hierarchy** (dataclass or sealed data classes with no overridable behavior) narrowed by `isinstance`; `match`. A hierarchy whose base declares abstract or overridable behavior the consumer calls is a *contract type* → solid-hunter |
 | Runtime Checks Promotable to Types | **yes** | `TypeGuard` / `TypeIs`, validated-state `NewType`, `frozen=True`, `tuple` / `frozenset` config |
 | Type-System Bypasses | **yes** | `Any`, `# type: ignore`, `# pyright: ignore`, `# mypy: ignore` |
 
@@ -57,7 +57,10 @@ container are named in Action.
 ### Leaky Discriminated Unions — Python forms
 
 - `Literal` discriminant over `@dataclass` variants, consumed by `match` on the field or `if x.kind == …` chains
-- A class hierarchy narrowed by `isinstance`, consumed by `isinstance` chains or `match` class patterns
+- A **variant hierarchy** — dataclass or sealed data classes with no overridable behavior — narrowed by `isinstance`,
+  consumed by `isinstance` chains or `match` class patterns. When the base declares abstract or overridable behavior
+  the consumer calls, it is a contract type, and a branch compensating for one implementor is solid-hunter's Broken
+  Substitution
 - Parallel flag: `kind` alongside `is_leaf: bool`
 - Exhaustiveness enforcement counts when present: a `case _: assert_never(x)` arm, pyright `reportMatchNotExhaustive`
   enabled, or a return type that makes mypy / pyright fail on a missing case. `else: raise ValueError` is runtime
@@ -168,6 +171,9 @@ For each `is not None` / `or default`:
 
 For each `match` / `isinstance` chain over a union:
 
+- Is it a union of data shapes, or a **contract type** whose base declares overridable behavior the consumer calls?
+  Contract type, with a branch compensating for one implementor → solid-hunter's Broken Substitution;
+  cross-reference, do not score.
 - Must the consumer cover every variant, or does it handle a subset by design?
 - Is `assert_never` present, or `reportMatchNotExhaustive` enabled, or does the return type force the checker? Any →
   not a finding. `else: raise` → Low, partial.

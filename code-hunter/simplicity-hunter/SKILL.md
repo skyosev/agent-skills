@@ -38,8 +38,8 @@ gate.
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold | Non-idiomatic patterns generally → smell-hunter |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline | Class/interface *design* → solid-hunter (Go interface pollution stays here) |
 | Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence | Commented-out code → slop-hunter; exported dead symbols → boundary-hunter; guard on a loose type → invariant-hunter |
-| Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case | Booleans selecting behaviors that will grow variants → solid-hunter |
-| Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator | — |
+| Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case | A boolean whose choice is dispatched at two or more sites on an open set → solid-hunter (Rigid Extension Points) |
+| Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator | A *type or package* serving two actors → solid-hunter (Responsibility Sprawl) |
 | Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries | Guard clauses, early returns, lookup tables | — |
 | Coexisting Generations | Two or more **live**, structurally different solutions to one concern | Name the survivor, give a retirement plan | One concern spread across many files → smell-hunter (shotgun surgery) |
 
@@ -154,6 +154,11 @@ Wrappers, managers, registries, factories serving a single call site or adding n
 **Signals:** pass-through delegates; single-resource "managers"; one-type factories; single-implementation abstractions
 with no test double and no plan for more (unless a live test seam / DI boundary — see Not-a-finding).
 
+**Ownership — existence, not width.** An interface a production consumer receives from outside (handwritten wiring or
+a container, the mechanism is irrelevant), or that a second implementation or a test double uses, is solid-hunter's
+Fat Interfaces question, not an existence question. This category owns the interface with **no live seam** — never
+received from outside, one implementation, no double: should it exist at all?
+
 **Action:** Inline. If it exists for testability, note that and keep if justified.
 
 ### Dead Code Paths
@@ -188,8 +193,9 @@ exhaustiveness arms, which stay.
 ### Over-Parameterized APIs
 
 Functions with many parameters, boolean flags, or option/config objects creating a combinatorial explosion.
-**Ownership:** boolean-parameter findings live here. solid-hunter claims only booleans selecting between behaviors that
-will grow variants (OCP setup); smell-hunter does not flag them.
+**Ownership:** boolean-parameter findings live here. solid-hunter claims only a boolean whose choice is **dispatched
+at two or more sites on an open set** — a two-member discriminant meeting the full Rigid Extension Points bar. A
+boolean dispatched at one site is here however likely it looks to grow. smell-hunter does not flag them.
 
 **Signals:**
 
@@ -203,7 +209,8 @@ will grow variants (OCP setup); smell-hunter does not flag them.
 
 ### Mixed Concerns
 
-Single functions or types handling multiple unrelated responsibilities.
+Single functions handling multiple unrelated responsibilities. **Ownership:** a *type or package* serving two actors
+with independent reasons to change is solid-hunter's Responsibility Sprawl; this category owns the function body.
 
 **Signals:** fetch AND transform AND persist/render in one body; long functions (50+ lines) with distinct sections;
 methods or module bodies spanning abstraction levels.

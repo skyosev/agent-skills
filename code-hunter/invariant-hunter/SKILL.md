@@ -49,10 +49,10 @@ where the language reference declares them applicable (see Applicability). Go-on
 
 | Category | Core signal | Action | Belongs to another hunter |
 | -------- | ----------- | ------ | ------------------------- |
-| Unguarded Type Assertions | Type claim with no guard and no type definition tying a check to it | Guard, predicate, schema parse, two-value form, `satisfies` | Missing content validation at the boundary → security-hunter |
+| Unguarded Type Assertions | Type claim with no guard and no type definition tying a check to it | Guard, predicate, schema parse, two-value form, `satisfies` | Missing content validation at the boundary → security-hunter; an assertion or switch arm compensating for one implementor of a *contract type* → solid-hunter (Broken Substitution) |
 | Loose Optionality | Optional field or parameter always present after construction | Make it required at the construction boundary | Mutually exclusive optionals, no discriminant → smell-hunter (Temporary Field) |
 | Defensive Access in Non-Boundary Code | `?.` / `??` / `is not None` / `or default` on a value always present here | Tighten the upstream type; the guard then falls away | Guard the type already rules out → simplicity-hunter (Dead Code Paths) |
-| Leaky Discriminated Unions | Parallel flag, no exhaustiveness arm, leaking field, cast past the discriminant | One discriminant; compile-time exhaustiveness; variant-scoped fields | No discriminant yet, and Go tagged structs → smell-hunter (Temporary Field) |
+| Leaky Discriminated Unions | Parallel flag, no exhaustiveness arm, leaking field, cast past the discriminant | One discriminant; compile-time exhaustiveness; variant-scoped fields | No discriminant yet, and Go tagged structs → smell-hunter (Temporary Field); narrowing on a *contract type*, and the cost of extending a scattered variant set → solid-hunter |
 | Runtime Checks Promotable to Types | A guard or validation a type could carry | Promote, or keep runtime with a stated reason | Identity and unit types with no validation boundary → smell-hunter (Primitive Obsession) |
 | Type-System Bypasses | `any` / `Any`, double cast, checker suppression | Fix the type; else justify, scope, track | Silent fallback on error → error-hunter; linter suppressions → slop-hunter |
 | Unchecked Errors *(Go only)* | Error return discarded or ignored | Handle, propagate, or discard with a verified comment | `_ = x` on a non-error binding → slop-hunter |
@@ -175,6 +175,10 @@ why it does or does not reach the asserted property.
 **Ownership:** the unguarded type claim is here wherever it sits, including `(await res.json()) as T`. The missing
 content validation at that boundary — schema coverage, ranges, formats — is security-hunter's. Until security-hunter
 unifies, `security-hunter-ts` also flags the cast; the intended split is written here so one side is already fixed.
+An assertion or type-switch arm that **compensates for one implementor of a contract type** — a behavioral
+abstraction with methods — is solid-hunter's Broken Substitution, whatever the guard form; the guardedness is noted in
+its Action, not scored again here. Assertions from `any` or open data (JSON, config, `interface{}` payloads), and
+narrowing on a data variant set, stay here.
 
 ### Loose Optionality *(conditional)*
 
@@ -224,7 +228,8 @@ away afterwards). Defensive access at a true boundary is not a finding (see Not-
 A union with a discriminant that is not the single source of truth, a consumer that must handle every variant with
 no compile-time exhaustiveness enforcement, fields present on every variant but meaningful on some, or consumers that
 cast past the discriminant instead of narrowing. The Python forms — `Literal` discriminant over dataclass variants,
-a class hierarchy narrowed by `isinstance`, `match` — are the same category.
+a **variant hierarchy** (dataclass or sealed data classes carrying no overridable behavior) narrowed by `isinstance`,
+`match` — are the same category.
 
 **Signals:**
 
@@ -241,7 +246,10 @@ not exhaustiveness; they lower severity and are named in Action, they do not clo
 
 **Action:** one discriminant; a compile-time exhaustiveness arm; variant-scoped fields; narrow by control flow.
 
-**Ownership:** the discriminant test (see Terms). Go: n/a — type-switch exhaustiveness is a Go marker under Unguarded
+**Ownership:** the discriminant test (see Terms), plus the contract/variant test: a union of **data shapes** is here;
+narrowing on a **contract type** to special-case an implementor is solid-hunter's Broken Substitution. Exhaustiveness
+is owned here and never decides solid-hunter's extension-cost question — one union can carry a missing-arm finding
+here and a Rigid Extension Points finding there, at different anchors. Go: n/a — type-switch exhaustiveness is a Go marker under Unguarded
 Type Assertions; Go has no compile-time exhaustiveness for type switches, so `default: panic` is the best available
 and is not a finding there. A Go tagged struct with fields meaningful only in some states stays smell-hunter's
 Temporary Field whether or not a tag exists.

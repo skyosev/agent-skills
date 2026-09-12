@@ -236,14 +236,20 @@ goroutine leaks and `-race` discipline in *tests* stay with test-hunter.
 
 ### Unguarded Type Assertions — Go markers
 
-- Bare `x.(T)` — panics on mismatch; the two-value form or a type switch is the fix
+- Bare `x.(T)` — panics on mismatch; the two-value form or a type switch is the fix. **Ownership:** an assertion or
+  switch arm that *compensates* for one implementor of a **contract type** (`if _, ok := store.(*memStore); ok {
+  skipTx = true }`) is solid-hunter's Broken Substitution, guarded or bare; the panic-on-mismatch guard stays here
+  only when no compensation is involved. An assertion that only unlocks an extra outside the contract
+  (`pg.Vacuum()`) is neither hunter's
 - Assertion chains `x.(A).f.(B)` — one finding, each link a panic point
-- Assertions on `any` from JSON, config, or reflection — the value is external and untrusted
+- Assertions on `any` from JSON, config, or reflection — the value is external and untrusted; these stay here whatever
+  the concrete type asserted
 - A type switch over an *open* interface with no `default`, in a function whose contract requires handling or
   rejecting every value, when the code after the switch neither rejects nor deliberately falls back. Sealed
   interfaces (unexported method, finite set in the package) are not findings. `fmt`'s `handleMethods` switches on
   `error` and `Stringer` and returns `false` for everything else by design — not a finding. A switch that silently
-  yields a zero value the contract does not permit is High.
+  yields a zero value the contract does not permit is High. **Ownership:** an arm that compensates for one
+  implementor of a contract type is solid-hunter's Broken Substitution; the missing-rejection question stays here.
 
 ### Runtime Checks Promotable to Types — Go narrowing
 
@@ -345,6 +351,8 @@ For each `_ = f()`:
 
 For each type assertion candidate:
 
+- Does the branch compensate for one implementor of a contract type failing its promise? → solid-hunter's Broken
+  Substitution, guarded or bare; cross-reference, do not score.
 - Two-value form or inside a type switch? Not a finding.
 - Bare: what is the source of the value — internal and provably typed, or external (`any` from JSON, config)?
 - Type switch with no `default`: is the interface sealed? If open, does the code after the switch reject or
