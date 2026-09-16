@@ -6,14 +6,15 @@ Language-specific rules for TypeScript.
 
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
-| Primitive Obsession | **yes** | owned here as domain modeling; type-hunter has no competing section |
+| Primitive Obsession | **yes** | owned here as domain modeling, aliases included (brand-or-withdraw); type-hunter's Alias vs Named Type Mechanics is n/a in TypeScript, and its Enum Construct Mechanics needs an existing `enum` |
 | God Module | **yes** | solid-hunter claims the class unit only (Responsibility Sprawl) — nothing in the party claims a file accumulating unrelated responsibilities |
 | Mutable Global State | **yes** | module-level `let` and stateful singletons |
 | Anemic Domain Model | **yes** | entity/service split is common in TypeScript backends |
 | Class Abuse | **yes** | classes standing in for modules and functions |
 
-**No language-only categories.** Enum-vs-union design belongs to type-hunter; callback pyramids and unflattened
-promise chains belong to simplicity-hunter's Complex Control Flow. Route, do not evaluate here.
+**No language-only categories.** The construct of an existing `enum` belongs to type-hunter (Enum Construct
+Mechanics); callback pyramids and unflattened promise chains belong to simplicity-hunter's Complex Control Flow.
+Route, do not evaluate here.
 
 ## Generated-code eligibility
 
@@ -46,7 +47,9 @@ type Email = string & { readonly __brand: unique symbol };
 String-literal unions for status values (`type Status = 'active' | 'inactive' | 'suspended'`) instead of raw string
 comparison; a dedicated money representation (integer minor units, or a decimal library already present) instead of
 `number`; branded or unit-suffixed duration types instead of a bare `number`; a schema library already in the project
-narrowing to the branded type at the boundary.
+narrowing to the branded type at the boundary; template literal types for structured string domains — route paths
+(`` `/api/${string}` ``), event names (`` `user:${string}` ``), design tokens — instead of plain `string`.
+Over-engineered template-literal metaprogramming is type-hunter's Over-Powered Type Constructs.
 
 Brands that encode *validated* state (parse-don't-validate) belong to invariant-hunter; brands for
 security-sensitive strings (SQL fragments, HTML, paths) belong to security-hunter. Boolean parameters belong to

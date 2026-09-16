@@ -7,7 +7,7 @@ Language-specific rules for TypeScript.
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
 | Unguarded Type Assertions | **yes** | `as T`, `x!`, object-literal `as`, `(await res.json()) as T` |
-| Loose Optionality | **yes** | `?:` fields and parameters; owned here, type-hunter keeps type design |
+| Loose Optionality | **yes** | `?:` fields and parameters; owned here; type-hunter owns type structure, never optionality |
 | Defensive Access in Non-Boundary Code | **yes** | `?.` / `??` on always-present values |
 | Leaky Discriminated Unions | **yes** | discriminated unions, `assertNever`, `?: never` |
 | Runtime Checks Promotable to Types | **yes** | type predicates, assertion functions, validated-state brands, `satisfies`, `as const` (adoption only) |
@@ -51,7 +51,8 @@ Test files are still read as context — a test that passes `undefined` proves t
 - `UserSchema.safeParse(x)` whose result is not inspected, followed by `x as User` → finding; the validation did not
   guard. io-ts `decode` folded on both sides with the right value flowing on → no finding
 - A hand-written `assertUser(x): asserts x is User` is judged the same way as a library call
-- `z.infer<typeof Schema>` derivation is type-hunter's concern, not a finding here
+- A manual type beside a schema (`z.infer<typeof Schema>` derivation) is type-hunter's Duplicated Type Declarations,
+  not a finding here
 
 ### Loose Optionality — TypeScript forms
 

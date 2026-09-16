@@ -34,9 +34,9 @@ gate.
 
 | Category | Core signal | Action | Belongs to another hunter |
 | -------- | ----------- | ------ | ------------------------- |
-| Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback | Duplication *within test code* → test-hunter |
+| Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback | Duplication *within test code* → test-hunter; duplicated type declarations → type-hunter |
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold | Non-idiomatic patterns generally → smell-hunter |
-| Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline | Class/interface *design* → solid-hunter (Go interface pollution stays here) |
+| Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline | Class/interface *design* → solid-hunter (Go interface pollution stays here); a type parameter that never varies → type-hunter |
 | Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence | Commented-out code → slop-hunter; exported dead symbols → boundary-hunter; guard on a loose type → invariant-hunter |
 | Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case | A boolean whose choice is dispatched at two or more sites on an open set → solid-hunter (Rigid Extension Points) |
 | Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator | A *type or package* serving two actors → solid-hunter (Responsibility Sprawl) |
@@ -107,7 +107,9 @@ Categories are named, not numbered. Cross-references use category names (e.g. "�
 ### Duplication
 
 Repeated logic across production functions, modules, or packages. (Duplication *within test code* — copied setup,
-repeated assertion blocks — is test-hunter's finding; do not flag it here.)
+repeated assertion blocks — is test-hunter's finding; do not flag it here. Two *type declarations* of one shape, a
+union beside an `as const` array, or a manual type beside a schema are type-hunter's Duplicated Type Declarations;
+repeated logic and repeated runtime values stay here.)
 
 **Action — elimination first, evidence over counting:**
 
@@ -157,7 +159,8 @@ with no test double and no plan for more (unless a live test seam / DI boundary 
 **Ownership — existence, not width.** An interface a production consumer receives from outside (handwritten wiring or
 a container, the mechanism is irrelevant), or that a second implementation or a test double uses, is solid-hunter's
 Fat Interfaces question, not an existence question. This category owns the interface with **no live seam** — never
-received from outside, one implementation, no double: should it exist at all?
+received from outside, one implementation, no double: should it exist at all? A *type parameter* that never varies is
+type-hunter's Generics That Never Vary; this category owns value-level abstractions.
 
 **Action:** Inline. If it exists for testability, note that and keep if justified.
 

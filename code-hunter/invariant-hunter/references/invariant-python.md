@@ -7,7 +7,7 @@ Language-specific rules for Python.
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
 | Unguarded Type Assertions | **yes** | `cast()` and checker-satisfying `assert x is not None` |
-| Loose Optionality | **yes** | `Optional[T]` / `T \| None` fields and parameters; owned here, type-hunter keeps type design |
+| Loose Optionality | **yes** | `Optional[T]` / `T \| None` fields and parameters; owned here; type-hunter owns type structure, never optionality |
 | Defensive Access in Non-Boundary Code | **yes** | `is not None` / `or default` on always-present values |
 | Leaky Discriminated Unions | **yes** | `Literal` discriminant over dataclass variants; a **variant hierarchy** (dataclass or sealed data classes with no overridable behavior) narrowed by `isinstance`; `match`. A hierarchy whose base declares abstract or overridable behavior the consumer calls is a *contract type* → solid-hunter |
 | Runtime Checks Promotable to Types | **yes** | `TypeGuard` / `TypeIs`, validated-state `NewType`, `frozen=True`, `tuple` / `frozenset` config |

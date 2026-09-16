@@ -55,7 +55,7 @@ judged on is named per language (see Applicability).
 | Concrete Dependency Chains (DIP) | A unit self-instantiates a service dependency that does I/O, or reads a module/package-level one instead of receiving it | Accept the concrete dependency in the constructor | The *write* to a global after initialization → smell-hunter (Mutable Global State); import direction between layers → boundary-hunter |
 
 Hunter names are unsuffixed end-state names. Until consolidation completes, live skills are language-suffixed
-(`boundary-hunter-go`, `test-hunter-py`, `type-hunter-ts`, and so on).
+(`boundary-hunter-go`, `test-hunter-py`, `security-hunter-ts`, and so on).
 
 ## Core Principles
 

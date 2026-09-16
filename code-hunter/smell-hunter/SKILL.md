@@ -21,7 +21,7 @@ Supports Go, Python, TypeScript via per-language reference files.
 
 **Not covered (owned by other hunters):** long method / mixed concerns, dead code, speculative generality, boolean
 parameters, interface pollution, callback hell and unflattened promise chains (→ simplicity-hunter); magic numbers
-and missing "why" documentation (→ doc-hunter); alias-vs-named-type mechanics and enum-vs-union design
+and missing "why" documentation (→ doc-hunter); the construct of an existing enum, constant group, or Go/Python alias
 (→ type-hunter); SOLID violations (→ solid-hunter); module boundary and dependency direction (→ boundary-hunter);
 invariant enforcement (→ invariant-hunter); security (→ security-hunter); test quality (→ test-hunter); AI-generated
 noise and cosmetic style (→ slop-hunter). Where ownership is *contested* rather than simply elsewhere, that
@@ -52,14 +52,14 @@ Conditional categories run only where the language reference declares them appli
 | Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter; a type *constructible* invalid → invariant-hunter (Zero-Value Traps) |
 | Comments as Deodorant | Comment explains *what* non-trivial code does | Extract, don't annotate | See the comment ownership rule below |
 | Temporary Field | Field meaningful in only one code path | Per-state type or a local | Discriminant already present (Python, TypeScript) → invariant-hunter (Leaky Discriminated Unions) |
-| Primitive Obsession | Primitives standing in for domain concepts | Named / branded type, validated construction | Alias mechanics → type-hunter; validated-state brands → invariant-hunter; security brands → security-hunter |
+| Primitive Obsession | Primitives standing in for domain concepts | Named / branded type, validated construction | Existing enum construct, Go/Python alias → type-hunter; validated-state brands → invariant-hunter; security brands → security-hunter |
 | God Module | One file accumulating unrelated responsibilities | Split by responsibility | Sprawl *in a class* → solid-hunter |
 | Mutable Global State | Writes to global state after initialization | Explicit ownership; inject | The *read* inside a unit's logic → solid-hunter (Concrete Dependency Chains) |
 | Anemic Domain Model | Entity transitions live outside the entity | Move the transition onto the entity | Invariant *enforcement* → invariant-hunter |
 | Class Abuse | Class where a function or module would do | Replace with the simpler construct | Class/interface *design* → solid-hunter |
 
 Hunter names are unsuffixed end-state names. Until consolidation completes, live skills are language-suffixed
-(`type-hunter-go`, `type-hunter-py`, `type-hunter-ts`, and so on).
+(`boundary-hunter-go`, `test-hunter-py`, `security-hunter-ts`, and so on).
 
 ## Core Principles
 
@@ -261,10 +261,12 @@ when a second valid state or a second producer/consumer actually exists.
 
 Primitive types for domain concepts deserving their own named or branded types.
 
-**Ownership:** primitive obsession as *domain modeling* is owned here; type-hunter keeps only alias-vs-named-type
-*mechanics*. Boolean parameters belong to simplicity-hunter. Brands encoding *validated* state
-(parse-don't-validate) belong to invariant-hunter; brands for security-sensitive strings (SQL fragments, HTML,
-paths) belong to security-hunter. Cross-reference instead of duplicating.
+**Ownership:** primitive obsession as *domain modeling* is owned here; this category needs a primitive with **no named
+construct yet**. An existing constant group or enum built with the wrong construct is type-hunter's Enum Construct
+Mechanics; an existing Go or Python alias used as an identity type is its Alias vs Named Type Mechanics; TypeScript
+aliases stay here under brand-or-withdraw. Boolean parameters belong to simplicity-hunter. Brands encoding
+*validated* state (parse-don't-validate) belong to invariant-hunter; brands for security-sensitive strings (SQL
+fragments, HTML, paths) belong to security-hunter. Cross-reference instead of duplicating.
 
 **Signals:**
 

@@ -22,9 +22,11 @@ hold throughout downstream code, consumers narrow without casts, and invalid sta
 
 Supports Go, Python, TypeScript via per-language reference files.
 
-**Not covered (owned by other hunters):** type *design* — duplication, derivations, generics, alias-vs-named
-mechanics, enum patterns, schema-vs-manual duplication (→ type-hunter); how errors are structured, caught, and
-converted — empty catches, catch-and-log, catch-and-return-default, `raise from` / `Error.cause` (→ error-hunter);
+**Not covered (owned by other hunters):** type *structure* — Duplicated Type Declarations (a sibling type, a runtime
+value, or a schema as source), Generics That Never Vary, Loose Type Parameter Constraints, Over-Powered Type
+Constructs, Enum Construct Mechanics, Alias vs Named Type Mechanics (→ type-hunter); how errors are structured,
+caught, and converted — empty catches, catch-and-log, catch-and-return-default, `raise from` / `Error.cause`
+(→ error-hunter);
 trust-boundary *content* validation and exploitability (→ security-hunter); a guard the type already rules out
 (→ simplicity-hunter, Dead Code Paths); optional fields with no discriminant yet, method call order, identity and
 unit types with no validation boundary (→ smell-hunter); linter suppressions and wrapping-message redundancy
@@ -64,7 +66,7 @@ where the language reference declares them applicable (see Applicability). Go-on
 | Race Conditions *(Go only)* | Shared state touched from several goroutines without synchronization | Mutex, atomic, or channel ownership | Exploitability → security-hunter; `-race` in tests → test-hunter |
 
 Hunter names are unsuffixed end-state names. Until consolidation completes, live skills are language-suffixed
-(`type-hunter-go`, `error-hunter-py`, `security-hunter-ts`, and so on).
+(`boundary-hunter-go`, `error-hunter-py`, `security-hunter-ts`, and so on).
 
 ## Core Principles
 
@@ -202,7 +204,7 @@ cited as evidence, not reported separately under Defensive Access.
 
 **Ownership:** two optionals never both present, "only valid when X" — no discriminant exists yet — is smell-hunter's
 Temporary Field, whose remedy introduces the per-state type. A discriminant present → Leaky Discriminated Unions.
-Optionality is owned here in every language; type-hunter keeps type design.
+Optionality is owned here in every language; type-hunter owns type structure, never optionality.
 
 ### Defensive Access in Non-Boundary Code *(conditional)*
 
@@ -284,7 +286,7 @@ value would be usable and invalid is a Zero-Value Traps finding first.
 
 **Ownership:** smell-hunter routes brands encoding validated state here for every language. An ID or unit with no
 validation boundary is smell-hunter's Primitive Obsession — `NewType('UserId', str)` for a bare `user_id: str` is
-not a finding here. Schema-vs-manual type duplication (`z.infer` candidates) is type-hunter's.
+not a finding here. A manual type beside a schema (`z.infer` candidates) is type-hunter's Duplicated Type Declarations.
 
 ### Type-System Bypasses *(conditional)*
 
@@ -305,7 +307,9 @@ the code the way any comment is.
 
 **Ownership:** owned **wholly** here, including "does it have a reason?" — two hunters must not score one line.
 slop-hunter keeps *linter* suppressions: `# noqa`, `# pylint: disable`, `# pragma: no cover`, `// eslint-disable*`,
-`// biome-ignore`, `//nolint`. Silent fallbacks on invalid input (`return []`, `return null`) are error-hunter's.
+`// biome-ignore`, `//nolint`. Silent fallbacks on invalid input (`return []`, `return null`) are error-hunter's. A
+cast or `any` bridge inside a generic body that a tighter type parameter constraint removes (`(o as any)[k]`,
+`cast(T, x)`) is type-hunter's Loose Type Parameter Constraints — one finding there, not scored here.
 
 ### Within-skill routing
 

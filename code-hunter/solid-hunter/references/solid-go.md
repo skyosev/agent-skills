@@ -75,6 +75,8 @@ best available and is never a finding of any hunter. It also never decides openn
 - A silent zero return — `return nil, nil` where the contract promises a value or an error
 - An implementor that narrows accepted input, or returns errors where the contract implies success
 - A consumer branch that compensates: `if _, ok := store.(*memStore); ok { skipTx = true }`
+- A struct embedding an interface it implements only partly — the nil embed panics on the unimplemented member.
+  type-hunter's Embedding Antipatterns judges promoted *surface* on an exported struct, never this
 
 **Implicit satisfaction** is why the contract must be named from the interface's documentation, its consumers, or a
 doc comment on the method — not from the method name. When the interface is undocumented and the branch merely adds an
