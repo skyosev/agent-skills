@@ -67,12 +67,18 @@ Rules:
 - Surface risks: missing abstractions, type gaps, invariants that may break.
 - When the user states how something works, check whether the code agrees. If you find a contradiction, surface it: "Your code cancels entire Orders, but you just said partial cancellation is possible — which is right?"
 
-### 5 Ask targeted questions
+### 5a Ask targeted questions
 
 - Use AskUserQuestion tool to ask the smallest set of questions that materially affects behavior, scope boundaries, acceptance criteria, or feasibility
 - Prefer multiple choice questions when possible, but open-ended is fine too
 - Present options conversationally with your recommendation and rationale
 - When domain relationships are being discussed, stress-test them with specific scenarios. Invent scenarios that probe edge cases and force the user to be precise about the boundaries between concepts.
+
+### 5b Show the result
+
+- Before you write the artefact, make the proposed result visible where appropriate: a throwaway probe (worktree patch, flag toggle, mock) that shows each main variant side by side, today vs proposed.
+- Do it whenever the probe is cheap relative to the implementation. If it would be a considerable part of the implementation, say so and skip it.
+- Store the images beside the artefact and reference them from it.
 
 ### 6 Synthesize artifact
 
