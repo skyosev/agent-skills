@@ -1,5 +1,7 @@
 # Slop Hunter — Go reference
 
+Contents: Generated-code eligibility · Language-only categories · Per-category Go markers · Formatter · Idiom calibration · Evidence path form · Phase 2 — slop scans · Phase 5 — Go-specific evaluation
+
 Language-specific rules for Go. Every universal category applies; one language-only category is added below.
 
 ## Generated-code eligibility
@@ -15,10 +17,12 @@ Slop-hunter runs no scan globs: `$GO_FILES` is the eligible list itself, so `foo
 and a marked file is not. Test files (`*_test.go`) are eligible.
 
 ```bash
-# Diff / path mode: filter the manifest. Codebase mode: enumerate first.
-# [ codebase ] CANDIDATES=$(rg --files --type go -- .)
+cd "$(git rev-parse --show-toplevel)" || exit 1
+CANDIDATES=$(cat <run>/scope.txt)              # diff / path: already a file list
+# codebase:  CANDIDATES=$(rg --files --type go)
 GO_FILES=$(printf '%s\n' $CANDIDATES | rg '\.go$' | rg -v '^vendor/|/vendor/|(^|/)testdata/' \
   | while read -r f; do rg -q -m1 '^// Code generated .* DO NOT EDIT\.$' "$f" || echo "$f"; done)
+[ -n "$GO_FILES" ] && printf '%s\n' "$GO_FILES" > <run>/go.txt   # no eligible Go file → no go.txt, no Go scans
 ```
 
 ## Language-only categories
@@ -72,7 +76,7 @@ signature beyond it.
 - `Create*` constructors where the project uses `New*`, or the reverse
 - Receiver naming that breaks the project's pattern (single-letter vs. word)
 - A different error-wrapping library than the project's (`errors.Wrap` where the project uses `fmt.Errorf("…: %w")`)
-- Idioms from other languages: `GetX()` for `X()`, `toString()` for `String()`, `userName` for `username`
+- Idioms from other languages: `GetX()` for `X()`, `toString()` for `String()`, `userId` for `userID`
 - `gofmt` output on touched lines (see Formatter)
 
 **Ownership:** naming drift introduced by the change is here; *stuttering* (`user.UserName`) as a package-design
@@ -91,9 +95,12 @@ Go's compiler rejects unused imports and unused local variables, so those never 
 - Commented-out code; `TODO` / `FIXME` without owner, ticket, or condition
 
 Not a finding: `import _ "pkg"` for side effects; `var _ Iface = (*T)(nil)` compile-time assertions; `_ = x` where
-the project's lint config requires it for an intentionally ignored return.
+the project's lint config requires it for an intentionally ignored return; a parameter whose signature is fixed by an
+interface, function type, or callback (`ServeHTTP(w, r)` that ignores `r`); a struct field that carries a struct tag
+or is exported — reflection and other packages read it.
 
-Unused functions and constants → simplicity-hunter Dead Code Paths. Exported dead symbols → boundary-hunter.
+Unused functions and constants → simplicity-hunter Dead Code Paths. Exported dead symbols → boundary-hunter Dead
+Exports.
 
 ### Hedging and Narration
 
@@ -116,10 +123,8 @@ In diff mode, `gofmt -d <file>` gives the violating lines; keep only those insid
 
 ## Idiom calibration
 
-Precedence: `gofmt` > project conventions > Effective Go and the Go Code Review Comments wiki. `gofmt` is not a
-style choice. Project conventions (naming, error handling, import grouping) come next. Fall back to standard Go
-idioms only when the project has no established convention; when it has none and the guide is silent, record
-`baseline uncertain`.
+Baseline rung 4 (the Style Drift order in SKILL.md): Effective Go and the Go Code Review Comments wiki. `gofmt`
+output is not a style choice.
 
 Repeated `if err != nil` is Go working as designed, never drift. A `//nolint` with a reason is a decision, not slop.
 
@@ -129,13 +134,19 @@ Cite findings as `file/path.go:line`.
 
 ## Phase 2 — slop scans
 
-All scans take `$GO_FILES`. Diff mode keeps `@@` hunk headers so each `+` line maps to a working-tree line number;
-untracked files have no diff and use the path-mode commands.
+All scans take `$GO_FILES`, restored at the top of every call. Diff mode keeps the `+++` file headers and `@@` hunk
+headers, so each `+` line maps to a file and a working-tree line number. Untracked files have no diff: diff mode
+scans them whole with the whole-file commands, with `F` set to the untracked subset.
 
 ```bash
+# ---- Every call: restore run state ----
+cd "$(git rev-parse --show-toplevel)" || exit 1
+GO_FILES=$(cat <run>/go.txt); [ -n "$GO_FILES" ] || exit 1   # STOP: empty restore
+
 # ---- Diff mode: added lines only ----
+MB=$(cat <run>/mb); [ -n "$MB" ] || exit 1                     # STOP: empty restore
 # Patterns are anchored right after the leading +; start with .* to match anywhere on the line.
-D() { git diff -U0 "$MB" -- $GO_FILES | rg "^@@|^\+($1)"; }
+D() { git diff -U0 "$MB" -- $GO_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 
 D '\s*//'                                                      # comments and godoc (classify manually)
 D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
@@ -145,18 +156,20 @@ D '.*fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'               # error-wrapping
 D '.*(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'   # narration
 D '.*(?i)(workaround|might need|for safety|new, improved|improved version)'                        # hedging
 
-# Removed lines: a removed use of a still-imported package nominates a Phase 4 candidate
-git diff -U0 "$MB" -- $GO_FILES | rg '^-' | rg -v '^---'
+# Removed lines, with file and hunk headers: a removed use of a parameter or struct field nominates a Phase 4 candidate
+git diff -U0 "$MB" -- $GO_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
 
-# ---- Path / codebase mode: whole eligible files ----
-rg -n '^\s*//' -- $GO_FILES                                    # comments (classify manually)
-rg -n -B1 '^func\s+[a-z]' -- $GO_FILES                         # godoc on unexported functions
-rg -n '\b(TODO|FIXME|HACK|XXX)\b' -- $GO_FILES
-rg -n '//\s*nolint' -- $GO_FILES
-rg -n '^\s*_\s*=\s*\w' -- $GO_FILES
-rg -n 'fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )' -- $GO_FILES
-rg -n '(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)' -- $GO_FILES
-rg -n -i 'workaround|might need|for safety|new, improved|improved version' -- $GO_FILES
+# ---- Whole-file scans ----
+# path / codebase: F=$GO_FILES    diff (untracked files): F=$(git ls-files --others --exclude-standard -- $GO_FILES)
+W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must not search the whole tree
+W '^\s*//'                                                     # comments (classify manually)
+W -B1 '^func\s+(\([^)]*\)\s*)?[a-z]'                           # godoc on unexported functions and methods
+W '\b(TODO|FIXME|HACK|XXX)\b'
+W '//\s*nolint'
+W '^\s*_\s*=\s*\w'
+W 'fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'
+W '(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'
+W -i 'workaround|might need|for safety|new, improved|improved version'
 
 # ---- Formatter (Phase 3) ----
 gofmt -l $GO_FILES
@@ -175,7 +188,8 @@ For each `fmt.Errorf` candidate:
 For each `//nolint`:
 
 - Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real
-  (`errcheck` on a dropped error)? Severity Medium: the noise hides a finding.
+  (`errcheck` on a dropped error)? Severity Medium: the noise hides a finding. Score only the bare suppression; the
+  dropped error itself is invariant-hunter's Unchecked Errors — cross-reference, do not score.
 
 For each `_ = x`:
 

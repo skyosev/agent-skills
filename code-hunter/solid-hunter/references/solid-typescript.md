@@ -1,5 +1,7 @@
 # SOLID Hunter — TypeScript reference
 
+Contents: Applicability of the categories · Generated-code and test-path eligibility · TypeScript principles · Per-category TypeScript content · Framework carve-outs — name the construct · Evidence path form · Phase 2 — solid scans · Phase 4 — TypeScript-specific evaluation
+
 Language-specific rules for TypeScript.
 
 ## Applicability of the categories
@@ -117,38 +119,40 @@ Cite findings as `file/path.ts:line` (`.tsx`, `.mts`, `.cts` as applicable).
 
 ## Phase 2 — solid scans
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible TypeScript list. **Scans
+`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4); test
+files are already out of it. A scan that needs a narrower list derives it by filtering that list, e.g.
+`printf '%s\n' $TS_FILES | grep -v '\.spec\.ts$'`. That works for `.` too, because the globs then apply. **Scans
 nominate only.**
 
 ```bash
-EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
+EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/out/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # Responsibility Sprawl: classes and their constructors (then read the members and name the actors)
-rg -n 'class\s+\w+' --type ts $EXCLUDE -- $SCOPE
-rg -n 'constructor\s*\(' --type ts $EXCLUDE -- $SCOPE
+rg -H -n 'class\s+\w+' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n 'constructor\s*\(' --type ts $EXCLUDE -- $TS_FILES
 
 # Fat Interfaces / Broken Substitution: abstractions and their declared members
-rg -n 'interface\s+\w+|abstract\s+class\s+\w+' --type ts $EXCLUDE -- $SCOPE
-rg -n 'abstract\s+\w+\s*\(' --type ts $EXCLUDE -- $SCOPE
+rg -H -n 'interface\s+\w+|abstract\s+class\s+\w+' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n 'abstract\s+\w+\s*\(' --type ts $EXCLUDE -- $TS_FILES
 
 # Broken Substitution: declared edges (implements/extends) — structural implementors are NOT found here
-rg -n 'implements\s+\w+|extends\s+\w+' --type ts $EXCLUDE -- $SCOPE
-rg -n -i 'not.?implemented|unsupported' --type ts $EXCLUDE -- $SCOPE
-rg -n 'instanceof\s+\w+' --type ts $EXCLUDE -- $SCOPE
+rg -H -n 'implements\s+\w+|extends\s+\w+' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n -i 'not.?implemented|unsupported' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n 'instanceof\s+\w+' --type ts $EXCLUDE -- $TS_FILES
 
 # Rigid Extension Points: discriminant switches, literal unions, boolean parameters
-rg -n 'switch\s*\(' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 "type\s+\w+\s*=\s*'[^']+'\s*\|" --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '\(\s*[^)]*\b\w+\s*:\s*boolean\b' --type ts $EXCLUDE -- $SCOPE
+rg -H -n 'switch\s*\(' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 "type\s+\w+\s*=\s*'[^']+'\s*\|" --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\(\s*[^)]*\b\w+\s*:\s*boolean\b' --type ts $EXCLUDE -- $TS_FILES
 
 # Concrete Dependency Chains: construction sites (fires on value types too — filter while reading)
-rg -n 'new\s+[A-Z]\w*\(' --type ts $EXCLUDE -- $SCOPE
+rg -H -n 'new\s+[A-Z]\w*\(' --type ts $EXCLUDE -- $TS_FILES
 
 # Concrete Dependency Chains: module-level clients (then find the methods that read them)
-rg -n --pcre2 '^(export\s+)?const\s+\w+\s*=\s*new\s+[A-Z]\w*\(' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^(export\s+)?const\s+\w+\s*=\s*new\s+[A-Z]\w*\(' --type ts $EXCLUDE -- $TS_FILES
 
 # Composition-root nomination (behavior decides; these only point the search)
-rg -n '@Module\(|providers\s*:|container\.bind|@Injectable\(|@injectable\(' --type ts $EXCLUDE -- $SCOPE
+rg -H -n '@Module\(|providers\s*:|container\.bind|@Injectable\(|@injectable\(' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 ## Phase 4 — TypeScript-specific evaluation
@@ -186,7 +190,9 @@ For each `switch` on a discriminant:
 
 - List every site project-wide. One site → no finding.
 - Arms sharing one responsibility, or heterogeneous? Heterogeneous → recommend exhaustiveness per site, raise nothing.
-- `git log -S "'<variant literal>'"` — did a variant addition touch two or more of the listed sites? No → withdraw.
+- `git log -S'<variant literal>' --name-only --format='%h %ad %s' --date=short -- .`, the literal without its quotes
+  so single- and double-quoted code both match — did a variant addition touch two or more of the listed sites? No →
+  withdraw.
   `assertNever` arms at every site change nothing about this test.
 
 For each `boolean` parameter:

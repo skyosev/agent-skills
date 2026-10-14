@@ -1,5 +1,7 @@
 # SOLID Hunter — Go reference
 
+Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Per-category Go content · Composition roots and framework carve-outs · Evidence path form · Phase 2 — solid scans · Phase 4 — Go-specific evaluation
+
 Language-specific rules for Go.
 
 ## Applicability of the categories
@@ -51,10 +53,10 @@ Two units, evaluated separately:
 - **Struct.** Methods spanning unrelated concepts, a `New*` with many collaborators, methods that never touch the
   struct's fields. A cohesive aggregate whose methods all mutate one entity through one workflow is not a finding.
 
-**Boundary with boundary-hunter-go §7.** Package *naming* (`util`, `common`), name-vs-directory mismatch, deep paths,
-and a `models` package of unrelated domains are legibility findings there. Responsibility and change analysis — named
-actors, independent reasons to change — is here. Until boundary-hunter unifies, its signal "multiple files in a package
-spanning unrelated concerns" double-owns this; cross-reference in the Action cell rather than suppressing either.
+**Boundary with boundary-hunter.** A generic package name with two or more unrelated capabilities, and a package
+clause that differs from its directory, are boundary-hunter's Generic Boundary Names. Responsibility and change
+analysis — named actors, independent reasons to change, multiple files in a package spanning unrelated concerns — is
+here.
 
 ### Rigid Extension Points — Go forms
 
@@ -80,7 +82,8 @@ best available and is never a finding of any hunter. It also never decides openn
 
 **Implicit satisfaction** is why the contract must be named from the interface's documentation, its consumers, or a
 doc comment on the method — not from the method name. When the interface is undocumented and the branch merely adds an
-extra (`Vacuum` outside `Store`), there is no finding.
+extra (`Vacuum` outside `Store`), there is no finding. The bare single-value form there
+(`store.(*memStore)`) is invariant-hunter's Unguarded Type Assertions; the two-value check belongs to neither hunter.
 
 A bare `store.(*memStore)` in a compensating role is **one** finding here, with the guard form noted in Action;
 invariant-hunter does not also score it. `payload.(map[string]any)` on decoded JSON is invariant-hunter's, not a
@@ -114,7 +117,9 @@ consumer-defined interface, introduced with the test that needs it — without r
 an interface immediately only when a second implementation or a fake already exists.
 
 Not findings: `&Config{}`, `[]T{}`, `map[K]V{}`, a builder, any struct with no methods; `os.Open(path)` or
-`http.NewRequest` inside one method on input the method received — resource use, not a collaborator.
+`http.NewRequest` inside one method on input the method received — resource use, not a collaborator. A `time.Now()` or
+`rand.*` call inside business logic is the **Low** form of this finding — a clock or random source the caller cannot
+control — reported only when the Evidence names what that costs.
 
 ## Composition roots and framework carve-outs
 
@@ -132,46 +137,51 @@ Cite findings as `file/path.go:line`.
 
 ## Phase 2 — solid scans
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible Go list; generated-code
-globs approximate the authoritative marker. **Scans nominate only** — every DIP pattern below also fires on value
-types, and each construction pattern misses cases the others catch, which is why all four run.
+`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4); test files are
+already out of it. A scan that needs a narrower list derives it by filtering that list, e.g. `printf '%s\n' $GO_FILES |
+grep -v '_test\.go$'`. That works for `.` too, because the globs then apply. Generated-code globs approximate the
+authoritative marker. **Scans nominate only** — every DIP pattern below also fires on value types, and each construction
+pattern misses cases the others catch, which is why all four run.
 
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Responsibility Sprawl: structs and their constructors (then read the members and name the actors)
-rg -n 'type\s+\w+\s+struct' --type go $EXCLUDE -- $SCOPE
-rg -n '^func\s+New\w*\(' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'type\s+\w+\s+struct' --type go $EXCLUDE -- $GO_FILES
+rg -H -n '^func\s+New\w*\(' --type go $EXCLUDE -- $GO_FILES
 
 # Responsibility Sprawl at the package unit: imports per package (then group by concern)
-rg -n -U --pcre2 '^import\s*\((?s).*?\)' --type go $EXCLUDE -- $SCOPE
+rg -H -n -U --pcre2 '^import\s*\((?s).*?\)' --type go $EXCLUDE -- $GO_FILES
 
 # Fat Interfaces / Broken Substitution: interface declarations (then enumerate implementors and consumers)
-rg -n 'type\s+\w+\s+interface' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'type\s+\w+\s+interface' --type go $EXCLUDE -- $GO_FILES
 
 # Rigid Extension Points: switches on a discriminant, and type switches used as variant dispatch
-rg -n 'switch\s+\w' --type go $EXCLUDE -- $SCOPE
-rg -n 'switch\s+(\w+\s*:=\s*)?\w+\.\(type\)' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'switch\s+\w' --type go $EXCLUDE -- $GO_FILES
+rg -H -n 'switch\s+(\w+\s*:=\s*)?\w+\.\(type\)' --type go $EXCLUDE -- $GO_FILES
 
 # Rigid Extension Points: boolean parameters (a two-member discriminant; same bar as any other)
-rg -n --pcre2 'func\s+\w+\([^)]*\b\w+\s+bool\b' --type go $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^func\s+(\([^)]*\)\s*)?\w+\([^)]*\bbool\b' --type go $EXCLUDE -- $GO_FILES
 
 # Broken Substitution: not-implemented implementors, and consumer branches on a concrete type
-rg -n -i 'not.?implemented|unsupported' --type go $EXCLUDE -- $SCOPE
-rg -n '\.\(\*?[\w.]+\)' --type go $EXCLUDE -- $SCOPE | rg -v '\.\(type\)'
+rg -H -n -i 'not.?implemented|unsupported' --type go $EXCLUDE -- $GO_FILES
+rg -H -n '\.\(\*?[\w.]+\)' --type go $EXCLUDE -- $GO_FILES | rg -v '\.\(type\)'
 
 # Concrete Dependency Chains: construction sites — four patterns, each catching what the others miss,
 # all of them firing on value types. Filter to types WITH methods while reading.
-rg -n '&\w+\{' --type go $EXCLUDE -- $SCOPE
-rg -n '\w+\.\w+\{' --type go $EXCLUDE -- $SCOPE
-rg -n 'new\(' --type go $EXCLUDE -- $SCOPE
-rg -n 'New\w+\(' --type go $EXCLUDE -- $SCOPE
+rg -H -n '&\w+\{' --type go $EXCLUDE -- $GO_FILES
+rg -H -n '\w+\.\w+\{' --type go $EXCLUDE -- $GO_FILES
+rg -H -n 'new\(' --type go $EXCLUDE -- $GO_FILES
+rg -H -n 'New\w+\(' --type go $EXCLUDE -- $GO_FILES
+
+# Concrete Dependency Chains: a clock or random source read inside logic (the Low form)
+rg -H -n 'time\.Now\(\)|rand\.\w+\(' --type go $EXCLUDE -- $GO_FILES
 
 # Concrete Dependency Chains: package-level services (then find the methods that read them)
-rg -n --pcre2 '^var\s+\w+\s+\*?(sql|http|redis|kafka|s3|grpc)\.' --type go $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^var\s+\w+\s+\*?(sql|http|redis|kafka|s3|grpc)\.' --type go $EXCLUDE -- $GO_FILES
 
 # Composition-root nomination (behavior decides; these only point the search)
-rg -n 'func\s+main\(\)|wire\.Build|fx\.(Provide|Invoke|New)' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'func\s+main\(\)|wire\.Build|fx\.(Provide|Invoke|New)' --type go $EXCLUDE -- $GO_FILES
 ```
 
 **Embedding has no reliable scan.** Bare-identifier patterns inside a struct body match `return`, `break`, `continue`;
@@ -200,8 +210,9 @@ For each interface:
 
 For each type assertion or type switch on an interface:
 
-- Is the asserted-from type a **contract type** (methods, implementors) or a **data variant set** (tagged structs)?
-  Variant set → invariant-hunter.
+- Is the asserted-from type a **contract type** (methods, implementors) or a **data variant set** (a sealed interface
+  over data structs, `any` / open data)? Variant set → not here; invariant-hunter's Unguarded Type Assertions judges
+  the guard, and a sealed set's missing arm is no hunter's (see Rigid Extension Points — Go forms).
 - Does the branch **compensate** for a broken promise, or unlock an extra outside the contract? Extra → no finding.
 - Optional-interface check with a fallback → capability dispatch, no finding.
 
@@ -209,11 +220,13 @@ For each switch on a discriminant:
 
 - List every site project-wide. One site → no finding.
 - Do the arms share one responsibility? Heterogeneous → recommend exhaustiveness per site, raise nothing.
-- `git log -S '<discriminant value>' -- .` — did adding a variant touch two or more of the listed sites? No history
-  evidence and no variant-adding diff → withdraw.
+- `git log -S'<token>' --name-only --format='%h %ad %s' --date=short -- .`, `<token>` being the constant name or the
+  kind literal without its quotes — did adding a variant touch two or more of the listed sites? No history evidence
+  and no variant-adding diff → withdraw.
 
 For each package in scope:
 
 - Which actors do its files serve, and which members belong to each? Two actors with independent reasons to change →
   finding at the package unit, including for a package of plain functions.
-- Is the concern instead naming or directory placement? → boundary-hunter.
+- Is the concern instead a generic name or a clause that differs from the directory? → boundary-hunter's Generic
+  Boundary Names.

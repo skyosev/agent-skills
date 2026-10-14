@@ -48,14 +48,14 @@ judged on is named per language (see Applicability).
 
 | Category | Core signal | Action | Belongs to another hunter |
 | -------- | ----------- | ------ | ------------------------- |
-| Responsibility Sprawl (SRP) | One unit serves two or more actors with independent reasons to change | Extract per actor; the original delegates or dissolves | File-level accumulation → smell-hunter (God Module); a class that should be a function → smell-hunter (Class Abuse); a *function body* mixing fetch, transform and persist → simplicity-hunter (Mixed Concerns); package naming → boundary-hunter |
-| Rigid Extension Points (OCP) | Adding a variant to an **open** set edits two or more dispatch sites beyond the variant's definition | The smallest seam that removes the per-site edit | Non-variant scattering → smell-hunter (Shotgun Surgery); a missing exhaustiveness arm → invariant-hunter (Leaky Discriminated Unions); a boolean dispatched at one site → simplicity-hunter (Over-Parameterized APIs) |
+| Responsibility Sprawl (SRP) | One unit serves two or more actors with independent reasons to change | Extract per actor; the original delegates or dissolves | File-level accumulation → smell-hunter (God Module); a class that should be a function → smell-hunter (Class Abuse); a *function body* mixing fetch, transform and persist → simplicity-hunter (Mixed Concerns); a generic package name → boundary-hunter (Generic Boundary Names) |
+| Rigid Extension Points (OCP) | Adding a variant to an **open** set edits two or more dispatch sites beyond the variant's definition | The smallest seam that removes the per-site edit | Non-variant scattering → smell-hunter (Shotgun Surgery); a missing exhaustiveness arm → invariant-hunter (Leaky Discriminated Unions; Python, TypeScript — in Go no hunter scores it, see `solid-go.md`); a boolean dispatched at one site → simplicity-hunter (Over-Parameterized APIs) |
 | Broken Substitution (LSP) | An implementor fails the contract its abstraction promises, or a consumer carries a compensating branch for one implementor | Narrower abstraction or composition; the type stops claiming what it cannot honor | Narrowing on a **data variant set**, and assertions from `any` / open data → invariant-hunter |
 | Fat Interfaces (ISP) | An interface with a **live seam** forces a production consumer to depend on unrelated capabilities it never calls | Split into role interfaces; Go: define at the consumer | No live seam — should it exist at all? → simplicity-hunter (Unnecessary Abstractions; Go Interface Pollution) |
-| Concrete Dependency Chains (DIP) | A unit self-instantiates a service dependency that does I/O, or reads a module/package-level one instead of receiving it | Accept the concrete dependency in the constructor | The *write* to a global after initialization → smell-hunter (Mutable Global State); import direction between layers → boundary-hunter |
+| Concrete Dependency Chains (DIP) | A unit self-instantiates a service dependency that does I/O, or reads a module/package-level one instead of receiving it | Accept the concrete dependency in the constructor | The *write* to a global after initialization → smell-hunter (Mutable Global State); import direction between layers and external types in domain signatures → boundary-hunter (Dependency Direction Violations, External Type Leaks) |
 
-Hunter names are unsuffixed end-state names. Until consolidation completes, live skills are language-suffixed
-(`boundary-hunter-go`, `test-hunter-py`, `security-hunter-ts`, and so on).
+Hunter names are unsuffixed. A hunter not installed under that name is installed per language
+(`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Core Principles
 
@@ -108,8 +108,9 @@ Hunter names are unsuffixed end-state names. Until consolidation completes, live
   self-instantiation, whatever file it lives in.
 - **Contract type vs data variant** — the LSP/invariant ownership test. A *contract type* is a behavioral abstraction
   with methods (interface, ABC, Protocol, abstract class). A *data variant set* is a union of shapes (TypeScript
-  discriminated-union members, `Literal`-discriminated dataclasses, Go tagged structs). Consumer narrowing on a
-  contract type to special-case an implementor is here; narrowing on a data variant set is invariant-hunter's. For a
+  discriminated-union members, `Literal`-discriminated dataclasses, a Go sealed interface over data structs). Consumer
+  narrowing on a contract type to special-case an implementor is here; narrowing on a data variant set is never here —
+  invariant-hunter judges it (in Go only the guard, under Unguarded Type Assertions; see `solid-go.md`). For a
   base class carrying both fields and methods: if the base declares abstract or overridable behavior the consumer
   calls, it is a contract type; a dataclass hierarchy with no overridable methods is a data variant set.
 - **Open variant set** — the OCP evidence test. A set is *open* when **this set** has paid the extension cost: a
@@ -137,8 +138,8 @@ Hunter names are unsuffixed end-state names. Until consolidation completes, live
   transaction for `InMemoryRepo`, catch the not-implemented error from `ReadOnlyStore`). The consumer form of the LSP
   finding. Distinct from **capability dispatch**: checking for an optional interface and falling back to the base
   contract when absent (`io.WriterTo` in `io.Copy`) is the language working as designed.
-- **Target scope and context** — findings anchor in the manifest; implementors, consumers, and test doubles outside it
-  are read to judge them.
+- **Target scope and context** — findings anchor in the per-language eligible subsets (Phase 1 step 4), the target
+  scope; implementors, consumers, and test doubles outside them, test files included, are read to judge them.
 
 ## Not a finding on these grounds alone
 
@@ -179,7 +180,8 @@ would:
   *Is* a Responsibility Sprawl finding when members *outside* the prescribed shape serve a second actor.
 - **An interface with no live seam** (never received by a consumer from outside, no double, one implementation) —
   simplicity-hunter's (should it exist?). Never a Fat Interfaces finding here.
-- **Narrowing on a data variant set** — invariant-hunter's, whether guarded or not.
+- **Narrowing on a data variant set** — never here, whether guarded or not. invariant-hunter's Leaky Discriminated
+  Unions in Python and TypeScript; in Go, invariant-hunter's Unguarded Type Assertions judges only the guard.
 - **A global service that is written after initialization** — the write is smell-hunter's Mutable Global State at the
   declaration/write site. The *read inside a unit's logic* is Concrete Dependency Chains here, anchored at the
   consumer. Two anchors, one finding each, cross-referenced; neither reports the other's site.
@@ -203,7 +205,7 @@ One unit serving two or more actors with independent reasons to change.
 - Vague names with broad scope: `Manager`, `Handler`, `Service`, `Utils`, `Helper`
 - Methods that do not share the unit's fields — half the methods untouched by half the state
 - Go adds the **package** unit: a package serving persistence AND transport AND rules
-- A test that needs many mocks to run the unit (read from context; test-hunter already points here)
+- A test that needs many mocks to run the unit (read as context)
 
 **Evidence bar:** name each actor and the members belonging to it, and give a change scenario for one actor that
 touches members belonging to another.
@@ -214,9 +216,9 @@ touches members belonging to another.
 accumulating unrelated responsibilities is smell-hunter's God Module. A class that should be a function is
 smell-hunter's Class Abuse; the placement of entity transitions is smell-hunter's Anemic Domain Model. A *function
 body* mixing fetch, transform and persist is simplicity-hunter's Mixed Concerns. Package *naming and directory
-legibility* (`util`, `common`, name/directory mismatch, `models` of unrelated domains) is boundary-hunter's; Go
-package-level responsibility analysis stays here. Until boundary-hunter unifies, its Go §7 signal "multiple files in
-a package spanning unrelated concerns" double-owns this; cross-reference rather than suppress.
+legibility* (`util`, `common`, name/directory mismatch, `models` of unrelated domains) is boundary-hunter's Generic
+Boundary Names; Go package-level responsibility analysis, including multiple files in a package spanning unrelated
+concerns, stays here.
 
 ### Rigid Extension Points (OCP)
 
@@ -329,7 +331,7 @@ pointer parameter cannot accept a fake, so the Action states that a future doubl
 interface, introduced with the test that needs it: a recorded consequence, not a recommendation.
 
 **Ownership:** type-level wiring only. Import direction between layers, and external types in domain signatures, are
-boundary-hunter's Dependency Direction Violations and Missing Abstraction Over Externals — a domain module importing a
+boundary-hunter's Dependency Direction Violations and External Type Leaks — a domain module importing a
 driver package directly, with no instantiation inside a type, is not a finding here. Whether a *resulting* interface
 should exist is simplicity-hunter's question, which this category answers in advance by injecting the concrete type.
 The **write** to a global after initialization is smell-hunter's Mutable Global State at the global's own site; the
@@ -366,7 +368,7 @@ There are no language-only categories: no supported language has a SOLID defect 
 
 ## Test-code scope
 
-**Test files are excluded from findings** — the same deviation invariant-hunter records. The design of a test class or
+**Test files are excluded from findings.** The design of a test class or
 fixture is not a SOLID question. Test paths per language: Go `*_test.go`; Python `test_*.py`, `*_test.py`, `tests/`,
 `conftest.py`; TypeScript `*.test.*`, `*.spec.*`, `*.e2e.*`, `__tests__/`. The exclusion is **by path**: a production
 helper under `tests/` is not audited.
@@ -384,7 +386,7 @@ type.
 
 ## Severity and Impact
 
-Every finding carries **both**, per the sibling definitions. They answer different questions and routinely diverge.
+Every finding carries **both**. They answer different questions and routinely diverge.
 
 **Severity — behavioral risk if left as-is:**
 
@@ -392,8 +394,8 @@ Every finding carries **both**, per the sibling definitions. They answer differe
   loss, crash, corrupted state), and why nothing contains it. A `Save` that silently no-ops on an implementor a
   production write path reaches, with the caller reporting success. A reachable throw that a caller catches and
   handles is not Critical. **Only Broken Substitution can reach Critical.**
-- **High** — a Broken Substitution awaiting its first call: the implementor is registered or injected as the
-  abstraction and a consumer path reaches the broken member; the consequence is stated, or stated as unknown.
+- **High** — a reachable Broken Substitution short of the Critical bar: the implementor is registered or injected as
+  the abstraction and a consumer path reaches the broken member; the consequence is stated, or stated as unknown.
 - **Medium** — the default for the other four categories once they clear their evidence bar, and for a Broken
   Substitution whose break is not reachable through the abstraction today.
 - **Low** — a finding that clears its bar with the smallest consequence: one affected consumer carrying one unused
@@ -417,39 +419,23 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 ### Phase 1: Gain Context
 
 1. **Resolve the raw manifest.** Scope may be:
-   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked
-   - **Path**: specific files, folders, or packages
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
+     `references/diff-scope.md`.
+   - **Path**: specific files, folders, or packages — `SCOPE=$(git ls-files --cached --others --exclude-standard
+     -- <paths>)`, which expands folders to files
    - **Codebase**: the entire project (default when unspecified; set `SCOPE=.`)
 
    **Party mode:** when the orchestrator supplies a scope snapshot, treat `scope.txt` as a **file manifest only**
-   (one path per line). Read run metadata (base SHA, surface kind, counts) from `scope-meta.txt` when present. Use
-   the manifest verbatim; do not re-resolve. The resolution below is for standalone runs only.
+   (one path per line): `SCOPE=$(cat <snapshot>/scope.txt)`. Read run metadata (base SHA — `$MB` in diff mode —
+   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; do not re-resolve. The
+   resolution above is for standalone runs only.
 
-   For diff mode, resolve fail-closed:
-   ```bash
-   BASE=$(git symbolic-ref -q refs/remotes/origin/HEAD | sed 's@^refs/remotes/@@')
-   git rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 || BASE=
-   if [ -z "$BASE" ]; then
-     for b in origin/main origin/master main master; do
-       git rev-parse -q --verify "$b^{commit}" >/dev/null && BASE=$b && break
-     done
-   fi
-   # BASE still empty: STOP and ask for an explicit base. Do not continue.
-   MB=$(git merge-base "$BASE" HEAD) || exit 1                        # STOP: no merge base
-   CHANGED=$(git diff --name-only --diff-filter=d "$MB") || exit 1    # STOP: diff failed
-   UNTRACKED=$(git ls-files --others --exclude-standard) || exit 1    # STOP: ls-files failed
-   DELETED=$(git diff --name-only --diff-filter=D "$MB") || exit 1    # STOP: diff failed
-   SCOPE=$(printf '%s\n%s\n' "$CHANGED" "$UNTRACKED" | sed '/^$/d' | sort -u)
-   ```
-   Every command that supplies audit data is checked; only the base-discovery probes may fail, because failure
-   there means "try the next candidate". One diff from the merge base to the working tree covers committed, staged,
-   and unstaged changes. A file that existed at the merge base and is gone from the working tree lands in
-   `$DELETED`; a file added after the merge base and deleted again appears nowhere. A failed command is never an
-   empty scope.
-
-   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
-   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds the context
-   budget, report the file count and ask to narrow or chunk.
+   **Persist run state.** Shell variables do not survive between tool calls, and `rg … --` with an empty variable
+   searches the whole working directory. Create one run directory (`RUN=$(mktemp -d) && echo "$RUN"`) and use the
+   printed path literally from then on. Every call starts at the repository root (`cd "$(git rev-parse
+   --show-toplevel)"`), because every list holds root-relative paths. Write `$SCOPE` to `<run>/scope.txt` and, in diff mode, `$MB` to `<run>/mb`.
+   A later call restores what it uses (`SCOPE=$(cat <run>/scope.txt)`); an empty restore is a STOP, never an empty
+   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow or chunk.
 
    **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
@@ -480,8 +466,19 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    count, each per-language eligible subset, exclusions with the test paths listed, and
    `References loaded: {go, python, typescript as present}`.
 
-   Drop from eligibility only: vendored trees, lockfiles, Markdown-only inputs, test paths, and generated files
-   identified by each reference's authoritative **in-file marker** — **never** by filename guessing.
+   Drop from eligibility exactly what step 2 and the loaded reference list — unsupported extensions, vendored,
+   dependency and build trees, lockfiles, Markdown-only inputs, test paths — and generated files identified by the
+   reference's authoritative **in-file marker**, **never** by filename guessing.
+
+   Write each subset to `<run>/<lang>.txt` (`go.txt`, `python.txt`, `typescript.txt`). Codebase mode: the single line
+   `.`. Diff and path mode: the eligible files, one per line — `comm -12 <(rg --files --type <t> $EXCLUDE | sort)
+   <(printf '%s\n' $SCOPE | sort)` with the loaded reference's `--type` and `$EXCLUDE`, minus files carrying a
+   generated-code marker (`| while read -r f; do rg -q -m1 '<marker>' "$f" || echo "$f"; done`, the marker regex built
+   from the reference's eligibility section); the reference's generated-file globs are the same scan approximation a
+   codebase run uses. Filter before scanning: `rg` applies `--type` and `--glob` only while walking a folder and
+   searches every file named on its command line. Each scan call restores its list first — `GO_FILES=$(cat
+   <run>/go.txt)` (`PY_FILES`, `TS_FILES`) — and the reference blocks pass it as `rg -H … -- $GO_FILES`: given one file,
+   `rg` prints no file name unless `-H` is set.
 
    If **nothing** eligible remains: write `Audit completed: 0 findings — no eligible source in scope` and stop before
    scanning.
@@ -500,8 +497,9 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    factory, a container module, a Nest module nominate the search. Existing wire / fx / container wiring is
    recognized as a root; neither is recommended for adoption. Record the style in Scope as
    `Architecture style: {struct-based / class-based / mixed / functional (limited findings)}`. In a primarily
-   functional codebase the struct/class categories fire only where structs, classes and interfaces exist, and Go
-   package-level Responsibility Sprawl fires regardless.
+   functional codebase Broken Substitution, Fat Interfaces, Concrete Dependency Chains, and struct/class-level
+   Responsibility Sprawl fire only where structs, classes and interfaces exist; Rigid Extension Points and Go
+   package-level Responsibility Sprawl fire regardless.
 
 **No toolchain step.** No supported language has a SOLID analyzer a project would configure; none is invented, and
 nothing is installed. The report carries no Toolchain lines.
@@ -509,8 +507,10 @@ nothing is installed. The report carries no Toolchain lines.
 ### Phase 2: Scan for Candidates
 
 Scans produce **candidates only**. For each loaded reference, run its Phase 2 scan block against that language's
-eligible subset (`SCOPE=.` in codebase mode). Pass an explicit path to **every** `rg` invocation. Diff mode nominates
-from the working tree over the manifest files, not from added lines: design is a property of the current code.
+eligible list from Phase 1 step 4: every scan call first restores `GO_FILES=$(cat <run>/go.txt)` (`PY_FILES` from
+`python.txt`, `TS_FILES` from `typescript.txt`), and an empty restore is a STOP. Pass an explicit path to **every** `rg`
+invocation. Diff mode nominates from the working tree over the manifest files, not from added lines: design is a
+property of the current code.
 
 ### Phase 3: Enumerate Implementors, Consumers, and Dispatch Sites
 
@@ -519,8 +519,11 @@ diff. For each nominated unit:
 
 - **Abstractions**: every implementor, every production consumer, every test double, and for each consumer the subset
   of members it calls.
-- **Discriminants**: every dispatch site, and the history test — `git log -S '<discriminant value>'` (or the diff
-  under review) to see whether a variant addition touched two or more of them.
+- **Discriminants**: every dispatch site, and the history test (or the diff under review) — did a variant addition
+  touch two or more of them? `git log -S'<token>' --name-only --format='%h %ad %s' --date=short -- .`, where
+  `<token>` is the variant as written at the dispatch sites: the enum member or constant name, or the literal without
+  its quotes. Pickaxe lists, per commit, only the files where that token's count changed; compare them with the
+  dispatch-site list.
 - **Units**: every collaborator the unit stores, where each one is created, and which composition root (if any) builds
   it.
 - **Actors**: who asks for changes to each member — inferred from the member's concern (persistence, transport,
@@ -533,11 +536,10 @@ found; findings claim the enumerated set only.
 
 ### Phase 4: Evaluate Each Finding
 
-For each candidate: apply **Not-a-finding** first; confirm the unit exists in that file's language (see
-Applicability); apply the three ownership tests — contract type vs data variant, open vs closed, existence vs width —
-and the within-skill routing between Broken Substitution and Fat Interfaces; then clear the category's evidence bar
-from What to Hunt. Check repository policy: a `Policy:` line withdraws what it names. Run each loaded reference's
-Phase 4 block for its language-specific judgment.
+For each candidate: apply **Not-a-finding** first; apply the three ownership tests — contract type vs data variant, open
+vs closed, existence vs width — and the within-skill routing between Broken Substitution and Fat Interfaces; then clear
+the category's evidence bar from What to Hunt. Check repository policy: a `Policy:` line withdraws what it names. Run
+each loaded reference's Phase 4 block for its language-specific judgment.
 
 Assign **Severity and Impact** to every finding (both required; they diverge). One finding per site. Nothing is held
 back; `Audit completed: N findings` counts every reported finding.
@@ -545,7 +547,7 @@ back; `Audit completed: N findings` counts every reported finding.
 ### Phase 5: Produce Report
 
 Save as `YYYY-MM-DD-solid-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
-`fable-5`) — in the project's docs folder (or project root if none exists). A caller-specified output path or return
+`fable-5`) — in `docs/` (or the repository root when there is no `docs/`). A caller-specified output path or return
 mode (e.g. the party-hunter orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
@@ -572,7 +574,7 @@ Read `references/report-format.md` for the report template and per-category tabl
 | "The unit reads a package-level `db`" | Finding here, anchored at the consumer. The `SetDB` that reassigns it is smell-hunter's — cross-reference, don't score it. |
 | "The remedy is an interface plus five strategies plus a registry" | State what each added concept removes. If the net cannot be argued, name the cost instead and recommend nothing. |
 | "I'm not sure, so I'll report it at Low" | Severity is not confidence. Withdraw it. |
-| "The codebase is functional — I'll recommend introducing services" | Functional style is not a violation. Record the style; only Go package-level sprawl still fires. |
+| "The codebase is functional — I'll recommend introducing services" | Functional style is not a violation. Record the style; only Rigid Extension Points and Go package-level sprawl still fire. |
 | "The report looks thin — I'll note what I checked and found clean" | Zero-finding sections are omitted. A thin report is a valid result. |
 | "I'll just fix it while I'm here" | No code edits. The report is the deliverable. |
 | "The language reference won't load — I'll do the universal categories only" | Fail closed. Stop and report. |
@@ -580,15 +582,15 @@ Read `references/report-format.md` for the report template and per-category tabl
 ## Operating Constraints
 
 - **No code edits.** Audit report only. Implementation is a separate step.
-- **No empty finding sections.** Include only *categories* with findings. Omit a category heading, table, or list
-  entirely when it would contain zero items — no empty tables, placeholder subsections, or negative statements like
-  "none found" or "no issues". The Scope section is not a category and is filled in from the template every run,
-  including the Architecture style line and any `Policy:` line.
+- **The report is the template.** `references/report-format.md` fixes the shape: Scope, then one section per
+  category with at least one finding, then Recommendations. A category with no findings gets no heading, table,
+  or "none found" line.
 - **Scope: type, interface, and package design for change.** A finding that doesn't answer "is this unit designed for
   change?" belongs to another hunter. Contested boundaries are resolved at the category that owns them: each
   **Ownership:** note in What to Hunt states what is kept here and what routes away.
 - **Evidence required.** Every finding cites `file:line` (path form per the language reference) with the exact code,
-  and the category's evidence cell — Actors, Dispatch sites, Violation, Evidence, Form — is filled, never inferred.
+  and the category's evidence cell — Actors, Dispatch sites, Violation, Evidence, Form — is filled from code read in
+  Phase 3: never left blank, never asserted without a cited member or site.
 - **One finding per site.** When two categories describe the same code, pick the primary one and cross-reference. The
   Broken Substitution / Fat Interfaces routing rule is the worked example.
 - **Pragmatism over dogma.** Flag design that creates real maintenance friction, not cosmetic deviation from a

@@ -1,15 +1,17 @@
 # Smell Hunter — Go reference
 
+Contents: Applicability of conditional categories · Generated-code eligibility · Language-only categories · Per-category Go content · Framework carve-outs · Idiom calibration · Evidence path form · Phase 2 — smell scans · Phase 5 — Go-specific evaluation
+
 Language-specific rules for Go.
 
 ## Applicability of conditional categories
 
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
-| Primitive Obsession | **yes** | type-hunter cedes domain modeling and keeps only alias-vs-named-type mechanics |
-| God Module | **no** | package organization — including "multiple files in a package spanning unrelated concerns" — is boundary-hunter's; a Go source file is not a module, and splitting files inside one package is organizational |
+| Primitive Obsession | **yes** | type-hunter keeps only the construct of an existing enum or alias (Enum Construct Mechanics, Alias vs Named Type Mechanics); domain modeling is here |
+| God Module | **no** | a Go source file is not a module, and splitting files inside one package is organizational. A generic *package* name is boundary-hunter's Generic Boundary Names; a package spanning unrelated concerns is solid-hunter's Responsibility Sprawl |
 | Mutable Global State | **yes** | package-level `var` is the canonical form |
-| Anemic Domain Model | **no** | functional domain logic over immutable data is idiomatic Go. solid-hunter explicitly does not flag packages using plain functions and closures rather than structs with methods; flagging it here would contradict a sibling hunter |
+| Anemic Domain Model | **no** | functional domain logic over immutable data is idiomatic Go. solid-hunter records plain functions and closures as architecture style and never demands objects (its "Functional-style code" Not-a-finding); flagging it here would contradict a sibling hunter |
 | Class Abuse | **no** | Go has no classes |
 
 **Language-only categories added below:** `init()` Abuse, Stuttering Names, Pointer Out-Parameters.
@@ -35,7 +37,8 @@ Complex logic, side effects, or non-trivial initialization in `init()` functions
 - `init()` that reads environment variables or configuration files
 - `init()` with error handling — errors in `init` cannot be returned, only panicked
 - `init()` that registers global state (e.g. `http.HandleFunc` in library code)
-- Multiple `init()` functions in one package with ordering dependencies (also → Temporal Coupling)
+- Multiple `init()` functions in one package with ordering dependencies (reported here; Temporal Coupling is the
+  cross-reference — see Within-skill precedence in SKILL.md)
 - `init()` that makes the package untestable through import side effects
 
 **Action:** Move initialization into explicit constructors or a `Setup()` called from `main()`. Reserve `init()` for
@@ -52,7 +55,7 @@ belong in `init()`.
 
 Exported identifiers that repeat the package name, violating Go's convention that the package name supplies context.
 
-**Boundary with slop-hunter:** stuttering as a package-design smell is owned here; slop-hunter owns Go
+**Ownership:** stuttering as a package-design smell is owned here; slop-hunter owns Go
 naming-convention *drift introduced by the audited change* (its diff orientation).
 
 **Signals:** `user.UserName` for `user.Name`; `config.ConfigOption` for `config.Option`; `auth.AuthMiddleware` for
@@ -73,7 +76,7 @@ hygiene, not behavioral risk.
 A function that writes its result through a pointer parameter instead of returning it. Go's idiom is `x = f(x)`, which
 shows the write at the call site; `f(&x)` hides it and adds a level of indirection the reader must carry.
 
-**Boundary with simplicity-hunter:** pointer-level indirection is owned here. Abstraction-layer indirection — an
+**Ownership:** pointer-level indirection is owned here. Abstraction-layer indirection — an
 interface or wrapper serving one call site — is simplicity-hunter's Unnecessary Abstractions.
 
 **Signals:**
@@ -156,7 +159,6 @@ Define a named type and a validating constructor: `type UserID string` with `fun
 error)`; `type Money int64` in cents rather than `float64`; `time.Duration` rather than a bare `int`; typed string
 constants rather than raw comparisons. The type system then prevents mixing `UserID` with `OrderID` at compile time.
 
-No tension with boundary-hunter's "primitives flow" principle — both resolve in shared domain types.
 
 ### Mutable Global State — Go markers
 
@@ -168,9 +170,9 @@ No tension with boundary-hunter's "primitives flow" principle — both resolve i
 - `var once sync.Once` with `var instance *Service`
 
 **Do not flag** effectively-constant lookup tables (`var weekdayMap = map[string]time.Weekday{...}`) when no write
-path exists after initialization — Go has no `const` maps, so `var` is the only option. Confirm by the absence of any
-assignment to the variable outside its declaration; a `//nolint:gochecknoglobals` with a read-only comment is
-corroborating, not decisive.
+path exists after initialization — Go has no `const` maps, so `var` is the only option. Confirm there is no write
+after initialization (SKILL.md Terms); filling the table in `init()` is initialization. A
+`//nolint:gochecknoglobals` with a read-only comment is corroborating, not decisive.
 
 ### Temporal Coupling — Go remedies
 
@@ -204,54 +206,60 @@ Cite findings as `file/path.go:line`.
 
 ## Phase 2 — smell scans
 
+`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4).
+
 Test files are **included** (see Test-code scope in SKILL.md). Data Clumps and Mutable Global State exclude them, so
-test setup duplication and shared test state stay with test-hunter.
+test setup duplication and shared test state stay with test-hunter: those scans run on `$GO_PROD`, the list without
+test files, with `$TEST_OWNED_EXCLUDE` for codebase mode. A list of test files only becomes `/dev/null`, never empty.
 
 ```bash
+GO_FILES=$(cat <run>/go.txt); [ -n "$GO_FILES" ] || exit 1          # STOP: empty restore
+GO_PROD=$(printf '%s\n' $GO_FILES | grep -v '_test\.go$'); GO_PROD=${GO_PROD:-/dev/null}
 # Generated-code globs approximate the authoritative marker (eligibility uses the marker).
 EXCLUDE='--glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go --glob !**/mock_*.go --glob !**/mocks/**'
-TEST_OWNED_EXCLUDE="$EXCLUDE --glob '!**/*_test.go'"
+TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/*_test.go"
 
 # Feature envy: methods that heavily reference another package's types
-rg --pcre2 '\b[a-z]\w+\.[A-Z]\w+\.' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '\b[a-z]\w+\.[A-Z]\w+\.' --type go $EXCLUDE -- $GO_FILES
 
-# Data clumps: repeated parameter groups (long signatures) — test setup belongs to test-hunter
-rg --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\([^)]{100,}\)' --type go $TEST_OWNED_EXCLUDE -- $SCOPE
+# Data clumps: signatures with 3+ parameters, multi-line included — test setup belongs to test-hunter
+rg -H -nHU --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\((?:[^,)]*,){2,}[^)]*\)' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
 
 # Primitive obsession: two bare string/int params in sequence (swap candidates)
-rg --pcre2 'func.*\(\s*\w+\s+string\s*,\s*\w+\s+string' --type go $EXCLUDE -- $SCOPE
-rg --pcre2 'func.*\(\s*\w+\s+int\d*\s*,\s*\w+\s+int\d*' --type go $EXCLUDE -- $SCOPE
-rg --pcre2 '\bfloat64\b.*(?i)(price|amount|money|cost|balance)' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'func.*\(\s*\w+\s+string\s*,\s*\w+\s+string' --type go $EXCLUDE -- $GO_FILES
+rg -nH --pcre2 'func.*\(\s*\w+\s+int\d*\s*,\s*\w+\s+int\d*' --type go $EXCLUDE -- $GO_FILES
+rg -nH --pcre2 '\bfloat64\b.*(?i)(price|amount|money|cost|balance)' --type go $EXCLUDE -- $GO_FILES
 
 # Temporal coupling: Init/Setup/Configure methods on receiver types
-rg --pcre2 'func\s+\(\w+\s+\*?\w+\)\s+(Init|Setup|Configure|Prepare)\b' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'func\s+\(\w+\s+\*?\w+\)\s+(Init|Setup|Configure|Prepare)\b' --type go $EXCLUDE -- $GO_FILES
 
 # init() functions (then inspect for side effects)
-rg -n '^func init\(\)' --type go $EXCLUDE -- $SCOPE
+rg -nH '^func init\(\)' --type go $EXCLUDE -- $GO_FILES
 
 # Mutable global state: package-level var declarations — shared test state belongs to test-hunter
-rg -n '^var\s+\(?' --type go $TEST_OWNED_EXCLUDE -- $SCOPE
-rg -n 'sync\.Once|sync\.Mutex' --type go $TEST_OWNED_EXCLUDE -- $SCOPE
+rg -nH '^var\s+\(?' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
+rg -nH 'sync\.Once|sync\.Mutex' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
 
 # Temporary field: optional/transient-looking struct fields
-rg -n --pcre2 '^\s+\w*(?i)(temp|cached|last|pending)\w*\s+' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '^\s+\w*(?i)(temp|cached|last|pending)\w*\s+' --type go $EXCLUDE -- $GO_FILES
 
-# Comments as deodorant: comment blocks before code (inspect for "what" vs "why")
-rg -n -B1 -A1 '^\s*// ' --type go $EXCLUDE -- $SCOPE | head -200
+# Comments as deodorant: comment blocks before code (inspect for "what" vs "why"). Written to a file, never
+# truncated: read it in pages.
+rg -nH -B1 -A1 '^\s*// ' --type go $EXCLUDE -- $GO_FILES > <run>/comments-go.txt; wc -l <run>/comments-go.txt
 
 # Pointer out-parameters: pointer-to-pointer types. Go has no ** operator, so **Ident is a type.
 # Unanchored on purpose — it catches signatures that span lines, which the two below miss.
-rg -n --pcre2 '\*\*[A-Za-z_]' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '\*\*[A-Za-z_]' --type go $EXCLUDE -- $GO_FILES
 
 # Pointer out-parameters: dst/out/result pointer params (then read the return list)
-rg -n --pcre2 'func[^{]*\b(dst|out|output|result|target)\s+\*' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'func[^{]*\b(dst|out|output|result|target)\s+\*' --type go $EXCLUDE -- $GO_FILES
 
 # Pointer out-parameters: pointer-to-slice and pointer-to-map params
-rg -n --pcre2 'func[^{]*(\*\[\]|\*map\[)' --type go $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'func[^{]*(\*\[\]|\*map\[)' --type go $EXCLUDE -- $GO_FILES
 
 # Stuttering names: compare each package name against its exported symbols
-rg -n '^package\s+\w+' --type go $EXCLUDE -- $SCOPE
-rg -n '^(func|type|var|const)\s+[A-Z]\w+' --type go $EXCLUDE -- $SCOPE
+rg -nH '^package\s+\w+' --type go $EXCLUDE -- $GO_FILES
+rg -nH '^(func|type|var|const)\s+[A-Z]\w+' --type go $EXCLUDE -- $GO_FILES
 ```
 
 ## Phase 5 — Go-specific evaluation
@@ -265,7 +273,7 @@ For each `init()`:
 
 For each package-level `var`:
 
-- Is it written to anywhere outside its declaration? If not, it is not a finding.
+- Is there a write after initialization (SKILL.md Terms)? If not, it is not a finding.
 - Is it reachable from multiple goroutines?
 - Is it a `sync.Once` + instance pair — a stateful singleton, reported as Mutable Global State?
 

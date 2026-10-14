@@ -1,5 +1,7 @@
 # SOLID Hunter — Python reference
 
+Contents: Applicability of the categories · Generated-code and test-path eligibility · Python principles · Per-category Python content · Framework carve-outs — name the construct · Evidence path form · Phase 2 — solid scans · Phase 4 — Python-specific evaluation
+
 Language-specific rules for Python.
 
 ## Applicability of the categories
@@ -90,7 +92,9 @@ global-read form, anchored at the reading class.
 
 Not findings: `self.parser = CsvParser()` — a pure in-process helper; `UserService(mailer: SmtpMailer)` accepting the
 mailer — a concrete parameter is not creation; `open(path)` inside one method on a path the method received; any
-dataclass, `NamedTuple`, or builder construction.
+dataclass, `NamedTuple`, or builder construction. A `datetime.now()`, `time.time()`, or `random.*` call inside
+business logic is the **Low** form of this finding — a clock or random source the caller cannot control — reported
+only when the Evidence names what that costs.
 
 **Action:** accept the dependency as an `__init__` parameter. A shape-compatible fake already substitutes in Python,
 so a Protocol is recommended only when a second implementation or a test double already exists. Where a test patches
@@ -117,38 +121,44 @@ Cite findings as `file/path.py:line`.
 
 ## Phase 2 — solid scans
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible Python list. **Scans
+`$PY_FILES` is this language's eligible list, restored from `<run>/python.txt` (SKILL.md Phase 1 step 4); test files
+are already out of it. A scan that needs a narrower list derives it by filtering that list, e.g.
+`printf '%s\n' $PY_FILES | grep -v '_test\.py$'`. That works for `.` too, because the globs then apply. **Scans
 nominate only.**
 
 ```bash
 EXCLUDE='--glob !**/venv/** --glob !**/.venv/** --glob !**/dist/** --glob !**/build/** --glob !**/__pycache__/** --glob !**/*.egg-info/** --glob !**/*_pb2.py --glob !**/*_pb2_grpc.py --glob !**/test_*.py --glob !**/*_test.py --glob !**/tests/** --glob !**/conftest.py'
 
 # Responsibility Sprawl: classes and their constructors (then read the members and name the actors)
-rg -n '^\s*class\s+\w+' --type py $EXCLUDE -- $SCOPE
-rg -n 'def\s+__init__\s*\(' --type py $EXCLUDE -- $SCOPE
+rg -H -n '^\s*class\s+\w+' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'def\s+__init__\s*\(' --type py $EXCLUDE -- $PY_FILES
 
 # Fat Interfaces / Broken Substitution: abstractions and their declared members
-rg -n --pcre2 'class\s+\w+\s*\([^)]*\b(ABC|Protocol)\b' --type py $EXCLUDE -- $SCOPE
-rg -n '@abstractmethod' --type py $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'class\s+\w+\s*\([^)]*\b(ABC|Protocol)\b' --type py $EXCLUDE -- $PY_FILES
+rg -H -n '@abstractmethod' --type py $EXCLUDE -- $PY_FILES
 
 # Broken Substitution: inheritance edges, not-implemented bodies, consumer narrowing
-rg -n --pcre2 'class\s+\w+\s*\([^)]+\)' --type py $EXCLUDE -- $SCOPE
-rg -n 'NotImplementedError|raise\s+NotImplemented' --type py $EXCLUDE -- $SCOPE
-rg -n 'isinstance\s*\(' --type py $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'class\s+\w+\s*\([^)]+\)' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'NotImplementedError|raise\s+NotImplemented' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'isinstance\s*\(' --type py $EXCLUDE -- $PY_FILES
 
 # Rigid Extension Points: discriminant chains, match statements, boolean parameters
-rg -n '^\s*elif\s' --type py $EXCLUDE -- $SCOPE
-rg -n '^\s*match\s+\w' --type py $EXCLUDE -- $SCOPE
-rg -n --pcre2 'def\s+\w+\([^)]*\b\w+\s*:\s*bool\b' --type py $EXCLUDE -- $SCOPE
+rg -H -n '^\s*elif\s' --type py $EXCLUDE -- $PY_FILES
+rg -H -n '^\s*match\s+\w' --type py $EXCLUDE -- $PY_FILES
+rg -H -n --pcre2 'def\s+\w+\([^)]*\b\w+\s*:\s*bool\b' --type py $EXCLUDE -- $PY_FILES
 
-# Concrete Dependency Chains: a capitalized callee assigned to an attribute (the service-construction form)
-rg -n --pcre2 'self\.\w+\s*=\s*[A-Z]\w*\(' --type py $EXCLUDE -- $SCOPE
+# Concrete Dependency Chains: a call result assigned to an attribute — `SmtpMailer()`, `requests.Session()`,
+# `psycopg.connect(...)`, `boto3.client(...)`; fires on values too, filter while reading
+rg -H -n --pcre2 'self\.\w+\s*=\s*(\w+\.)*\w+\(' --type py $EXCLUDE -- $PY_FILES
+
+# Concrete Dependency Chains: a clock or random source read inside logic (the Low form)
+rg -H -n 'datetime\.now\(|datetime\.utcnow\(|time\.time\(|random\.\w+\(' --type py $EXCLUDE -- $PY_FILES
 
 # Concrete Dependency Chains: module-level clients (then find the methods that read them)
-rg -n --pcre2 '^\w+\s*=\s*\w*\.?(connect|Client|Session|Engine|create_engine|Redis)\(' --type py $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^\w+\s*=\s*\w*\.?(connect|Client|Session|Engine|create_engine|Redis)\(' --type py $EXCLUDE -- $PY_FILES
 
 # Composition-root nomination (behavior decides; these only point the search)
-rg -n 'Depends\(|create_app|containers\.|providers\.|if\s+__name__\s*==' --type py $EXCLUDE -- $SCOPE
+rg -H -n 'Depends\(|create_app|containers\.|providers\.|if\s+__name__\s*==' --type py $EXCLUDE -- $PY_FILES
 ```
 
 ## Phase 4 — Python-specific evaluation
@@ -184,7 +194,8 @@ For each `if/elif` or `match` on a discriminant:
 
 - List every site project-wide. One site → no finding.
 - Arms sharing one responsibility, or heterogeneous?
-- `git log -S '<discriminant value>'` — did a variant addition touch two or more of the listed sites? No → withdraw.
+- `git log -S'<token>' --name-only --format='%h %ad %s' --date=short -- .`, `<token>` being the `Enum` member or the
+  literal without its quotes — did a variant addition touch two or more of the listed sites? No → withdraw.
 
 For each `bool` parameter:
 

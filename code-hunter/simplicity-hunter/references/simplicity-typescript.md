@@ -1,5 +1,7 @@
 # Simplicity Hunter — TypeScript reference
 
+Contents: Generated-code eligibility · Reinvented Primitives · Dead-code liveness channels · Complex Control Flow — TypeScript signals · Coexisting Generations — Phase 4 · Evidence path form · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
+
 Language-specific rules for TypeScript.
 
 ## Generated-code eligibility
@@ -31,13 +33,8 @@ coerces non-symbol keys).
 
 ## Dead-code liveness channels
 
-Beyond call sites: reflection, DI registration, registries, entrypoint configuration, and `package.json` `exports` /
-`bin`. Cite channels relevant to *this* symbol.
-
-## Mixed Concerns — TypeScript note
-
-Responsibility analysis of *classes* — methods spanning concerns, multiple reasons to change — is solid-hunter's SRP
-territory; keep this signal at function/module level.
+Beyond the shared channels (SKILL.md Terms): `package.json` `exports` / `bin`. Cite channels relevant to *this*
+symbol.
 
 ## Complex Control Flow — TypeScript signals
 
@@ -69,7 +66,7 @@ reachable.
 # 2. Generation-named symbols and paths
 rg -l --type ts 'Legacy|Deprecated|V1|V2' --glob '!**/node_modules/**' --glob '!**/dist/**' .
 find . -type d \( -name 'v[0-9]*' -o -name legacy -o -name old -o -name new \) \
-  -not -path '*/node_modules/*' -not -path './dist/*'
+  -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/.git/*'
 
 # 3. Deprecation markers
 rg -n --type ts '@deprecated' --glob '!**/node_modules/**' --glob '!**/dist/**' .
@@ -84,34 +81,42 @@ Cite findings as `file/path.ts:line` (or `.tsx` / `.mts` / `.cts` as appropriate
 
 ## Phase 2 — complexity scans
 
-Test files are included (complexity in tests is in scope). Duplication excludes them — see Phase 3 exclude below.
-Pass an explicit path to every `rg` invocation.
+`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4):
+`TS_FILES=$(cat <run>/typescript.txt); [ -n "$TS_FILES" ] || exit 1`. The Duplication list filters it (Phase 3
+below).
+
+Test files are included (complexity in tests is in scope). Duplication excludes them — see Phase 3 below.
 
 ```bash
-# Dependencies, build output, generated-code approximations — tests are NOT excluded here (N11).
+# Dependencies, build output, generated-code approximations. Tests stay in (see SKILL.md Test-code scope).
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
 
 # Deep nesting (4+ indentation levels, 2-space indent)
-rg '^\s{8,}\S' --type ts $EXCLUDE -- $SCOPE
+rg -H '^\s{8,}\S' --type ts $EXCLUDE -- $TS_FILES
 
 # Boolean parameters
-rg --pcre2 '\w+\s*[?:]?\s*:\s*boolean' --type ts $EXCLUDE -- $SCOPE
+rg -H --pcre2 '\w+\s*[?:]?\s*:\s*boolean' --type ts $EXCLUDE -- $TS_FILES
 
 # Functions with many parameters (declarations, arrow functions, methods)
-rg --pcre2 'function\s+\w+\s*\([^)]{80,}\)' --type ts $EXCLUDE -- $SCOPE
-rg --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\([^)]{80,}\)\s*(?:=>|:)' --type ts $EXCLUDE -- $SCOPE
-rg --pcre2 '^\s+\w+\s*\([^)]{80,}\)\s*[:{]' --type ts $EXCLUDE -- $SCOPE
+rg -H --pcre2 'function\s+\w+\s*\([^)]{80,}\)' --type ts $EXCLUDE -- $TS_FILES
+rg -H --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\([^)]{80,}\)\s*(?:=>|:)' --type ts $EXCLUDE -- $TS_FILES
+rg -H --pcre2 '^\s+\w+\s*\([^)]{80,}\)\s*[:{]' --type ts $EXCLUDE -- $TS_FILES
 
-# Nested ternaries
-rg --pcre2 '\?[^:]+\?' --type ts $EXCLUDE -- $SCOPE
+# Nested ternaries (skips ?. ?? and optional members `a?:`)
+rg -H --pcre2 '(?<!\?)\?(?![.?:])[^;,]*(?<!\?)\?(?![.?:])[^;,]*:' --type ts $EXCLUDE -- $TS_FILES
 
 # Callback pyramids and long .then() chains
-rg --pcre2 '\.then\([^)]*\)\s*\.then\([^)]*\)\s*\.then' --type ts $EXCLUDE -- $SCOPE
+rg -H --pcre2 '\.then\([^)]*\)\s*\.then\([^)]*\)\s*\.then' --type ts $EXCLUDE -- $TS_FILES
 ```
 
-## Phase 3 — Duplication exclude
+## Phase 3 — Duplication list and exclude
+
+Run in the same call as the Phase 2 `EXCLUDE` line (shell state does not persist between calls).
 
 ```bash
-DUP_EXCLUDE="$EXCLUDE --glob '!**/*.test.*' --glob '!**/*.spec.*' --glob '!**/*.e2e.*' --glob '!**/__tests__/**'"
-# Run duplication searches with $DUP_EXCLUDE so test-code duplication stays with test-hunter.
+DUP_EXCLUDE="$EXCLUDE --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**"
+# Seeds: codebase mode ($TS_FILES is .) enumerates; diff and path mode filter the eligible list.
+if [ "$TS_FILES" = . ]; then DUP_FILES=$(rg --files --type ts $DUP_EXCLUDE .)
+else DUP_FILES=$(printf '%s\n' $TS_FILES | grep -Ev '\.(test|spec|e2e)\.[^/]*$|(^|/)__tests__/'); fi
+# Project-wide searches take $DUP_EXCLUDE so test-code duplication stays with test-hunter.
 ```

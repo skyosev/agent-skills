@@ -1,5 +1,7 @@
 # Type Hunter — Go reference
 
+Contents: Applicability of the universal categories · Generated-code and test-path eligibility · Go principles · Per-category Go content · Go-only category · Evidence path form · Phase 2 — type scans · Phase 4 — Go-specific evaluation
+
 Language-specific rules for Go.
 
 ## Applicability of the universal categories
@@ -22,8 +24,8 @@ A file is generated (ineligible for reporting) only when it carries an authorita
 as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
 
 Generated files are still **read as context**: a hand-written struct that mirrors a `.pb.go` message is identified by
-reading the message, and the pair is routed to boundary-hunter — never reported here (see Duplicated Type Declarations
-below).
+reading the message; the pair is never reported here, and boundary-hunter's External Type Leaks judges only the
+crossing beside it (see Duplicated Type Declarations below).
 
 Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
 
@@ -59,13 +61,14 @@ Consolidation is composition or deletion, in this order, and the Action says whi
 3. **Delete and use** when one struct can stand in for the other at every site: every former site of the deleted
    struct is read and accepts the survivor. Parallel `const` blocks for one value set are the same path — delete one
    block, use the other.
-4. **None fits → withdraw.** A DTO in `api/` with the same fields as a domain struct that has methods, where embedding
+4. **None fits → drop.** A DTO in `api/` with the same fields as a domain struct that has methods, where embedding
    would promote the methods and a field would change the JSON shape, and neither copy can be deleted, is Not a
    finding. Not a Low with "keep in sync".
 
-**Cross-layer mirrors are boundary-hunter's.** A hand-written struct mirroring a `.pb.go` message, an ORM model, or an
-SDK type — in any package, with any mapper, whatever the mapper drops or copies — is boundary-hunter's External Type
-Leaks / Missing Abstraction Over Externals. Never a source kind here. Duplication is between two hand-written structs.
+**Cross-layer mirrors are out of scope here.** A hand-written struct mirroring a `.pb.go` message, an ORM model, or
+an SDK type — in any package, with any mapper, whatever the mapper drops or copies — is never a source kind here.
+boundary-hunter's External Type Leaks judges the *crossing* beside it: the external type used inward, or a mapper
+output still carrying it. Duplication is between two hand-written structs.
 
 **Repeated inline expressions.** The same func type (`func(context.Context, *Event) error`) written at independent
 sites is a candidate; the Action is one named type. A single unnamed complex type is not a finding.
@@ -76,10 +79,10 @@ sites is a candidate; the Action is one named type. A single unnamed complex typ
 Instantiations are read from every call site and every field or variable declaration that names the type
 (`Cache[User]`, `NewCache[User]()`, and inferred `NewCache(users)`). Tests are marked `(test)`.
 
-**Closed consumer set per exported symbol.** For an exported generic, read how the module is published: a `main`
-package, an internal module, or an `internal/` path closes the set; a module other repositories import (the go.mod
-module path is a published import path with tagged versions, or the symbol sits in a package the module documents as
-its API) does not. Withdraw with a `Limitation` line; do not classify the repository.
+**Closed consumer set per exported symbol.** Closed and open follow the Go rows of **Closed consumer set** in
+SKILL.md Terms: a `main` package, an `internal/` path, or a package of a module with a `main` package and no
+documented import use is judged in tree; a module with no `main` package and a public module path, or any
+documented import use, is open. Withdraw an open symbol with a `Limitation` line; do not classify the repository.
 
 Action vocabulary: remove the parameter, the concrete type in its place; the test's fake becomes a fake of the
 production type.
@@ -112,16 +115,15 @@ elements. However many callers pass one type, that is Generics That Never Vary.
   (`//go:generate stringer -type=Status`), never run. No formatting site → no finding.
 - **Not findings:** gaps or manual values inside an `iota` block (the specification's own examples do both); a zero
   sentinel `Unknown = 0` never checked (→ invariant-hunter Zero-Value Traps); `Status(n)` from a request body with no
-  range check (→ invariant-hunter; content → security-hunter); a raw `if s == "active"` with no constant group
-  (→ smell-hunter Primitive Obsession).
+  range check (→ invariant-hunter Zero-Value Traps; content → security-hunter); a raw `if s == "active"` with no
+  constant group (→ smell-hunter Primitive Obsession).
 
 ### Alias vs Named Type Mechanics — Go forms
 
 `type X = Y` (the `=` is the alias) with no `// Deprecated:` or migration comment and no second name in live use.
 `type UserID = string` prevents nothing: it *is* `string`. Action: `type UserID string` for distinction, or delete
 the alias. A `// Deprecated: use domain.UserID` comment, or both names live during a visible rename, is the alias
-working as designed. A method-less named type (`type UserID string`, `type Config struct{…}`) is Not a finding; the
-source skill's "adds nothing" signal is withdrawn.
+working as designed. A method-less named type (`type UserID string`, `type Config struct{…}`) is Not a finding.
 
 ## Go-only category
 
@@ -142,9 +144,11 @@ An embedding that promotes API surface the outer type's consumers should not hav
 **Action:** an unexported field (`mu sync.Mutex`; `c *http.Client`) and explicit delegation of the used methods.
 
 **Not findings:** a mutex embedded in an *unexported* struct, or held as an unexported field — a deliberately narrower
-line than golangci-lint's `embeddedstructfieldcheck`, which flags every embedded mutex; kept as the source skill's
-choice, and stated here so it reads as a choice and not a blind spot. Embedding that promotes exactly what the
-consumers call (`type reader struct { io.Reader }` whose consumers read). A struct embedding an interface it implements
+line than golangci-lint's `embeddedstructfieldcheck`, which flags every embedded mutex; a choice, not a blind spot.
+Embedding that promotes exactly what the consumers call (`type reader struct { io.Reader }` whose consumers read). An
+embed whose promoted methods satisfy an interface the outer value is passed, assigned, or returned as
+(`type loggingWriter struct { http.ResponseWriter }` handed to `net/http`; `io.ReadCloser`): every method of that
+interface counts as used. A struct embedding an interface it implements
 only partly, with the embed left nil — solid-hunter's Broken Substitution (the nil embed panics on the unimplemented
 member); cross-reference, do not score.
 
@@ -157,6 +161,8 @@ Cite findings as `file/path.go:line`.
 
 ## Phase 2 — type scans
 
+`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4).
+
 Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible Go list; generated-code
 globs approximate the authoritative marker. **Scans nominate only** — `rg 'iota'` finds every constant group, the
 struct census finds every struct; the reading phase carries the load.
@@ -165,27 +171,27 @@ struct census finds every struct; the reading phase carries the load.
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Duplicated Type Declarations: struct census (then compare field sets by concept, project-wide)
-rg -n 'type\s+\w+\s+struct' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'type\s+\w+\s+struct' --type go $EXCLUDE -- $GO_FILES
 
 # Duplicated Type Declarations: repeated func types written inline
-rg -n --pcre2 '\bfunc\([^)]*\)\s*(\(?[\w.*\[\], ]+\)?)?\s*[,)\]{]' --type go $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '\bfunc\([^)]*\)\s*(\(?[\w.*\[\], ]+\)?)?\s*[,)\]{]' --type go $EXCLUDE -- $GO_FILES
 
-# Generics That Never Vary / Loose Type Parameter Constraints: type parameter lists (declarations only —
-# instantiations are read from call sites)
-rg -n --pcre2 '^(type|func(\s*\([^)]*\))?)\s+\w+\[[^\]]*\b(any|comparable|~|\w+\.\w+|interface)\b' --type go $EXCLUDE -- $SCOPE
+# Generics That Never Vary / Loose Type Parameter Constraints: type parameter lists — any constraint, `~` unions,
+# grouped `type (` blocks, generic aliases (declarations only — instantiations are read from call sites)
+rg -H -n --pcre2 '^func\s+\w+\[|^\s*(type\s+)?\w+\[\w+(\s*,\s*\w+)*\s+[^\]]+\]\s*[\w\[*(]|^\s*type\s+\w+\[[^\]]+\]\s*=' --type go $EXCLUDE -- $GO_FILES
 
 # Loose Type Parameter Constraints, Go form: a type switch on a type parameter inside a generic body
-rg -n 'switch\s+\w*\s*:?=?\s*any\(' --type go $EXCLUDE -- $SCOPE
-rg -n 'any\(\w+\)\.\(' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'switch\s+\w*\s*:?=?\s*any\(' --type go $EXCLUDE -- $GO_FILES
+rg -H -n 'any\(\w+\)\.\(' --type go $EXCLUDE -- $GO_FILES
 
 # Enum Construct Mechanics: iota groups (then read the block for a named type, and the formatting sites)
-rg -n 'iota' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'iota' --type go $EXCLUDE -- $GO_FILES
 
 # Alias vs Named Type Mechanics: aliases only (no named-composite scan)
-rg -n 'type\s+\w+\s*=' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'type\s+\w+\s*=' --type go $EXCLUDE -- $GO_FILES
 
 # Embedding Antipatterns: mutex nomination (exportedness and embed-vs-field are read)
-rg -n 'sync\.(Mutex|RWMutex)' --type go $EXCLUDE -- $SCOPE
+rg -H -n 'sync\.(Mutex|RWMutex)' --type go $EXCLUDE -- $GO_FILES
 ```
 
 **Embedding has no reliable scan.** Bare-identifier patterns inside a struct body match `return`, `break`, `continue`;
@@ -198,10 +204,11 @@ their bodies.
 
 For each pair of structs nominated as duplicates:
 
-- Is either a mirror of a `.pb.go`, ORM, or SDK type? → boundary-hunter; stop.
+- Is either a mirror of a `.pb.go`, ORM, or SDK type? → not this category; stop. The crossing beside it, if any, is
+  boundary-hunter's External Type Leaks.
 - Name the concept and map every field. Then, in order: does the outer type want the shared method set (embed)? Does
   the wire or storage shape allow nesting (field)? Does every site of one copy accept the other (delete-and-use)?
-  None → withdraw.
+  None → drop.
 - Both copies live and already diverged (a field in one, absent or differently typed in the other, both consumed)?
   → High, divergence named in Evidence.
 
@@ -229,6 +236,7 @@ For each alias:
 For each struct with an embedded field:
 
 - Exported struct embedding a mutex → High. Unexported, or a field → no finding.
-- Enumerate promoted methods and the subset each consumer calls; collisions with the outer type's own methods. Used
+- Enumerate promoted methods and the subset each consumer calls; collisions with the outer type's own methods. Where
+  the outer value is passed, assigned, or returned as an interface, that interface's methods count as used. Used
   subset smaller than promoted set, consumer set closed → finding. Consumers read exactly the promoted set → no
   finding. Embedded interface left nil → solid-hunter.

@@ -3,8 +3,10 @@
 Read at Phase 5. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
 table schemas.
 
-Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
-Every line of the Scope block below is filled in on every run; it is not a category and this rule does not reach it.
+The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
+`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
+line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
+lines resolved so far and its `Audit completed` line, nothing else.
 
 **Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two of
 them. When a category needs more detail, trim an existing column rather than appending.
@@ -12,13 +14,14 @@ them. When a category needs more detail, trim an existing column rather than app
 **No Toolchain lines.** No checker reports these categories; the Scope block carries none, and no type-checker
 configuration is recorded (that is invariant-hunter's toolchain concern).
 
-**Enumeration line.** Present whenever instantiations or duplicates were found by reading rather than by scan —
+**Enumeration line.** Present when any instantiation or duplicate was found by reading rather than by scan —
 inference (TypeScript, Python, Go call sites) hides type arguments from regex; structural shapes hide duplicates.
 States what was searched (explicit type arguments, call sites read, declaration census) and how the set was closed.
 Findings claim the enumerated set only.
 
 **Limitation lines.** One per withdrawn exported symbol whose consumer set could not be closed inside the tree, and
-one per candidate withdrawn because a consolidation path or instantiation set could not be verified:
+one per candidate withdrawn because a consolidation path or instantiation set could not be verified (see Drop vs
+withdraw in SKILL.md Terms; a dropped candidate gets no line):
 `Limitation: {symbol} published from {entry point}; consumer set not closed` or `Limitation: {symbol} — {what could
 not be verified}`. A withdrawal is never a Low finding.
 
@@ -64,6 +67,7 @@ other reading in one clause.
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - {Enumeration: searched explicit type arguments + call sites of {symbol}; declaration census of {kinds}; set closed by {how}}
 - {Limitation: {symbol} published from {entry point}; consumer set not closed}
+- {Limitation: {symbol} — {what could not be verified}}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
 - Audit completed: {N} findings
 
@@ -76,7 +80,7 @@ other reading in one clause.
 | 1 | api/user.ts:12 | `UserSummary` ← `User` (domain/user.ts:4) | sibling | 2/2 | `Pick<User, 'id' \| 'name'>` | Medium | High | Replace the hand-listed interface with the derive; every handler imports `UserSummary` |
 | 2 | model/role.ts:3 | `Role` ← `roles` (model/role.ts:1) | runtime value | 2/2 | `(typeof roles)[number]` | Medium | Medium | Add `as const` to `roles` and derive the union from it |
 | 3 | store/row.go:9 | `UserRow` ← `User` (store/user.go:5) | sibling | 8/8 | `delete UserRow` | Medium | Medium | Every site of `UserRow` (store/scan.go:41, store/list.go:17) accepts `User`; delete the copy |
-| 4 | api/schemas.py:22 | `Literal["red", "green"]` ← `Color` (model/color.py:4) | sibling | 2/2 | `delete the Literal` | Low | Low | Use `Color` at api/schemas.py:22; cross-referenced from Enum Construct Mechanics |
+| 4 | api/schemas.py:22 | `Literal["red", "green"]` ← `Color` (model/color.py:4) | sibling | 2/2 | `delete the Literal` | Medium | Low | Use `Color` at api/schemas.py:22; cross-referenced from Enum Construct Mechanics |
 
 ### Generics That Never Vary
 

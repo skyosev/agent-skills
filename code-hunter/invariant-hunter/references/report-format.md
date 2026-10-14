@@ -3,8 +3,10 @@
 Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
 table schemas.
 
-Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
-Every line of the Scope block below is filled in on every run; it is not a category and this rule does not reach it.
+The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
+`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
+line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
+lines resolved so far and its `Audit completed` line, nothing else.
 
 Go-only categories (Unchecked Errors, Nil Pointer Risks, Zero-Value Traps, Error Chain Correctness, Context Misuse,
 Panic/Recover Misuse, Race Conditions) use the table schemas supplied in `invariant-go.md`.
@@ -22,12 +24,12 @@ category and sites it withdrew.
 
 **Evidence cells.** Guard (Unguarded Type Assertions) names the check present: `none`, `isinstance on sibling`,
 `zod parse`, and when present, whether it reaches the asserted property. Evidence (Loose Optionality) is the
-construction-and-mutation argument in one cell: every producer and every later write read. When the type is
-constructible outside the repository — a library's public type — and its contract permits omission, the finding is
-withdrawn and recorded as a Scope limitation, not reported at lower confidence. Guaranteed By (Defensive Access) names
-the upstream site that always sets the value. Defect (Leaky Discriminated Unions) is one of `parallel flag`,
-`no exhaustiveness arm`, `leaking field`, `cast past discriminant`. Justification (Type-System Bypasses) is `none`,
-`bare`, or the quoted reason.
+construction-and-mutation argument in one cell (evidence bar in SKILL.md), plus the consumer sites folded into the
+finding. Guaranteed By (Defensive Access) names the upstream site that always sets the value. Defect (Leaky
+Discriminated Unions) is one of `parallel flag`, `no exhaustiveness arm`, `leaking field`, `cast past discriminant`.
+Complexity (Runtime Checks Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as-runtime
+row it is the reason — `trust boundary`, `serialization`, or `type complexity: <what>`. Justification (Type-System
+Bypasses) is `none`, `bare`, or the quoted reason.
 
 ```md
 # Invariant Hunter Audit — {date}
@@ -45,7 +47,7 @@ the upstream site that always sets the value. Defect (Leaky Discriminated Unions
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - Toolchain: {per language — `go vet ./...: ran — go1.26, ./..., default analyzers` / `errcheck: skipped — not configured` / `tsc --noEmit: ran — 5.9, tsconfig.json; strict on, exactOptionalPropertyTypes off` / `mypy: errored — <message>`}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
-- {Limitation: {library public type} permits omission of {field}; Loose Optionality withdrawn}
+- {Limitation: {type} in open unit {unit} permits omission of {field}; Loose Optionality withdrawn}
 - Audit completed: {N} findings
 
 ## Findings

@@ -1,5 +1,7 @@
 # Smell Hunter — TypeScript reference
 
+Contents: Applicability of conditional categories · Generated-code eligibility · Per-category TypeScript content · Framework carve-outs · Idiom calibration · Evidence path form · Phase 2 — smell scans · Phase 5 — TypeScript-specific evaluation
+
 Language-specific rules for TypeScript.
 
 ## Applicability of conditional categories
@@ -74,7 +76,8 @@ addition.
 
 **Action:** Split by responsibility; each file gets a clear single purpose. Keep barrels to re-exports.
 
-**Boundary:** responsibility sprawl *within a class* is solid-hunter's Responsibility Sprawl. This category is the file unit.
+**Ownership:** responsibility sprawl *within a class* is solid-hunter's Responsibility Sprawl. This category is the
+file unit.
 
 ### Mutable Global State — TypeScript markers
 
@@ -87,10 +90,8 @@ addition.
 **Do not flag** module-level `const` holding an effectively-frozen lookup table with no write path, or values built
 with `as const`.
 
-**Singleton split (see SKILL.md).** A *stateful* singleton — `getInstance()` returning an object that holds data — is
-a Mutable Global State finding, remedied by constructing in the composition root and injecting. Do **not** recommend
-"replace with a module-level instance": that keeps the global lifetime and merely removes the wrapper. A *stateless*
-namespace-shaped singleton is a Class Abuse finding, remedied by module-level named exports.
+**Singleton split (see SKILL.md).** TypeScript forms: a stateful `getInstance()` returning an object that holds data;
+a stateless one is remedied by module-level named exports.
 
 ### Anemic Domain Model — TypeScript evidence
 
@@ -162,50 +163,56 @@ Cite findings as `file/path.ts:line` (or `.tsx` / `.mts` / `.cts` as appropriate
 
 ## Phase 2 — smell scans
 
+`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4).
+
 Test files are **included** (see Test-code scope in SKILL.md). Data Clumps and Mutable Global State exclude them, so
-test setup duplication and shared test state stay with test-hunter.
+test setup duplication and shared test state stay with test-hunter: those scans run on `$TS_PROD`, the list without
+test files, with `$TEST_OWNED_EXCLUDE` for codebase mode. A list of test files only becomes `/dev/null`, never empty.
 
 ```bash
+TS_FILES=$(cat <run>/typescript.txt); [ -n "$TS_FILES" ] || exit 1  # STOP: empty restore
+TS_PROD=$(printf '%s\n' $TS_FILES | grep -Ev '\.(test|spec|e2e)\.[^/]*$|(^|/)__tests__/'); TS_PROD=${TS_PROD:-/dev/null}
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
-TEST_OWNED_EXCLUDE="$EXCLUDE --glob '!**/*.test.*' --glob '!**/*.spec.*' --glob '!**/*.e2e.*' --glob '!**/__tests__/**'"
+TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**"
 
 # Feature envy: chained property access across module boundaries
-rg --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type ts $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type ts $EXCLUDE -- $TS_FILES
 
-# Data clumps: long signatures and prop groups — test setup belongs to test-hunter
-rg --pcre2 'function\s+\w+\s*\([^)]{100,}\)' --type ts $TEST_OWNED_EXCLUDE -- $SCOPE
-rg --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\([^)]{100,}\)\s*(?:=>|:)' --type ts $TEST_OWNED_EXCLUDE -- $SCOPE
+# Data clumps: signatures with 3+ parameters, multi-line included — test setup belongs to test-hunter
+rg -nHU --pcre2 'function\s+\w+\s*\((?:[^,)]*,){2,}[^)]*\)' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nHU --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\((?:[^,)]*,){2,}[^)]*\)\s*(?:=>|:)' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
 
 # Primitive obsession: two bare string/number params in sequence, number money, raw status strings
-rg --pcre2 'function\s+\w+\s*\([^)]*:\s*string\s*,[^)]*:\s*string' --type ts $EXCLUDE -- $SCOPE
-rg --pcre2 '(?i)(price|amount|money|cost|balance)\s*[?]?\s*:\s*number' --type ts $EXCLUDE -- $SCOPE
-rg --pcre2 '\bstatus\s*===\s*[\x27"]' --type ts $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'function\s+\w+\s*\([^)]*:\s*string\s*,[^)]*:\s*string' --type ts $EXCLUDE -- $TS_FILES
+rg -nH --pcre2 '(?i)(price|amount|money|cost|balance)\s*[?]?\s*:\s*number' --type ts $EXCLUDE -- $TS_FILES
+rg -nH --pcre2 '\bstatus\s*===\s*[\x27"]' --type ts $EXCLUDE -- $TS_FILES
 
 # Temporal coupling: init/setup/configure methods
-rg -n --pcre2 '\b(init|setup|configure|prepare)\s*\(' --type ts $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '\b(init|setup|configure|prepare)\s*\(' --type ts $EXCLUDE -- $TS_FILES
 
 # God module: line counts over the ELIGIBLE subset only
-rg --files --type ts $EXCLUDE -- $SCOPE | while read -r f; do wc -l "$f"; done | sort -rn | head -20
+rg --files --type ts $EXCLUDE -- $TS_FILES | while read -r f; do wc -l "$f"; done | sort -rn | head -20
 
 # Class abuse candidates
-rg -n 'class\s+\w+' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '^\s*(private\s+|public\s+)?static\s+\w+\s*\(' --type ts $EXCLUDE -- $SCOPE
+rg -nH 'class\s+\w+' --type ts $EXCLUDE -- $TS_FILES
+rg -nH --pcre2 '^\s*(private\s+|public\s+)?static\s+\w+\s*\(' --type ts $EXCLUDE -- $TS_FILES
 
 # Mutable global state and stateful singletons — shared test state belongs to test-hunter
-rg -n 'getInstance\s*\(' --type ts $TEST_OWNED_EXCLUDE -- $SCOPE
-rg -n --pcre2 '^\s*(export\s+)?let\s+\w+' --type ts $TEST_OWNED_EXCLUDE -- $SCOPE
-rg -n --pcre2 '^\s*(export\s+)?const\s+\w+\s*=\s*new\s+(Map|Set|WeakMap)\b' --type ts $TEST_OWNED_EXCLUDE -- $SCOPE
-rg -n 'globalThis\.\w+\s*=' --type ts $TEST_OWNED_EXCLUDE -- $SCOPE
+rg -nH 'getInstance\s*\(' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nH --pcre2 '^(export\s+)?let\s+\w+' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nH --pcre2 '^(export\s+)?const\s+\w+\s*=\s*new\s+(Map|Set|WeakMap)\b' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nH 'globalThis\.\w+\s*=' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
 
 # Anemic domain model: entities to inspect against their services
-rg -n --pcre2 'class\s+\w+(Service|Manager|Handler)\b' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '^\s*\w+\.(status|state)\s*=' --type ts $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'class\s+\w+(Service|Manager|Handler)\b' --type ts $EXCLUDE -- $TS_FILES
+rg -nH --pcre2 '^\s*(?!this\b)\w+\.(status|state)\s*=' --type ts $EXCLUDE -- $TS_FILES
 
 # Temporary field: transient-looking properties
-rg -n --pcre2 '\b(temp|cached|last|pending)\w*\s*[?]?\s*:' --type ts $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '\b(temp|cached|last|pending)\w*\s*[?]?\s*:' --type ts $EXCLUDE -- $TS_FILES
 
-# Comments as deodorant: comment blocks before code (inspect for "what" vs "why")
-rg -n -B1 -A1 '^\s*// ' --type ts $EXCLUDE -- $SCOPE | head -200
+# Comments as deodorant: comment blocks before code (inspect for "what" vs "why"). Written to a file, never
+# truncated: read it in pages.
+rg -nH -B1 -A1 '^\s*// ' --type ts $EXCLUDE -- $TS_FILES > <run>/comments-ts.txt; wc -l <run>/comments-ts.txt
 ```
 
 ## Phase 5 — TypeScript-specific evaluation

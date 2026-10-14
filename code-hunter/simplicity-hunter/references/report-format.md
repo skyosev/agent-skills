@@ -3,11 +3,13 @@
 Read at Phase 6. Severity and Impact definitions live in SKILL.md; this file is the template and the per-category
 table schemas.
 
-Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
-The Scope section's status lines are the exception and always appear.
+The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
+`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
+line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
+lines resolved so far and its `Audit completed` line, nothing else.
 
-Language-only categories appended by a language reference (today: Interface Pollution, Channel & Goroutine Overuse)
-use the table schemas supplied in that reference.
+Language-only categories appended by a language reference (Go: Interface Pollution, Channel & Goroutine Overuse) use
+the table schemas supplied in that reference.
 
 ```md
 # Simplicity Hunter Audit — {date}
@@ -20,7 +22,7 @@ use the table schemas supplied in that reference.
 - Eligible: {per-language counts or lists}
 - Exclusions: {list — vendored / lockfile / md-only / generated-by-marker}
 - References loaded: {go, python, typescript as present}
-- {no reference for .<ext> — language-specific categories skipped — when applicable}
+- {excluded — no reference for .<ext>: {count} files — one line per unsupported extension in the manifest}
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
 - Audit completed: {N} findings

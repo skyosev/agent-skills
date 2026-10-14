@@ -46,10 +46,10 @@ Conditional categories run only where the language reference declares them appli
 
 | Category | Core signal | Action | Belongs to another hunter |
 | -------- | ----------- | ------ | ------------------------- |
-| Feature Envy | Uses more foreign data than its own | Move to the data's owner | — |
+| Feature Envy | Uses more foreign data than its own | Move to the data's owner | A consumer reaching an exported *implementation* member → boundary-hunter (Leaked Internals) |
 | Data Clumps | Same 3+ values travel together across signatures | Extract a named type | Duplication *in test setup* → test-hunter |
-| Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept | Dependency direction → boundary-hunter; SRP and *variant dispatch* → solid-hunter |
-| Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter; a type *constructible* invalid → invariant-hunter (Zero-Value Traps) |
+| Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept | Dependency direction → boundary-hunter (Dependency Direction Violations); SRP and *variant dispatch* → solid-hunter |
+| Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter; a Go type *constructible* invalid → invariant-hunter (Zero-Value Traps, Go only) |
 | Comments as Deodorant | Comment explains *what* non-trivial code does | Extract, don't annotate | See the comment ownership rule below |
 | Temporary Field | Field meaningful in only one code path | Per-state type or a local | Discriminant already present (Python, TypeScript) → invariant-hunter (Leaky Discriminated Unions) |
 | Primitive Obsession | Primitives standing in for domain concepts | Named / branded type, validated construction | Existing enum construct, Go/Python alias → type-hunter; validated-state brands → invariant-hunter; security brands → security-hunter |
@@ -58,8 +58,8 @@ Conditional categories run only where the language reference declares them appli
 | Anemic Domain Model | Entity transitions live outside the entity | Move the transition onto the entity | Invariant *enforcement* → invariant-hunter |
 | Class Abuse | Class where a function or module would do | Replace with the simpler construct | Class/interface *design* → solid-hunter |
 
-Hunter names are unsuffixed end-state names. Until consolidation completes, live skills are language-suffixed
-(`boundary-hunter-go`, `test-hunter-py`, `security-hunter-ts`, and so on).
+Hunter names are unsuffixed. A hunter not installed under that name is installed per language
+(`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Core Principles
 
@@ -86,6 +86,21 @@ Hunter names are unsuffixed end-state names. Until consolidation completes, live
 7. **Refactor incrementally.** Split by responsibility, not size. Abstract only when needed (wait for the second use
    case). Preserve behavior first — add tests before restructuring.
 
+## Terms
+
+- **Area** — the unit of code organization Shotgun Surgery counts: the folder holding the file. Neutral on purpose: a
+  Go package is not a module, and a Python module is not a package.
+- **Composition root** — a function that builds dependencies and passes them *into other units' constructors*, and
+  never stores or calls them itself: Go `main()`, wire/fx providers; Python app factory, container module, `Depends`
+  providers; TypeScript entry point, Nest module, container registration.
+- **Entity vs data carrier** — an *entity* is a domain type with identity whose state changes through named
+  transitions (`order.ship()`, `user.suspend()`). A *data carrier* — DTO, config object, wire, request or response
+  type, ORM row mapper — moves values across a boundary and has no transitions. Anemic Domain Model judges entities
+  only.
+- **Write after initialization** — a rebinding *or* an in-place mutation (element store, append, mutating method
+  call) of a global that can run after package or module initialization finishes. Go `init()` and package-level
+  initializers, Python and TypeScript module top level are initialization; a lazy first-use assignment is not.
+
 ## Not a finding on these grounds alone
 
 Conditionals, not category exemptions — each states what does **not** justify a finding and, where a corresponding
@@ -93,7 +108,7 @@ finding exists, what would:
 
 - **A read-only lookup table with no write path** — a global holding an effectively-constant map or slice is not
   Mutable Global State. The smell is writes after initialization, not the declaration keyword. *Is* a finding when
-  any assignment to it exists outside its declaration.
+  a write after initialization (see Terms) exists.
 - **Genuine DTOs, config objects, and wire types** — a data carrier with no behavior is not an Anemic Domain Model.
   *Is* a finding when the type is a domain entity whose transitions were extracted elsewhere.
 - **Data plus functions, where behavior is not expressed as methods** — not an Anemic Domain Model. Method syntax is
@@ -134,6 +149,10 @@ Uses more data from another module, package, or type than from its own receiver,
 **Action:** Move it to the module owning the data, minding import cycles and the language's rules on where methods
 may be defined. Uses two types equally? Consider extracting the shared data into its own type.
 
+**Ownership:** this category judges the consumer's *placement*. A consumer reaching an exported *implementation*
+member — a cache, a row struct, a mutex — is boundary-hunter's Leaked Internals, anchored at the export; members that
+pass its rewrite test leave the placement question here.
+
 ### Data Clumps
 
 The same group of parameters or fields that always travel together across signatures or type definitions.
@@ -159,8 +178,8 @@ the values together; recommend a factory or validating constructor that derives 
 moves from a comment into the construction path. Grouping without either a real transposition risk or an enforced
 invariant is convenience, not safety — say which one the extraction buys.
 
-**Test-code boundary:** duplicated *test setup* data is test-hunter's "Test Setup Duplication and Shared State" — do
-not flag it here.
+**Ownership:** duplicated *test setup* data is test-hunter's test-duplication section (see Test-code scope) — do not
+flag it here.
 
 ### Shotgun Surgery
 
@@ -204,19 +223,22 @@ setters.
 
 **Ownership:** the coupling and its redesign are owned here. doc-hunter covers only constraints that are *staying*
 (redesign rejected or out of scope) and need documenting — a comment is the fallback, not the fix. The construction
-test with invariant-hunter: a type that can be *constructed* invalid — zero value usable, no constructor — is
-invariant-hunter's Zero-Value Traps; a validly constructed value whose *methods* must be called in order (`Init`
-before `Run`, `Build` before required setters) is here.
+test with invariant-hunter, Go only: a type that can be *constructed* invalid — zero value usable, no constructor —
+is invariant-hunter's Zero-Value Traps; a validly constructed value whose *methods* must be called in order (`Init`
+before `Run`, `Build` before required setters) is here. In Python and TypeScript the construction test does not
+route away; both cases stay here.
 
 ### Comments as Deodorant
 
 Comments explaining *what* confusing code does rather than *why* — masking a design problem instead of fixing it.
 
-**Comment ownership rule** (stated identically in doc-hunter, slop-hunter, and smell-hunter):
+**Comment ownership rule:**
 
 - Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
 - Comment present and the code trivial → slop-hunter (delete the redundant comment).
 - Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
+
+*Trivial* code is one statement or one simple condition whose meaning the comment repeats; a comment that summarizes two or more statements or a compound condition sits over non-trivial code.
 
 **Signals:**
 
@@ -285,7 +307,8 @@ is per-language — see the reference.
 A single source file accumulating unrelated responsibilities — the dumping ground for everything.
 
 **Ownership:** scoped to the file/module unit. Responsibility accumulation *within a class* is solid-hunter's
-Responsibility Sprawl; package-level organization is boundary-hunter's.
+Responsibility Sprawl; a generic-named *package or module directory* is boundary-hunter's Generic Boundary Names;
+package-level responsibility sprawl is solid-hunter's.
 
 **Signals:**
 
@@ -299,8 +322,9 @@ Responsibility Sprawl; package-level organization is boundary-hunter's.
 concept (`string_utils`, `date_utils`).
 
 **Calibration.** A small, cohesive module carrying one minor misplaced group — a few constants whose sole importer is
-one other file — is *misplaced locality*, not a God Module. Report it at Low/Low with an opportunistic action ("move
-when either file is next edited"), or not at all; the God Module label on a 100-line file is noise.
+one other file — is *misplaced locality*, not a God Module. In diff mode, when the diff touches either file, report it
+at Low/Low with an opportunistic action ("move when either file is next edited"); otherwise omit it. The God Module
+label on a 100-line file is noise.
 
 ### Mutable Global State *(conditional)*
 
@@ -359,19 +383,33 @@ module with named function exports; stateless singleton → module-level functio
 Global State — see the singleton split); state-holding class with meaningful behavior → keep it, it is the right
 tool.
 
+**Evidence:** statelessness is confirmed by reading the type, never inferred from scan output.
+
+### Within-skill precedence
+
+One site, one finding. When two categories here read the same site, the first matching rule decides the category,
+and the Evidence cell names the other reading in one clause:
+
+- A function outside a domain entity performing one of its state transitions → Anemic Domain Model, not Feature
+  Envy. Feature Envy keeps envy of data that is not an entity's transition.
+- Three or more values travelling together → Data Clumps, whose Evidence names any swap risk. Exactly two same-typed
+  values a caller could swap → Primitive Obsession.
+- A stateful singleton → Mutable Global State; a stateless one → Class Abuse (the singleton split).
+- Go `init()` functions whose order matters → `init()` Abuse; Temporal Coupling is the cross-reference.
+
 ## Applicability
 
 Six categories are universal. Five are conditional: defined once above, declared applicable or not by each language
-reference, with the reason. **A language with no reference is not supported** — its files are excluded, never
-implicitly audited.
+reference, with the reason — the reasons live only there. **A language with no reference is not supported** — its
+files are excluded, never implicitly audited.
 
 | Conditional category | Go | Python | TypeScript |
 | -------------------- | -- | ------ | ---------- |
 | Primitive Obsession | yes | yes | yes |
-| God Module | **n/a** — package organization is boundary-hunter's; a Go file is not a module | yes | yes |
+| God Module | **n/a** | yes | yes |
 | Mutable Global State | yes | yes | yes |
-| Anemic Domain Model | **n/a** — functional domain logic over immutable data is idiomatic Go, blessed by solid-hunter | yes | yes |
-| Class Abuse | **n/a** — no classes | yes | yes |
+| Anemic Domain Model | **n/a** | yes | yes |
+| Class Abuse | **n/a** | yes | yes |
 
 Language-only categories are defined entirely in their reference: `init()` Abuse, Stuttering Names and Pointer
 Out-Parameters (Go); Mutable Default Arguments (Python).
@@ -406,8 +444,8 @@ Every finding carries **both**. They answer different questions and routinely di
 - **Low** — hygiene; no behavioral risk. A stuttering name is Low however widespread.
 
 **Impact — how much the change is worth:** defect exposure reduced, cognitive burden reduced, affected surface.
-Contextual; never derived from occurrence count or pattern alone. A data clump in 9 signatures is High impact at Low
-severity.
+Contextual; never derived from occurrence count or pattern alone. A data clump across 9 request-handler signatures is
+High impact at Low severity: every handler author reads it.
 
 - **High** — substantial reduction on code read or changed often
 - **Medium** — clear improvement on a moderately reached surface
@@ -420,39 +458,23 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 ### Phase 1: Gain Context
 
 1. **Resolve the raw manifest.** Scope may be:
-   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked
-   - **Path**: specific files, folders, or packages
+   - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
+     `references/diff-scope.md`.
+   - **Path**: specific files, folders, or packages — `SCOPE=$(git ls-files --cached --others --exclude-standard
+     -- <paths>)`, which expands folders to files
    - **Codebase**: the entire project (default when unspecified; set `SCOPE=.`)
 
    **Party mode:** when the orchestrator supplies a scope snapshot, treat `scope.txt` as a **file manifest only**
-   (one path per line). Read run metadata (base SHA, surface kind, counts) from `scope-meta.txt` when present. Use
-   the manifest verbatim; do not re-resolve. The resolution below is for standalone runs only.
+   (one path per line): `SCOPE=$(cat <snapshot>/scope.txt)`. Read run metadata (base SHA — `$MB` in diff mode —
+   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; do not re-resolve. The
+   resolution above is for standalone runs only.
 
-   For diff mode, resolve fail-closed:
-   ```bash
-   BASE=$(git symbolic-ref -q refs/remotes/origin/HEAD | sed 's@^refs/remotes/@@')
-   git rev-parse -q --verify "$BASE^{commit}" >/dev/null 2>&1 || BASE=
-   if [ -z "$BASE" ]; then
-     for b in origin/main origin/master main master; do
-       git rev-parse -q --verify "$b^{commit}" >/dev/null && BASE=$b && break
-     done
-   fi
-   # BASE still empty: STOP and ask for an explicit base. Do not continue.
-   MB=$(git merge-base "$BASE" HEAD) || exit 1                        # STOP: no merge base
-   CHANGED=$(git diff --name-only --diff-filter=d "$MB") || exit 1    # STOP: diff failed
-   UNTRACKED=$(git ls-files --others --exclude-standard) || exit 1    # STOP: ls-files failed
-   DELETED=$(git diff --name-only --diff-filter=D "$MB") || exit 1    # STOP: diff failed
-   SCOPE=$(printf '%s\n%s\n' "$CHANGED" "$UNTRACKED" | sed '/^$/d' | sort -u)
-   ```
-   Every command that supplies audit data is checked; only the base-discovery probes may fail, because failure
-   there means "try the next candidate". One diff from the merge base to the working tree covers committed, staged,
-   and unstaged changes. A file that existed at the merge base and is gone from the working tree lands in
-   `$DELETED`; a file added after the merge base and deleted again appears nowhere. A failed command is never an
-   empty scope.
-
-   If `$SCOPE` is empty, run no scans: write the report with "Audit completed: 0 findings — empty diff scope",
-   listing `$DELETED` under "Deleted in diff" if non-empty, and stop. If the resolved surface exceeds the context
-   budget, report the file count and ask to narrow or chunk.
+   **Persist run state.** Shell variables do not survive between tool calls, and `rg … --` with an empty variable
+   searches the whole working directory. Create one run directory (`RUN=$(mktemp -d) && echo "$RUN"`) and use the
+   printed path literally from then on. Every call starts at the repository root (`cd "$(git rev-parse
+   --show-toplevel)"`), because every list holds root-relative paths. Write `$SCOPE` to `<run>/scope.txt` and, in diff mode, `$MB` to `<run>/mb`.
+   A later call restores what it uses (`SCOPE=$(cat <run>/scope.txt)`); an empty restore is a STOP, never an empty
+   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow or chunk.
 
    **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
@@ -482,9 +504,19 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    language's files. These subsets are then immutable. Record in Scope: raw manifest count, each per-language
    eligible subset, exclusions, and `References loaded: {go, python, typescript as present}`.
 
-   Drop from eligibility only: vendored trees, lockfiles, documentation / Markdown-only inputs, and generated files
-   identified by each reference's authoritative **in-file marker** — **never** by filename guessing. Scan globs in
+   Drop from eligibility only what each reference's eligibility section lists, and generated files identified by
+   each reference's authoritative **in-file marker** — **never** by filename guessing. Scan globs in
    references are approximations for scanning convenience; reporting eligibility uses the marker rule.
+
+   Write each subset to `<run>/<lang>.txt` (`go.txt`, `python.txt`, `typescript.txt`). Codebase mode: the single line
+   `.`. Diff and path mode: the eligible files, one per line — `comm -12 <(rg --files --type <t> $EXCLUDE | sort)
+   <(printf '%s\n' $SCOPE | sort)` with the loaded reference's `--type` and `$EXCLUDE`, minus files carrying a
+   generated-code marker (`| while read -r f; do rg -q -m1 '<marker>' "$f" || echo "$f"; done`, the marker regex built
+   from the reference's eligibility section); the reference's generated-file globs are the same scan approximation a
+   codebase run uses. Filter before scanning: `rg` applies `--type` and `--glob` only while walking a folder and
+   searches every file named on its command line. Each scan call restores its list first — `GO_FILES=$(cat
+   <run>/go.txt)` (`PY_FILES`, `TS_FILES`) — and the reference blocks pass it as `rg -H … -- $GO_FILES`: given one file,
+   `rg` prints no file name unless `-H` is set.
 
    If **nothing** eligible remains: write `Audit completed: 0 findings — no eligible source in scope` and stop
    before scanning.
@@ -503,9 +535,11 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 Scans produce **candidates only** — each match needs manual validation in Phases 3–5 before becoming a finding.
 Expect many regex false positives; the value is surfacing locations to inspect.
 
-For each loaded reference, run its Phase 2 scan block against that language's eligible subset (`SCOPE=.` in codebase
-mode). Pass an explicit path (`-- $SCOPE` or `.`) to **every** `rg` invocation. Judge each finding under the rules of
-its own file's language — including language-only categories the reference appends.
+For each loaded reference, run its Phase 2 scan block against that language's eligible list from Phase 1 step 4
+(`<run>/go.txt`, `python.txt`, `typescript.txt`, restored as `$GO_FILES`, `$PY_FILES`, `$TS_FILES`). Every `rg`
+invocation passes that list after `--`; an empty list is a STOP, because `rg` with no path searches the whole working
+directory. Judge each finding under the rules of its own file's language — including language-only categories the
+reference appends.
 
 ### Phase 3: Evaluate Feature Envy and Data Clumps
 
@@ -515,7 +549,7 @@ For each function with cross-module data access:
 - Would moving it to the other type's module improve cohesion?
 - Is it a deliberate utility over a foreign type (see Not-a-finding)?
 
-For each function with 4+ parameters:
+For each signature with 3+ parameters:
 
 - Do the same parameters appear together in other signatures? At how many sites?
 - Is there a named domain concept these parameters represent?
@@ -527,47 +561,10 @@ Detected from git history, so it has no language dimension: run **once**, not on
 on a single file is not shotgun surgery — the signal is many *unrelated* areas changing together for one logical
 change.
 
-```bash
-# 1. Restrict history to commits that touch at least one manifest file. Everything downstream
-#    is then in-scope by construction. In codebase mode ($SCOPE=.) this is every commit.
-CO=$(mktemp)
-for c in $(git log --pretty=format:'%h' -200 -- $SCOPE); do
-  # 2. Retain hash, subject, and the commit's FULL file list — evidence must survive to the report.
-  git show --pretty=format:'@@@ %h %s' --name-only "$c"
-done > "$CO"
-
-# 3. Count directory PAIRS, not whole sets, so partially overlapping commits still co-occur.
-awk '
-  function flush(   n, i, j, t, k, p) {
-    n = 0; for (p in dirs) k[++n] = p
-    for (i = 1; i < n; i++) for (j = i + 1; j <= n; j++)
-      if (k[j] < k[i]) { t = k[i]; k[i] = k[j]; k[j] = t }
-    for (i = 1; i < n; i++) for (j = i + 1; j <= n; j++) print k[i] " <-> " k[j]
-    delete dirs
-  }
-  /^@@@ / { flush(); next }
-  NF { d = $0; if (d ~ /\//) sub(/\/[^\/]*$/, "", d); else d = "."; dirs[d] = 1 }
-  END { flush() }
-' "$CO" | sort | uniq -c | sort -rn | head -30
-
-# 4. Nominate commits touching 4+ directories, hash and subject intact.
-awk '
-  function flush(   n, p) {
-    if (hdr != "") { n = 0; for (p in dirs) n++; if (n >= 4) print n "\t" hdr }
-    delete dirs; hdr = ""
-  }
-  /^@@@ / { flush(); hdr = substr($0, 5); next }
-  NF { d = $0; if (d ~ /\//) sub(/\/[^\/]*$/, "", d); else d = "."; dirs[d] = 1 }
-  END { flush() }
-' "$CO" | sort -rn | head -20
-```
-
-Merge commits list no files under `git show --name-only` and drop out naturally. For each nominated commit ask: one
-logical change scattered across unrelated areas, or a legitimate cross-cutting concern? A recurring directory pair
-across multiple commits is the structural-coupling signal; a single commit is not a pattern.
+Run the pipeline in `references/history.md`; it nominates area pairs and commits, and states how to read them.
 
 **Before reporting, satisfy the evidence rule** (see Shotgun Surgery): name the in-scope source location edited per
-variant. Commits are supporting evidence, not the anchor.
+change. Commits are supporting evidence, not the anchor.
 
 ### Phase 5: Evaluate Each Finding
 
@@ -578,13 +575,7 @@ For each candidate: apply Not-a-finding first; confirm the category is applicabl
 gate; then apply the per-category evidence bar from What to Hunt. Run each loaded reference's Phase 5 block for its
 language-only categories and language-specific judgment.
 
-Conditional categories carry explicit gates scan output cannot satisfy:
-
-- **Primitive Obsession** — a swap must be plausible and silent at a real call site.
-- **God Module** — unrelated responsibilities, enumerated. Line count nominates only.
-- **Mutable Global State** — a write path after initialization must exist.
-- **Anemic Domain Model** — at least one of the three evidence conditions, not shape.
-- **Class Abuse** — statelessness confirmed by reading the type, and the singleton split applied.
+Conditional categories carry gates scan output cannot satisfy; each is stated in its What to Hunt entry.
 
 Assign **Severity and Impact** to every finding (both required; they diverge). Nothing is held back;
 `Audit completed: N findings` counts every reported finding.
@@ -592,11 +583,10 @@ Assign **Severity and Impact** to every finding (both required; they diverge). N
 ### Phase 6: Produce Report
 
 Save as `YYYY-MM-DD-smell-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
-`fable-5`) — in the project's docs folder (or project root if none exists). A caller-specified output path or return
+`fable-5`) — in `docs/` (or the repository root when there is no `docs/`). A caller-specified output path or return
 mode (e.g. the party-hunter orchestrator) overrides this default.
 
-Read `references/report-format.md` for the report template and per-category table schemas. Language-only categories
-appended by a language reference use the table schemas supplied in that reference.
+Read `references/report-format.md` for the report template and per-category table schemas.
 
 ## Red Flags — stop and re-check
 
@@ -621,27 +611,25 @@ appended by a language reference use the table schemas supplied in that referenc
 ## Operating Constraints
 
 - **No code edits.** Audit report only. Implementation is a separate step.
-- **No empty finding sections.** Include only *categories* with findings. Omit a category heading, table, or list
-  entirely when it would contain zero items — no empty tables, placeholder subsections, or negative statements like
-  "none found" or "no issues". The Scope section is not a category and is filled in from the template every run.
+- **The report is the template.** `references/report-format.md` fixes the shape: Scope, then one section per
+  category with at least one finding, then Recommendations. A category with no findings gets no heading, table,
+  or "none found" line.
 - **Scope: classic code smells and language-specific antipatterns only.** A finding that doesn't answer "is this a
   structural smell?" belongs to another hunter — do not flag it here. Contested boundaries are resolved at the
   category that owns them: each **Ownership:** note in What to Hunt states what is kept here and what routes away.
 - **Evidence required.** Every finding cites `file:line` (path form per the language reference) with the exact code.
   The single exception is Shotgun Surgery's supporting commit evidence, which supplements — never replaces — an
   in-scope anchor.
-- **One finding per site.** When two categories describe the same code, pick the primary one and cross-reference.
-  The singleton split is the worked example.
+- **One finding per site.** When two categories describe the same code, Within-skill precedence picks the category;
+  cross-reference the other.
 - **Context matters.** A smell in a prototype is less urgent than one in a payment system. Calibrate Severity and
   Impact to the code's criticality and change frequency.
 - **Pragmatism.** Report the smell, assess the cost/benefit in the Action column, and let the team decide whether to
   act.
 - **Respect the language.** Idiomatic constructs are not smells. Calibrate to the audited language's conventions —
   the reference carries the calibration — not to patterns from another language.
-- **Handoff, not duplication.** Smell-hunter owns *symptom detection*; the root-cause fix may belong to
-  boundary-hunter (dependency direction), solid-hunter (SRP), or simplicity-hunter (mixed concerns). When a finding
-  clearly belongs to another hunter's domain, cross-reference it and do not duplicate the analysis. When the smell is
-  the primary signal and no other hunter covers the detection method, own the finding.
+- **Routing.** Follow the category's **Ownership:** note. Cross-reference the sibling by skill and exact category
+  name; never re-score its analysis.
 - **Assess refactoring risk briefly, but never defer on API shape.** When a recommendation would affect
   serialization behavior, introduce import cycles, or collide with a framework constraint, note the risk in the
   Action column — those are *behavior*. A change to exported API shape is **not** grounds to downgrade, defer, or

@@ -1,5 +1,7 @@
 # Type Hunter — TypeScript reference
 
+Contents: Applicability of the universal categories · Generated-code and test-path eligibility · TypeScript principles · Per-category TypeScript content · TypeScript-only category · Evidence path form · Phase 2 — type scans · Phase 4 — TypeScript-specific evaluation
+
 Language-specific rules for TypeScript.
 
 ## Applicability of the universal categories
@@ -18,13 +20,13 @@ Language-specific rules for TypeScript.
 ## Generated-code and test-path eligibility
 
 A file is generated (ineligible for reporting) only when identified by an authoritative in-file marker where one exists
-(`// @generated`, `// Code generated`, `/* eslint-disable */ // prettier-ignore` headers emitted by a codegen tool,
-GraphQL / protobuf / OpenAPI / Prisma client banners) — never by filename guessing. Scan globs such as `*.generated.*`,
-`__generated__/`, `*.g.ts`, `generated/` are approximations for scanning convenience.
+(`// @generated`, `// Code generated`, GraphQL / protobuf / OpenAPI / Prisma client banners) — never by filename
+guessing. Scan globs such as `*.generated.*`, `__generated__/`, `*.g.ts`, `generated/` are approximations for scanning
+convenience.
 
 Generated files are still **read as context**: a hand-written interface that mirrors a Prisma model, an OpenAPI client
-type, or an SDK type is identified by reading the generated type, and the pair is routed to boundary-hunter — never
-reported here.
+type, or an SDK type is identified by reading the generated type; the pair is never reported here, and
+boundary-hunter's External Type Leaks judges only the crossing beside it.
 
 Dependency and build trees (`node_modules/`, `dist/`, `build/`, `.next/`, `out/`), lockfiles, and Markdown-only inputs
 are also ineligible.
@@ -65,13 +67,13 @@ and never counts as variation.
   types the accepted input; io-ts `t.TypeOf` / `t.OutputOf`; TypeBox `Static<typeof T>`; Valibot `InferOutput` /
   `InferInput`; ArkType `typeof T.infer`; or the equivalent of whatever the project already has. Never recommend
   adding a schema library. The Evidence names whether the copy is accepted input, decoded output, or serialized data;
-  a manual type for the *serialized* form of a transforming schema may have no role-matching inference type → withdraw.
+  a manual type for the *serialized* form of a transforming schema may have no role-matching inference type → drop.
 - **Parallel enums or unions for one value set** → delete-and-use; parallel `enum` and union → also Enum Construct
   Mechanics at the `enum`, cross-referenced, one finding per site by within-skill precedence (the duplication is
   reported; the Evidence names the enum reading).
 - **A hand-written type mirroring a Prisma model, an OpenAPI client type, a generated GraphQL type, an ORM entity, or
-  an SDK type** — with or without `toDomain()`, whatever the mapper drops → boundary-hunter's. Never a source kind
-  here.
+  an SDK type** — with or without `toDomain()`, whatever the mapper drops → never a source kind here;
+  boundary-hunter's External Type Leaks judges the crossing beside it.
 
 ### Generics That Never Vary — TypeScript forms
 
@@ -80,10 +82,10 @@ site passes `<User>`; `interface Envelope<T> { payload: T }` where every use is 
 property only. Instantiations are read from explicit type arguments, inferred call sites, `extends` / `implements`
 clauses, and annotations, project-wide, tests marked `(test)`.
 
-**Closed consumer set per exported symbol.** For a symbol exported from a package's published entry point, read how
-the package is published: a `package.json` with `"private": true`, an app bundle, or a workspace-internal package
-closes the set; a package published to a registry with the symbol reachable from its `exports` / `main` / `types`
-does not. Withdraw with a `Limitation` line; do not classify the repository.
+**Closed consumer set per exported symbol.** Closed and open follow the TypeScript rows of **Closed consumer set** in
+SKILL.md Terms: a workspace package with `private: true`, or a unit not reachable from any `package.json` `exports` /
+`main`, is judged in tree; a unit reachable from `exports` / `main` without `private: true` is open. Withdraw an open
+symbol with a `Limitation` line; do not classify the repository.
 
 ### Loose Type Parameter Constraints — TypeScript forms
 
@@ -143,9 +145,11 @@ A hand-rolled type equal to a built-in utility.
 
 **Forms:** `{ [K in keyof T]?: T[K] }` → `Partial<T>`; `{ readonly [K in keyof T]: T[K] }` → `Readonly<T>`;
 `{ [K in keyof T]-?: T[K] }` → `Required<T>`; `T extends U ? never : T` (distributive) → `Exclude<T, U>`;
-`T extends U ? T : never` → `Extract<T, U>`; `T extends null | undefined ? never : T` → `NonNullable<T>`;
-`T extends (...args: any) => infer R ? R : never` → `ReturnType<T>`; a hand-rolled `Awaited`, `Parameters`,
-`ConstructorParameters`, `InstanceType`, `Record`.
+`T extends U ? T : never` → `Extract<T, U>`; a hand-rolled `Awaited`, `Parameters`, `ConstructorParameters`,
+`InstanceType`, `Record`. Not parity by default: `T extends null | undefined ? never : T` is `NonNullable<T>` only
+below TS 4.8 (since 4.8 the built-in is `T & {}`, which differs on an unresolved generic `T`); a hand-rolled
+`ReturnType` without the built-in's `T extends (...args: any) => any` constraint, or with a `never` fallback where the
+built-in has `any`, is not `ReturnType<T>`. Gate 3 decides both on every use.
 
 **Gates** (simplicity-hunter's Reinvented Primitives gates 1, 3, 6; gates 2, 4, 5 are moot at type level):
 
@@ -172,6 +176,8 @@ Cite findings as `path/to/file.ts:line` (`.tsx`, `.mts`, `.cts` as they occur).
 
 ## Phase 2 — type scans
 
+`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4).
+
 Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible TypeScript list. **Scans
 nominate only** — the declaration census finds every type; a bare `<\w+` scan is deliberately omitted (it matches JSX,
 comparisons, and every generic use).
@@ -180,31 +186,31 @@ comparisons, and every generic use).
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/out/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
 # Duplicated Type Declarations: declaration census (then compare member sets by concept, project-wide)
-rg -n --pcre2 '^\s*(export\s+)?(interface|type)\s+\w+' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^\s*(export\s+)?(interface|type)\s+\w+' --type ts $EXCLUDE -- $TS_FILES
 
 # Duplicated Type Declarations: runtime values that may be a union's source, and schemas
-rg -n 'as\s+const\b' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '\b(z\.object|z\.enum|t\.type|t\.union|Type\.Object|v\.object|type\(\{)' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '\b(z\.(infer|input|output)|t\.(TypeOf|OutputOf)|Static<|Infer(Output|Input)?<)' --type ts $EXCLUDE -- $SCOPE
+rg -H -n 'as\s+const\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\b(z\.object|z\.enum|t\.type|t\.union|Type\.Object|v\.object|type\(\{)' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\b(z\.(infer|input|output)|t\.(TypeOf|OutputOf)|Static<|Infer(Output|Input)?<)' --type ts $EXCLUDE -- $TS_FILES
 
 # Generics That Never Vary / Loose Type Parameter Constraints: declared type parameter lists
-rg -n --pcre2 '^\s*(export\s+)?(abstract\s+)?(class|interface|type|function|const)\s+\w+\s*(=\s*)?<[A-Z]\w*' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '<\s*(const\s+)?[A-Z]\w*\s+extends\s+(any|unknown)\b' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '\b(class|interface|type|function)\s+\w+\s*<|^\s*(export\s+)?(const|let)\s+\w+\s*=\s*(async\s*)?<|^\s*((public|private|protected|static|async|readonly)\s+)*\w+\s*<[^>]*>\s*\([^)]*\)\s*(:[^={]+)?\{' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '<\s*(const\s+)?[A-Z]\w*\s+extends\s+(any|unknown)\b' --type ts $EXCLUDE -- $TS_FILES
 
 # Loose Type Parameter Constraints: bridges inside generic bodies (then confirm the enclosing function is generic)
-rg -n --pcre2 'as\s+any\)?\s*\[' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'as\s+any\)?\s*\[' --type ts $EXCLUDE -- $TS_FILES
 
 # Over-Powered Type Constructs: conditional, mapped-with-remap, recursive, template-literal types
-rg -n --pcre2 'extends\s+[^?]+\?\s' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '\[\s*\w+\s+in\s+keyof\s+\w+\s+as\s' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '^\s*(export\s+)?type\s+\w+\s*(<[^>]*>)?\s*=\s*`' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'extends\s+[^?]+\?\s' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\[\s*\w+\s+in\s+keyof\s+\w+\s+as\s' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '^\s*(export\s+)?type\s+\w+\s*(<[^>]*>)?\s*=\s*`' --type ts $EXCLUDE -- $TS_FILES
 
 # Reinvented Utility Types: mapped types over keyof (then compare with the built-in's definition)
-rg -n --pcre2 '\[\s*\w+\s+in\s+keyof\s+\w+\s*\]' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 'infer\s+\w+' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '\[\s*\w+\s+in\s+keyof\s+\w+\s*\]' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 'infer\s+\w+' --type ts $EXCLUDE -- $TS_FILES
 
 # Enum Construct Mechanics: enum declarations, and comparisons to raw literals near them (read the consumers)
-rg -n --pcre2 '^\s*(export\s+)?(declare\s+)?(const\s+)?enum\s+\w+' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^\s*(export\s+)?(declare\s+)?(const\s+)?enum\s+\w+' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 **Version gates:** the resolved `typescript` version from the lockfile (`package-lock.json`, `pnpm-lock.yaml`,
@@ -214,10 +220,11 @@ rg -n --pcre2 '^\s*(export\s+)?(declare\s+)?(const\s+)?enum\s+\w+' --type ts $EX
 
 For each pair of declarations nominated as duplicates:
 
-- Is either a mirror of a Prisma / OpenAPI / GraphQL / ORM / SDK type? → boundary-hunter; stop.
+- Is either a mirror of a Prisma / OpenAPI / GraphQL / ORM / SDK type? → not this category; stop. The crossing beside
+  it, if any, is boundary-hunter's External Type Leaks.
 - Name the concept, map every member. Source kind: sibling → the utility type; runtime value → `as const` +
   indexed access; schema → the inference type in the role the copy plays (input, output, serialized — none
-  matching → withdraw).
+  matching → drop).
 - Both copies live and already diverged, both consumed → High, divergence named in Evidence.
 - An `as const` value with no parallel declared type → invariant-hunter; not here.
 
@@ -225,7 +232,7 @@ For each type parameter:
 
 - Enumerate instantiations — explicit arguments, inferred call sites, `extends` / `implements`, annotations — tests
   marked. One production type, set closed → Generics That Never Vary; the Action names the test fake's replacement.
-  Reachable from a registry-published package's `exports` → withdraw with a `Limitation`.
+  Reachable from `exports` / `main` without `private: true` → withdraw with a `Limitation`.
 - What does the body do with `T`? Opaque → no Loose finding. Index, property read, spread, method call, `as any`
   bridge → Loose, with the tightest constraint every instantiation satisfies. Array or object literal parameter whose
   literal types a consumer re-narrows → the `const` form (5.0+ per lockfile).

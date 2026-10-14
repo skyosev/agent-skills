@@ -1,5 +1,7 @@
 # Smell Hunter — Python reference
 
+Contents: Applicability of conditional categories · Generated-code eligibility · Language-only categories · Per-category Python content · Framework carve-outs · Idiom calibration · Evidence path form · Phase 2 — smell scans · Phase 5 — Python-specific evaluation
+
 Language-specific rules for Python.
 
 ## Applicability of conditional categories
@@ -91,10 +93,8 @@ invariant-hunter's parse-don't-validate territory; cross-reference rather than d
 
 **Do not flag** module-level constants and effectively-constant tables with no write path after import.
 
-**Singleton split (see SKILL.md).** A *stateful* singleton — `__new__`/`_instance`/metaclass holding data — is a
-Mutable Global State finding, remedied by constructing in the composition root and injecting. Do **not** recommend
-"replace with a module-level instance": that keeps the global lifetime and merely removes the wrapper. A *stateless*
-namespace-shaped singleton is a Class Abuse finding, remedied by module-level functions.
+**Singleton split (see SKILL.md).** Python forms: a stateful `__new__` / `_instance` / metaclass singleton; a
+stateless one is remedied by module-level functions.
 
 ### Anemic Domain Model — Python evidence
 
@@ -159,51 +159,58 @@ Cite findings as `file/path.py:line`.
 
 ## Phase 2 — smell scans
 
+`$PY_FILES` is this language's eligible list, restored from `<run>/python.txt` (SKILL.md Phase 1 step 4).
+
 Test files are **included** (see Test-code scope in SKILL.md). Data Clumps and Mutable Global State exclude them, so
-test setup duplication and shared test state stay with test-hunter.
+test setup duplication and shared test state stay with test-hunter: those scans run on `$PY_PROD`, the list without
+test files, with `$TEST_OWNED_EXCLUDE` for codebase mode. A list of test files only becomes `/dev/null`, never empty.
 
 ```bash
+PY_FILES=$(cat <run>/python.txt); [ -n "$PY_FILES" ] || exit 1      # STOP: empty restore
+PY_PROD=$(printf '%s\n' $PY_FILES | grep -Ev '(^|/)(tests/|test_[^/]*\.py$|[^/]*_test\.py$|conftest\.py$)')
+PY_PROD=${PY_PROD:-/dev/null}
 EXCLUDE='--glob !**/venv/** --glob !**/.venv/** --glob !**/dist/** --glob !**/build/** --glob !**/__pycache__/** --glob !**/*.egg-info/**'
-TEST_OWNED_EXCLUDE="$EXCLUDE --glob '!**/test_*.py' --glob '!**/*_test.py' --glob '!**/tests/**' --glob '!**/conftest.py'"
+TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/test_*.py --glob !**/*_test.py --glob !**/tests/** --glob !**/conftest.py"
 
 # Feature envy: chained attribute access across module boundaries
-rg --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type py $EXCLUDE -- $SCOPE
+rg -nH --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type py $EXCLUDE -- $PY_FILES
 
-# Data clumps: long signatures — test setup belongs to test-hunter
-rg --pcre2 'def\s+\w+\s*\([^)]{100,}\)' --type py $TEST_OWNED_EXCLUDE -- $SCOPE
+# Data clumps: signatures with 3+ parameters besides self, multi-line included — test setup belongs to test-hunter
+rg -nHU --pcre2 'def\s+\w+\s*\((?:self\s*,\s*)?+(?:[^,)]*,){2,}[^)]*\)' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
 
 # Primitive obsession: two bare str/int params in sequence, float money, raw status strings
-rg --pcre2 'def\s+\w+\s*\([^)]*:\s*str\s*,[^)]*:\s*str' --type py $EXCLUDE -- $SCOPE
-rg --pcre2 '(?i)(price|amount|money|cost|balance)\s*:\s*float' --type py $EXCLUDE -- $SCOPE
-rg --pcre2 '\bstatus\s*==\s*[\x27"]' --type py $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'def\s+\w+\s*\([^)]*:\s*str\s*,[^)]*:\s*str' --type py $EXCLUDE -- $PY_FILES
+rg -nH --pcre2 '(?i)(price|amount|money|cost|balance)\s*:\s*float' --type py $EXCLUDE -- $PY_FILES
+rg -nH --pcre2 '\bstatus\s*==\s*[\x27"]' --type py $EXCLUDE -- $PY_FILES
 
 # Temporal coupling: init/setup/configure methods
-rg -n --pcre2 'def\s+(init|setup|configure|prepare)\s*\(' --type py $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'def\s+(init|setup|configure|prepare)\s*\(' --type py $EXCLUDE -- $PY_FILES
 
 # Mutable default arguments
-rg -n --pcre2 'def\s+\w+\s*\([^)]*=\s*(\[\]|\{\}|set\(\))' --type py $EXCLUDE -- $SCOPE
-rg -n --pcre2 'field\s*\(\s*default\s*=\s*(\[\]|\{\})' --type py $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'def\s+\w+\s*\([^)]*=\s*(\[\]|\{\}|set\(\))' --type py $EXCLUDE -- $PY_FILES
+rg -nH --pcre2 'field\s*\(\s*default\s*=\s*(\[\]|\{\})' --type py $EXCLUDE -- $PY_FILES
 
 # God module: line counts over the ELIGIBLE subset only (never a bare repo-wide find)
-rg --files --type py $EXCLUDE -- $SCOPE | while read -r f; do wc -l "$f"; done | sort -rn | head -20
+rg --files --type py $EXCLUDE -- $PY_FILES | while read -r f; do wc -l "$f"; done | sort -rn | head -20
 
 # Class abuse candidates
-rg -n 'class\s+\w+' --type py $EXCLUDE -- $SCOPE
-rg -n '@staticmethod|@classmethod' --type py $EXCLUDE -- $SCOPE
+rg -nH 'class\s+\w+' --type py $EXCLUDE -- $PY_FILES
+rg -nH '@staticmethod|@classmethod' --type py $EXCLUDE -- $PY_FILES
 
 # Mutable global state and stateful singletons — shared test state belongs to test-hunter
-rg -n '__new__\s*\(|_instance\b|\bglobal\s+\w+' --type py $TEST_OWNED_EXCLUDE -- $SCOPE
-rg -n --pcre2 '^_?\w+\s*(:\s*[^=]+)?=\s*(\[\]|\{\}|dict\(|list\(|set\()' --type py $TEST_OWNED_EXCLUDE -- $SCOPE
+rg -nH '__new__\s*\(|_instance\b|\bglobal\s+\w+' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
+rg -nH --pcre2 '^_?\w+\s*(:\s*[^=]+)?=\s*(\[\]|\{\}|dict\(|list\(|set\()' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
 
 # Anemic domain model: entities to inspect against their services
-rg -n '@dataclass|class\s+\w+Service\b|class\s+\w+Manager\b' --type py $EXCLUDE -- $SCOPE
-rg -n --pcre2 '^\s*\w+\.(status|state)\s*=' --type py $EXCLUDE -- $SCOPE
+rg -nH '@dataclass|class\s+\w+Service\b|class\s+\w+Manager\b' --type py $EXCLUDE -- $PY_FILES
+rg -nH --pcre2 '^\s*(?!self\b)\w+\.(status|state)\s*=' --type py $EXCLUDE -- $PY_FILES
 
 # Temporary field: transient-looking attributes
-rg -n --pcre2 'self\.(temp|cached|last|pending)\w*\s*=' --type py $EXCLUDE -- $SCOPE
+rg -nH --pcre2 'self\.(temp|cached|last|pending)\w*\s*=' --type py $EXCLUDE -- $PY_FILES
 
-# Comments as deodorant: comment blocks before code (inspect for "what" vs "why")
-rg -n -B1 -A1 '^\s*# ' --type py $EXCLUDE -- $SCOPE | head -200
+# Comments as deodorant: comment blocks before code (inspect for "what" vs "why"). Written to a file, never
+# truncated: read it in pages.
+rg -nH -B1 -A1 '^\s*# ' --type py $EXCLUDE -- $PY_FILES > <run>/comments-py.txt; wc -l <run>/comments-py.txt
 ```
 
 ## Phase 5 — Python-specific evaluation
@@ -232,4 +239,5 @@ For each entity/service pair:
 
 For each module-level mutable name:
 
-- Is there any rebinding or in-place mutation after import? If not, it is not a finding.
+- Is there a write after initialization (SKILL.md Terms) — rebinding or in-place mutation after import? If not, it
+  is not a finding.

@@ -1,5 +1,7 @@
 # Invariant Hunter — Python reference
 
+Contents: Applicability of universal categories · Generated-code and test-path eligibility · Per-category Python content · Toolchain · Idiom calibration · Evidence path form · Phase 2 — invariant scans · Phase 5 — Python-specific evaluation
+
 Language-specific rules for Python.
 
 ## Applicability of universal categories
@@ -11,7 +13,7 @@ Language-specific rules for Python.
 | Defensive Access in Non-Boundary Code | **yes** | `is not None` / `or default` on always-present values |
 | Leaky Discriminated Unions | **yes** | `Literal` discriminant over dataclass variants; a **variant hierarchy** (dataclass or sealed data classes with no overridable behavior) narrowed by `isinstance`; `match`. A hierarchy whose base declares abstract or overridable behavior the consumer calls is a *contract type* → solid-hunter |
 | Runtime Checks Promotable to Types | **yes** | `TypeGuard` / `TypeIs`, validated-state `NewType`, `frozen=True`, `tuple` / `frozenset` config |
-| Type-System Bypasses | **yes** | `Any`, `# type: ignore`, `# pyright: ignore`, `# mypy: ignore` |
+| Type-System Bypasses | **yes** | `Any`, `# type: ignore`, `# pyright: ignore`, `# mypy: ignore-errors` |
 
 **No language-only categories.** Exception handling — bare `except`, catch-and-log, silent fallbacks, `raise from`
 chaining — is error-hunter's; route, do not evaluate here.
@@ -46,7 +48,7 @@ Test files are still read as context — a test that passes `None` proves the pa
 `Optional[T]`, `T | None`, `field(default=None)` always set before use; a `TypedDict` key marked `NotRequired` that
 every producer supplies. The Evidence cell reads every constructor, factory, `__post_init__`, deserializer
 (`from_dict`, Pydantic model, `dataclasses.replace`), and later assignment. A Pydantic or dataclass type exported from
-a library whose documented contract permits omission → withdrawn.
+an open unit (Closed consumer set, SKILL.md Terms) whose documented contract permits omission → withdrawn.
 
 ### Defensive Access — Python forms
 
@@ -83,7 +85,7 @@ container are named in Action.
 - `Any` as parameter, return, or variable annotation where a concrete type, a `Protocol`, or `object` plus narrowing
   would do
 - `# type: ignore` with no error code (`# type: ignore[attr-defined]` is scoped; still bare without a reason)
-- `# pyright: ignore`, `# mypy: ignore`, `# pyright: basic` file directives
+- `# pyright: ignore`, `# mypy: ignore-errors`, `# pyright: basic` file directives
 - `cast(Any, x)` is a bypass; `cast(T, x)` is an assertion — within-skill routing in SKILL.md
 
 ## Toolchain
@@ -115,33 +117,33 @@ Cite findings as `file/path.py:line`.
 
 ## Phase 2 — invariant scans
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible Python list.
+`$PY_FILES` is this language's eligible list, restored from `<run>/python.txt` (SKILL.md Phase 1 step 4).
 
 ```bash
 EXCLUDE='--glob !**/venv/** --glob !**/.venv/** --glob !**/dist/** --glob !**/build/** --glob !**/__pycache__/** --glob !**/*.egg-info/** --glob !**/*_pb2.py --glob !**/*_pb2_grpc.py --glob !**/test_*.py --glob !**/*_test.py --glob !**/tests/** --glob !**/conftest.py'
 
 # Unguarded Type Assertions
-rg -n '\bcast\(' --type py $EXCLUDE -- $SCOPE
-rg -n 'assert\s+\w[\w.]*\s+is\s+not\s+None' --type py $EXCLUDE -- $SCOPE
+rg -H -n '\bcast\(' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'assert\s+\w[\w.]*\s+is\s+not\s+None' --type py $EXCLUDE -- $PY_FILES
 
 # Loose Optionality: optional declarations (then read every producer and later write)
-rg -n --pcre2 'Optional\[|:\s*[\w\[\], ]+\|\s*None\b|\|\s*None\s*=|field\(default=None' --type py $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'Optional\[|:\s*[\w\[\], ]+\|\s*None\b|\|\s*None\s*=|field\(default=None' --type py $EXCLUDE -- $PY_FILES
 
 # Defensive Access: None checks and defaults (then locate the boundary)
-rg -n 'is not None|is None|\bor\s+["\x27\[\{0]|getattr\([^,]+,[^,]+,\s*None\)' --type py $EXCLUDE -- $SCOPE
+rg -H -n 'is not None|is None|\bor\s+["\x27\[\{0]|getattr\([^,]+,[^,]+,\s*None\)' --type py $EXCLUDE -- $PY_FILES
 
 # Leaky Discriminated Unions: discriminants, match, isinstance chains, exhaustiveness adoption
-rg -n 'Literal\[' --type py $EXCLUDE -- $SCOPE
-rg -n '^\s*match\s+\w|^\s*case\s+_\s*:|isinstance\(' --type py $EXCLUDE -- $SCOPE
-rg -n 'assert_never|TypeGuard|TypeIs' --type py $EXCLUDE -- $SCOPE     # the source's escaped pipe matched nothing
+rg -H -n 'Literal\[' --type py $EXCLUDE -- $PY_FILES
+rg -H -n '^\s*match\s+\w|^\s*case\s+_\s*:|isinstance\(' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'assert_never|TypeGuard|TypeIs' --type py $EXCLUDE -- $PY_FILES
 
 # Runtime Checks Promotable to Types: validators returning bool, NewType, frozen, Annotated
-rg -n --pcre2 'def\s+(is_|has_|valid|check)\w*\([^)]*\)\s*->\s*bool' --type py $EXCLUDE -- $SCOPE
-rg -n 'NewType\(|frozen=True|Annotated\[' --type py $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'def\s+(is_|has_|valid|check)\w*\([^)]*\)\s*->\s*bool' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'NewType\(|frozen=True|Annotated\[' --type py $EXCLUDE -- $PY_FILES
 
 # Type-System Bypasses
-rg -n ':\s*Any\b|->\s*Any\b|\[Any\]|cast\(Any,' --type py $EXCLUDE -- $SCOPE
-rg -n '#\s*type:\s*ignore|#\s*(pyright|mypy):\s*(ignore|basic)' --type py $EXCLUDE -- $SCOPE
+rg -H -n ':\s*Any\b|->\s*Any\b|\[Any\]|cast\(Any,' --type py $EXCLUDE -- $PY_FILES
+rg -H -n '#\s*type:\s*ignore|#\s*(pyright|mypy):\s*(ignore|basic)' --type py $EXCLUDE -- $PY_FILES
 ```
 
 ## Phase 5 — Python-specific evaluation
@@ -151,23 +153,25 @@ For each `cast()`:
 - Is there a preceding check on the same value, and does the type definition tie it to the claim (variant class,
   `Literal`-discriminated dataclass)? Yes → not a finding. Check on a different value, or one class with `kind: str`
   → finding.
-- `cast(Any, …)` → Type-System Bypasses, not here.
+- `cast(Any, …)` → Type-System Bypasses, not here. `cast(Leaf, s)` to a variant of a `Literal`-discriminated
+  union → Leaky Discriminated Unions (`cast past discriminant`).
 
 For each `assert x is not None`:
 
 - Can `x` be `None` at runtime here? Yes → a guard; the loose upstream type is the candidate. No → the assertion is
-  checker-satisfying and the finding.
+  checker-satisfying and the finding — unless a Loose Optionality finding exists for the field, which cites it as
+  evidence instead.
 
 For each `Optional` / `| None` field:
 
-- Every producer read? Every later assignment, `replace`, deserializer? Is the type constructible outside the
-  repository with a contract that permits omission? Then withdraw and record the limitation.
+- Every producer read? Every later assignment, `replace`, deserializer? Is the type's unit open (SKILL.md Terms)
+  and does its contract permit omission? Then withdraw and record the limitation.
 - Two optionals never both set, no discriminant → smell-hunter's Temporary Field; cross-reference.
 
 For each `is not None` / `or default`:
 
-- Is the value already resolved at the entry point? Then Defensive Access. Is the type already non-optional? Then
-  simplicity-hunter's Dead Code Paths. At a trust boundary → not a finding.
+- Is the value already resolved at the construction boundary? Then Defensive Access. Is the type already
+  non-optional? Then simplicity-hunter's Dead Code Paths. At a trust boundary → not a finding.
 
 For each `match` / `isinstance` chain over a union:
 
@@ -180,8 +184,8 @@ For each `match` / `isinstance` chain over a union:
 
 For each `# type: ignore` / `# pyright: ignore`:
 
-- Error code present? Reason present and confirmed by the code? Boundary layer or domain code? Bare in domain code is
-  the finding.
+- Error code present? Reason present and confirmed by the code? Boundary layer or domain code? Bare, or in domain
+  code → finding.
 
 For each `frozen=True` / `tuple` proposal:
 

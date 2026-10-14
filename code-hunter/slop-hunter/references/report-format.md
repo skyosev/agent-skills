@@ -3,10 +3,12 @@
 Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
 table schemas.
 
-Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
-Every line of the Scope block below is filled in on every run; it is not a category and this rule does not reach it.
+The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
+`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
+line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
+lines resolved so far and its `Audit completed` line, nothing else.
 
-Language-only categories appended by a language reference (today: Unnecessary Error Wrapping for Go) use the table
+Language-only categories appended by a language reference (Go: Unnecessary Error Wrapping) use the table
 schema supplied in that reference.
 
 **Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two
@@ -26,11 +28,11 @@ guide. For a formatter finding in diff mode it also carries the touched-line rul
 ## Scope
 
 - Surface: {diff / path / codebase}
-- Commit: {short SHA}{, dirty working tree — line numbers match no commit; re-locate findings by symbol name}
+- Commit: {short SHA}{, dirty working tree — line numbers match no commit; re-locate findings by symbol name — when dirty}
 - {Base: {ref} → merge base {short SHA} — diff scope only}
 - Files (raw manifest): {count or list}
 - Eligible: {per-language counts or lists}
-- Exclusions: {list — vendored / lockfile / md-only / generated-by-marker}
+- {Exclusions: {list — vendored / lockfile / md-only / generated-by-marker} — when any file was dropped}
 - References loaded: {go, python, typescript as present}
 - {excluded — no reference for .<ext>: {count} files — when applicable, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
@@ -65,7 +67,7 @@ guide. For a formatter finding in diff mode it also carries the touched-line rul
 | # | Location | Code | Severity | Impact | Action |
 | - | -------- | ---- | -------- | ------ | ------ |
 | 1 | util/parse.py:3 | `import re` — last use removed in this change (used at merge base `a1b2c3d`) | Low | Low | Delete |
-| 2 | handler.go:55 | `//nolint:errcheck` with no reason | Medium | Medium | State the reason or handle the error |
+| 2 | handler.go:55 | `//nolint:errcheck` with no reason | Medium | Medium | State the reason; dropped error → invariant-hunter Unchecked Errors |
 
 ### Hedging and Narration
 

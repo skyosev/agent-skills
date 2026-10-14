@@ -1,5 +1,7 @@
 # Simplicity Hunter — Go reference
 
+Contents: Generated-code eligibility · Language-only categories · Reinvented Primitives · Dead-code liveness channels · Coexisting Generations — Go carve-outs and Phase 4 · Error-handling note · Evidence path form · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
+
 Language-specific rules for Go.
 
 ## Generated-code eligibility
@@ -27,7 +29,8 @@ interface that serves one call site and has one implementation is indirection, n
 **Ownership — existence, not width.** An interface a production consumer receives from outside (handwritten wiring,
 a wire or fx provider — the mechanism is irrelevant), or that a second implementation or a test double uses, is
 solid-hunter's Fat Interfaces question, not an existence question. This category owns the interface with **no live
-seam**: never held as another package's parameter or field, one implementation, no fake.
+seam** (SKILL.md Terms): never held as another package's parameter or field, one implementation, no fake. In Go it
+replaces Unnecessary Abstractions for interfaces — report it here, never also there.
 
 **Action:** Remove the interface and use the concrete type. Introduce the interface when a second implementation or
 test double is actually needed.
@@ -79,8 +82,8 @@ source-level complexity, and carries a do-not-copy-a-non-zero-Builder constraint
 
 ## Dead-code liveness channels
 
-Beyond call sites: reflection, DI registration, registries, entrypoint configuration, and Go build tags
-(`//go:build`, `// +build`). Cite channels relevant to *this* symbol.
+Beyond the shared channels (SKILL.md Terms): Go build tags (`//go:build`, `// +build`). Cite channels relevant to
+*this* symbol.
 
 ## Coexisting Generations — Go carve-outs and Phase 4
 
@@ -122,39 +125,48 @@ Cite findings as `file/path.go:line`.
 
 ## Phase 2 — complexity scans
 
-Test files are included (complexity in tests is in scope). Duplication excludes them — see Phase 3 exclude below.
+`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4):
+`GO_FILES=$(cat <run>/go.txt); [ -n "$GO_FILES" ] || exit 1`. The Duplication list filters it (Phase 3 below).
+
+Test files are included (complexity in tests is in scope). Duplication excludes them — see Phase 3 below.
 
 ```bash
 # Generated-code globs approximate the authoritative marker (eligibility uses the marker).
 EXCLUDE='--glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Deep nesting (4+ indentation levels, tab-indented)
-rg '^\t{4,}\S' --type go $EXCLUDE -- $SCOPE
+rg -H '^\t{4,}\S' --type go $EXCLUDE -- $GO_FILES
 
 # Boolean parameters
-rg --pcre2 '\w+\s+bool[,)]' --type go $EXCLUDE -- $SCOPE
+rg -H --pcre2 '\w+\s+bool[,)]' --type go $EXCLUDE -- $GO_FILES
 
 # Functions with many parameters
-rg --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\([^)]{80,}\)' --type go $EXCLUDE -- $SCOPE
+rg -H --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\([^)]{80,}\)' --type go $EXCLUDE -- $GO_FILES
 
 # Interfaces with single implementation (Interface Pollution candidates)
-rg 'type\s+\w+\s+interface' --type go $EXCLUDE -- $SCOPE
+rg -H 'type\s+\w+\s+interface' --type go $EXCLUDE -- $GO_FILES
 
 # Unused unexported functions (Dead Code candidates)
-rg 'func\s+[a-z]\w+\(' --type go $EXCLUDE -- $SCOPE
+rg -H 'func\s+[a-z]\w+\(' --type go $EXCLUDE -- $GO_FILES
 
 # Channel complexity / goroutine launches (Channel & Goroutine Overuse)
-rg 'chan\s+chan|<-\s*<-' --type go $EXCLUDE -- $SCOPE
-rg 'go\s+func|go\s+\w+\(' --type go $EXCLUDE -- $SCOPE
+rg -H 'chan\s+chan|<-\s*<-' --type go $EXCLUDE -- $GO_FILES
+rg -H 'go\s+func|go\s+\w+\(' --type go $EXCLUDE -- $GO_FILES
 
-# Reinvented-primitive candidates (confirm toolchain + semantic parity before reporting)
-rg 'errors\.Is|errors\.As|errors\.Join' --type go $EXCLUDE -- $SCOPE
-rg 'slices\.|maps\.' --type go $EXCLUDE -- $SCOPE
+# Reinvented-primitive candidates: hand-rolled forms, not existing uses (confirm toolchain + parity before reporting)
+rg -H -U --pcre2 'for _, (\w+) := range [^{]+\{\s*\n\s*if \1 == ' --type go $EXCLUDE -- $GO_FILES  # slices.Contains / Index
+rg -H 'errors\.Unwrap\(' --type go $EXCLUDE -- $GO_FILES                                        # errors.Is / As walk
+rg -H --pcre2 '\w+\s*=\s*append\(\w+,\s*err\)' --type go $EXCLUDE -- $GO_FILES                  # errors.Join
 ```
 
-## Phase 3 — Duplication exclude
+## Phase 3 — Duplication list and exclude
+
+Run in the same call as the Phase 2 `EXCLUDE` line (shell state does not persist between calls).
 
 ```bash
-DUP_EXCLUDE="$EXCLUDE --glob '!**/*_test.go'"
-# Run duplication searches with $DUP_EXCLUDE so test-code duplication stays with test-hunter.
+DUP_EXCLUDE="$EXCLUDE --glob !**/*_test.go"
+# Seeds: codebase mode ($GO_FILES is .) enumerates; diff and path mode filter the eligible list.
+if [ "$GO_FILES" = . ]; then DUP_FILES=$(rg --files --type go $DUP_EXCLUDE .)
+else DUP_FILES=$(printf '%s\n' $GO_FILES | grep -v '_test\.go$'); fi
+# Project-wide searches take $DUP_EXCLUDE so test-code duplication stays with test-hunter.
 ```

@@ -1,5 +1,7 @@
 # Invariant Hunter — TypeScript reference
 
+Contents: Applicability of universal categories · Generated-code and test-path eligibility · Per-category TypeScript content · Toolchain · Idiom calibration · Evidence path form · Phase 2 — invariant scans · Phase 5 — TypeScript-specific evaluation
+
 Language-specific rules for TypeScript.
 
 ## Applicability of universal categories
@@ -36,7 +38,8 @@ Test files are still read as context — a test that passes `undefined` proves t
 
 - `as T` with no preceding check, or after a check on a different value
 - `x!` on a value that could be non-optional at its source — the finding is the assertion; the loose type it hides is
-  the Loose Optionality candidate
+  the Loose Optionality candidate. When that Loose Optionality finding exists, the `!` is cited in its Evidence, not
+  reported separately
 - Object-literal `as T` where `satisfies T` validates the shape without widening — Low
 - `(await res.json()) as T`, `JSON.parse(x) as T` with no schema parse — **never acceptable**. Critical when Evidence
   traces the unchecked shape into a write or an outbound call; High when it reaches only a rendered response
@@ -59,14 +62,15 @@ Test files are still read as context — a test that passes `undefined` proves t
 `?:` fields and parameters, `T | undefined`, `Partial<T>` handed past the construction boundary. The Evidence cell
 reads every constructor, factory, deserializer (`fromJSON`, ORM hydration, `Object.assign`), spread, later assignment,
 and `delete`. With `exactOptionalPropertyTypes` off, `?:` admits explicit `undefined` as well as omission; the
-proposal states which is being closed. A field on a library's exported type whose documented contract permits
-omission → withdrawn, limitation recorded. A field on an application type where every producer is in the repository →
-finding; export alone is no limit.
+proposal states which is being closed. A field on a type exported from an open unit whose documented contract
+permits omission → withdrawn, limitation recorded. A field on a type in a closed unit → finding (Closed consumer set,
+SKILL.md Terms).
 
 ### Defensive Access — TypeScript forms
 
-`?.` and `??` on always-present values; `|| default` where the default was resolved at the entry point; `if (x)` on
-a non-optional value. `user?.name` where `user: User` is non-optional → simplicity-hunter's Dead Code Paths, not here.
+`?.` and `??` on always-present values; `|| default` where the default was resolved at the construction boundary;
+`if (x)` on a non-optional value. `user?.name` where `user: User` is non-optional → simplicity-hunter's Dead Code
+Paths, not here.
 `user?.name` where `user?: User` but every caller passes one → Defensive Access; one finding per invariant, consumers
 cited as evidence.
 
@@ -77,7 +81,7 @@ cited as evidence.
   `switch-exhaustiveness-check` configured, and a return type the compiler does not fail on
 - Fields present on every variant, meaningful on some — missing `?: never` on the other variants
 - A cast to a variant (`s as Leaf`) where narrowing on `kind` would do
-- `default: throw new Error(...)` is runtime rejection: lowers severity, named in Action, does not close the finding
+- `default: throw new Error(...)` is runtime rejection: the finding drops to Low, Action names it, it does not close
 - A `switch` that handles `'a'` and falls to a `default` that logs and continues by design → not a finding
 
 ### Runtime Checks Promotable to Types — TypeScript forms
@@ -109,11 +113,12 @@ cited as evidence.
 is the applicable config; record each one read.
 
 **Execution:** read-only, the project's own script where one exists (`npm run typecheck`, `pnpm typecheck`), else
-`npx tsc --noEmit -p <tsconfig>` when `typescript` is installed locally. Never install. Record
-`tsc --noEmit: ran — <command>, <version>, <tsconfig>` / `skipped — not configured` /
-`skipped — configured, not installed` / `errored — <message>`. Read strictness flags from the applicable config
-regardless of whether the tool ran: `strict`, `strictNullChecks`, `exactOptionalPropertyTypes`,
-`noUncheckedIndexedAccess`, `noImplicitAny`; and from the ESLint config, `@typescript-eslint/switch-exhaustiveness-check`.
+`npx --no-install tsc --noEmit -p <tsconfig>` when `typescript` is installed locally; `--no-install` makes `npx` fail
+instead of fetching an unrelated `tsc` package. Never install. Record `tsc --noEmit: ran — <command>, <version>,
+<tsconfig>` / `skipped — not configured` / `skipped — configured, not installed` / `errored — <message>`. Read
+strictness flags from the applicable config regardless of whether the tool ran: `strict`, `strictNullChecks`,
+`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noImplicitAny`; and from the ESLint config,
+`@typescript-eslint/switch-exhaustiveness-check`.
 Flags off → findings still reported; one Low recommendation names the flag; recorded prominently in Scope.
 
 Tool output is a nomination list: a `TS2532` ("possibly undefined") is a Loose Optionality or Defensive Access
@@ -132,7 +137,7 @@ Cite findings as `file/path.ts:line` (or `.tsx` / `.mts` / `.cts` as appropriate
 
 ## Phase 2 — invariant scans
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible TypeScript list.
+`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4).
 
 ```bash
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
@@ -140,29 +145,29 @@ EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glo
 # Unguarded Type Assertions: `as` census. The filter drops import lines and re-export alias forms only
 # (`import * as fs`, `import { a as b }`, `export * as ns`, `export { a as b }`); it must NOT drop every line that
 # begins with `export` — `export const u = JSON.parse(p) as User;` is a candidate. `as const` is scanned separately.
-rg -n --pcre2 '\bas\s+(?!const\b)' --type ts $EXCLUDE -- $SCOPE | rg -v ':\s*import\b|export \* as|export \{[^}]*\bas\b'
-rg -n --pcre2 '[\w\]\)]!(?![=.]?=)' --type ts $EXCLUDE -- $SCOPE                                   # non-null assertions
-rg -n --pcre2 '\.json\(\)\)?\s+as\s|\bJSON\.parse\([^)]*\)\s+as\s' --type ts $EXCLUDE -- $SCOPE    # cast without parse
+rg -H -n --pcre2 '\bas\s+(?!const\b)' --type ts $EXCLUDE -- $TS_FILES | rg -v ':\s*import\b|export \* as|export \{[^}]*\bas\b'
+rg -H -n --pcre2 '[\w\]\)]!(?![=.]?=)' --type ts $EXCLUDE -- $TS_FILES                                   # non-null assertions
+rg -H -n --pcre2 '\.json\(\)\)?\s+as\s|\bJSON\.parse\([^)]*\)\s+as\s' --type ts $EXCLUDE -- $TS_FILES    # cast without parse
 
 # Loose Optionality: optional declarations (then read every producer and later write)
-rg -n --pcre2 '^\s*(readonly\s+)?\w+\?\s*:|\|\s*undefined\b|Partial<' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 '^\s*(readonly\s+)?\w+\?\s*:|\|\s*undefined\b|Partial<' --type ts $EXCLUDE -- $TS_FILES
 
 # Defensive Access
-rg -n '\?\.|\?\?' --type ts $EXCLUDE -- $SCOPE
+rg -H -n '\?\.|\?\?' --type ts $EXCLUDE -- $TS_FILES
 
 # Leaky Discriminated Unions: discriminants, switches, exhaustiveness adoption, never guards
-rg -n --pcre2 "\b(kind|type|tag|variant)\s*:\s*['\"]\w+['\"]" --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 'switch\s*\(\s*\w+\.(kind|type|tag|variant)\b' --type ts $EXCLUDE -- $SCOPE
-rg -n 'assertNever|\?\s*:\s*never\b' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 "\b(kind|type|tag|variant)\s*:\s*['\"]\w+['\"]" --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 'switch\s*\(\s*\w+\.(kind|type|tag|variant)\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n 'assertNever|\?\s*:\s*never\b' --type ts $EXCLUDE -- $TS_FILES
 
 # Runtime Checks Promotable to Types: boolean validators, predicates, assertion functions, satisfies, as const
-rg -n --pcre2 'function\s+(is|has|valid|check)\w*\([^)]*\)\s*:\s*boolean' --type ts $EXCLUDE -- $SCOPE
-rg -n --pcre2 '\):\s*\w+\s+is\s+\w+|asserts\s+\w+\s+is\s' --type ts $EXCLUDE -- $SCOPE
-rg -n '\bsatisfies\s|\bas\s+const\b|Object\.freeze\(' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 'function\s+(is|has|valid|check)\w*\([^)]*\)\s*:\s*boolean' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\):\s*\w+\s+is\s+\w+|asserts\s+\w+\s+is\s' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n '\bsatisfies\s|\bas\s+const\b|Object\.freeze\(' --type ts $EXCLUDE -- $TS_FILES
 
 # Type-System Bypasses
-rg -n --pcre2 ':\s*any\b|<any>|\bas\s+any\b|as\s+unknown\s+as' --type ts $EXCLUDE -- $SCOPE
-rg -n '@ts-ignore|@ts-expect-error' --type ts $EXCLUDE -- $SCOPE
+rg -H -n --pcre2 ':\s*any\b|<any>|\bas\s+any\b|as\s+unknown\s+as' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n '@ts-ignore|@ts-expect-error' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 ## Phase 5 — TypeScript-specific evaluation
@@ -173,17 +178,19 @@ For each `as T`:
   (`Extract` on a discriminant)? Yes → not a finding.
 - Is a schema involved? Throwing and non-transforming → guards the input. `safeParse` with the failure branch
   inspected → guards. Coercing, defaulting, transforming → guards the output only. Uninspected `safeParse` → nothing.
-- Object literal → `satisfies`, Low. `as any` / `as unknown as T` → Type-System Bypasses, not here.
+- Object literal → `satisfies`, Low. `as any` / `as unknown as T` → Type-System Bypasses, not here. A cast to a
+  union variant (`s as Leaf`) on a discriminated union → Leaky Discriminated Unions (`cast past discriminant`).
 
 For each `x!`:
 
-- Could the source be non-optional? Then the `!` is the finding and the loose type is the candidate. Is the value
+- Could the source be non-optional? Then the `!` is the finding and the loose type is the candidate; when the Loose
+  Optionality finding exists, the `!` is cited in its Evidence instead. Is the value
   genuinely optional here? Then it is a guard replacement and the Action is a real check.
 
 For each `?:` field:
 
 - Every producer read — constructors, `fromJSON`, spreads, `Object.assign`? Every later assignment and `delete`? Is
-  the type constructible outside the repository with a contract permitting omission? Then withdraw and record.
+  the type's unit open (SKILL.md Terms) with a contract permitting omission? Then withdraw and record.
 - Two optionals never both set, `mode?: 'x' | 'y'` with no discriminant → smell-hunter's Temporary Field.
 
 For each `?.` / `??`:
@@ -194,7 +201,7 @@ For each `?.` / `??`:
 For each `switch` over a discriminant:
 
 - Must it cover every variant? Is `assertNever` present, `switch-exhaustiveness-check` configured, or the return type
-  failing on a missing case? Any → not a finding. `default: throw` → lowered severity, partial.
+  failing on a missing case? Any → not a finding. `default: throw` → Low, partial.
 
 For each `@ts-ignore` / `@ts-expect-error`:
 

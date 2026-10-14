@@ -3,17 +3,15 @@
 Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
 table schemas.
 
-Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
-Every line of the Scope block below is filled in on every run; it is not a category and this rule does not reach it.
+The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
+`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
+line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
+lines resolved so far and its `Audit completed` line, nothing else.
 
-Language-only categories appended by a language reference (today: `init()` Abuse, Stuttering Names and Pointer
-Out-Parameters for Go, Mutable Default Arguments for Python) use the table schemas supplied in that reference.
+Language-only categories appended by a language reference use the table schemas supplied in that reference.
 
-**Column ceiling.** No canonical table carries more than eight columns beyond the `#` index, and Severity and Impact
-are two of them. When a category needs more detail, trim an existing column rather than appending — Feature Envy's
-`Own/Foreign` ratio replaces the former separate "Own Data Used" and "Foreign Data Used" columns for exactly this
-reason. **Areas** is the neutral term for the unit of code organization: a Go package is not a module, and a Python
-module is not a package.
+**Column ceiling.** No table carries more than eight columns beyond the `#` index, Severity and Impact included. Add
+detail by trimming a column, never by appending one. **Areas** is defined in SKILL.md Terms.
 
 ```md
 # Smell Hunter Audit — {date}
@@ -24,11 +22,11 @@ module is not a package.
 - Commit: {short SHA}{, dirty working tree — line numbers match no commit; re-locate findings by symbol name}
 - Files (raw manifest): {count or list}
 - Eligible: {per-language counts or lists}
-- Exclusions: {list — vendored / lockfile / md-only / generated-by-marker}
+- Exclusions: {list — vendored / lockfile / md-only / generated-by-marker — or `none`}
 - References loaded: {go, python, typescript as present}
-- {excluded — no reference for .<ext>: {count} files — when applicable, naming each extension}
+- {excluded — no reference for .<ext>: {count} files — only when such files exist, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
-- Audit completed: {N} findings
+- Audit completed: {N} findings{ — empty diff scope / — no eligible source in scope, only when that stop applied}
 
 ## Findings
 
@@ -82,7 +80,7 @@ Extension Points and is not reported here.
 
 | # | Location | Module | Lines | Responsibilities | Severity | Impact | Action |
 | - | -------- | ------ | ----- | ---------------- | -------- | ------ | ------ |
-| 1 | utils.py | `utils.py` | 800 | string ops + date ops + I/O | Medium | High | Split by domain |
+| 1 | utils.py:1 | `utils.py` | 800 | string ops + date ops + I/O | Medium | High | Split by domain |
 
 ### Mutable Global State
 

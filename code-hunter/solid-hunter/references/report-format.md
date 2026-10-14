@@ -3,8 +3,10 @@
 Read at Phase 5. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
 table schemas.
 
-Omit any category heading with zero findings — no empty tables, no placeholder subsections, no "none found" lines.
-Every line of the Scope block below is filled in on every run; it is not a category and this rule does not reach it.
+The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
+`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
+line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
+lines resolved so far and its `Audit completed` line, nothing else.
 
 **Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two of
 them. When a category needs more detail, trim an existing column rather than appending.
@@ -13,8 +15,9 @@ them. When a category needs more detail, trim an existing column rather than app
 none.
 
 **Architecture style line.** Always present: `struct-based` / `class-based` / `mixed` / `functional (limited
-findings)`. In a functional codebase the struct/class categories fire only where structs, classes and interfaces
-exist; Go package-level Responsibility Sprawl fires regardless.
+findings)`. In a functional codebase Broken Substitution, Fat Interfaces, Concrete Dependency Chains, and
+struct/class-level Responsibility Sprawl fire only where structs, classes and interfaces exist; Rigid Extension Points
+and Go package-level Responsibility Sprawl fire regardless.
 
 **Policy line.** Present only when repository instructions withdrew a pattern; quotes the instruction and names the
 category and sites it withdrew.
@@ -35,8 +38,7 @@ included, are not found. Findings claim the enumerated set only.
   `widened errors`, `compensating branch`, and names the promised behavior it breaks and how the abstraction is
   reached.
 - **Evidence** (Fat Interfaces) names each affected consumer and the subset it calls first; a stubbing implementor or
-  fake follows as support. This cell replaces the old "Avg Used by Consumers" column — an average hides which
-  consumer proves the split.
+  fake follows as support. Never an average: an average hides which consumer proves the split.
 - **Form** (Concrete Dependency Chains) is `self-instantiation` or `global read`, and the Action states what the
   caller cannot control today.
 
