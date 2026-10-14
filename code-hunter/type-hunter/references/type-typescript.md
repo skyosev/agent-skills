@@ -1,8 +1,6 @@
 # Type Hunter — TypeScript reference
 
-Contents: Applicability of the universal categories · Generated-code and test-path eligibility · TypeScript principles · Per-category TypeScript content · TypeScript-only category · Evidence path form · Phase 2 — type scans · Phase 4 — TypeScript-specific evaluation
-
-Language-specific rules for TypeScript.
+Contents: Applicability of the universal categories · Generated-code and test-path eligibility · Per-category TypeScript content · TypeScript-only category · Phase 2 — type scans · Phase 4 — TypeScript-specific evaluation
 
 ## Applicability of the universal categories
 
@@ -20,35 +18,13 @@ Language-specific rules for TypeScript.
 ## Generated-code and test-path eligibility
 
 A file is generated (ineligible for reporting) only when identified by an authoritative in-file marker where one exists
-(`// @generated`, `// Code generated`, GraphQL / protobuf / OpenAPI / Prisma client banners) — never by filename
-guessing. Scan globs such as `*.generated.*`, `__generated__/`, `*.g.ts`, `generated/` are approximations for scanning
-convenience.
-
-Generated files are still **read as context**: a hand-written interface that mirrors a Prisma model, an OpenAPI client
-type, or an SDK type is identified by reading the generated type; the pair is never reported here, and
-boundary-hunter's External Type Leaks judges only the crossing beside it.
+(`// @generated`, `// Code generated`, GraphQL / protobuf / OpenAPI / Prisma client banners). Scan globs such as
+`*.generated.*`, `__generated__/`, `*.g.ts`, `generated/` are approximations for scanning convenience.
 
 Dependency and build trees (`node_modules/`, `dist/`, `build/`, `.next/`, `out/`), lockfiles, and Markdown-only inputs
 are also ineligible.
 
-**Test paths are ineligible** (see Test-code scope in SKILL.md): `*.test.*`, `*.spec.*`, `*.e2e.*`, `__tests__/`. Test
-files are still read as context — a `Cache<FakeOrder>` in a test is listed in the Instantiations cell marked `(test)`
-and never counts as variation.
-
-## TypeScript principles
-
-- **Derivation is the native consolidation path.** Utility types, indexed access on `typeof`, and schema inference
-  express one shape from another without a second declaration. Where Go composes and Python inherits, TypeScript
-  derives.
-- **A schema has roles.** A transforming schema has an input type and an output type; a serialized form may differ
-  from both. The Evidence names which role the manual copy plays and the Path uses the matching inference type.
-- **Structural typing voids alias distinctions.** `type UserId = string` is `string`. Alias mechanics are not judged
-  here; smell-typescript brands or withdraws.
-- **Type arguments are inferred.** `useStore(users)`, `new Cache(users)`, `keys(['a', 'b'])` bind `T` without writing
-  it. Regex finds explicit `<User>` only; the instantiation set is read from consumers, and the Scope block's
-  `Enumeration` line says how it was closed.
-- **Version gates come from the lockfile and tsconfig.** `const` type parameters 5.0; `Awaited` 4.5; `satisfies` 4.9;
-  `erasableSyntaxOnly` 5.8. Read the resolved `typescript` version from the lockfile, not `package.json`'s range.
+**Test paths are ineligible** (see Test-code scope in SKILL.md): `*.test.*`, `*.spec.*`, `*.e2e.*`, `__tests__/`.
 
 ## Per-category TypeScript content
 
@@ -59,49 +35,40 @@ and never counts as variation.
   `interface Admin extends User`. Every member mapped; the Overlap is `mapped/total`.
 - **Runtime value.** A hand-written union beside an array or object of the same values → `as const` on the value
   (the Action adds it where missing) and `(typeof roles)[number]` or `(typeof Status)[keyof typeof Status]`.
-  `satisfies` appears only as part of that Action, to keep the value checked against a wider type while preserving
+  `satisfies` (TS 4.9+) appears only as part of that Action, to keep the value checked against a wider type while preserving
   literals. `as const` on a value with **no** parallel declared type is invariant-hunter's adoption finding, not
   duplication.
 - **Schema.** A manual interface beside a schema of the same shape → the installed library's inference type **in the
   right role**: Zod `z.infer` / `z.output` for decoded output, `z.input` where the schema transforms and the interface
   types the accepted input; io-ts `t.TypeOf` / `t.OutputOf`; TypeBox `Static<typeof T>`; Valibot `InferOutput` /
-  `InferInput`; ArkType `typeof T.infer`; or the equivalent of whatever the project already has. Never recommend
-  adding a schema library. The Evidence names whether the copy is accepted input, decoded output, or serialized data;
+  `InferInput`; ArkType `typeof T.infer`; or the equivalent in whatever library the project already has — only an
+  installed library. A transforming schema has an input type and an output type, and its serialized form may differ
+  from both. The Evidence names whether the copy is accepted input, decoded output, or serialized data;
   a manual type for the *serialized* form of a transforming schema may have no role-matching inference type → drop.
 - **Parallel enums or unions for one value set** → delete-and-use; parallel `enum` and union → also Enum Construct
   Mechanics at the `enum`, cross-referenced, one finding per site by within-skill precedence (the duplication is
   reported; the Evidence names the enum reading).
-- **A hand-written type mirroring a Prisma model, an OpenAPI client type, a generated GraphQL type, an ORM entity, or
-  an SDK type** — with or without `toDomain()`, whatever the mapper drops → never a source kind here;
-  boundary-hunter's External Type Leaks judges the crossing beside it.
 
 ### Generics That Never Vary — TypeScript forms
 
 `class Store<T>` constructed only as `new Store<User>()` or `new Store(users)`; `function fetchAll<T>()` whose one call
 site passes `<User>`; `interface Envelope<T> { payload: T }` where every use is `Envelope<Event>`; `T` used in one
 property only. Instantiations are read from explicit type arguments, inferred call sites, `extends` / `implements`
-clauses, and annotations, project-wide, tests marked `(test)`.
-
-**Closed consumer set per exported symbol.** Closed and open follow the TypeScript rows of **Closed consumer set** in
-SKILL.md Terms: a workspace package with `private: true`, or a unit not reachable from any `package.json` `exports` /
-`main`, is judged in tree; a unit reachable from `exports` / `main` without `private: true` is open. Withdraw an open
-symbol with a `Limitation` line; do not classify the repository.
+clauses, and annotations, project-wide. Closed and open units follow the TypeScript rows of **Closed consumer set**
+in SKILL.md Terms.
 
 ### Loose Type Parameter Constraints — TypeScript forms
 
 - `<T>` / `<T extends unknown>` / `<T extends any>` whose body indexes (`(o as any)[k]`), reads properties, spreads as
   an object, or calls methods → `T extends Record<string, unknown>`, `T extends { id: string }`, `T extends object`,
   whichever every instantiation satisfies and the body needs. The `as any` inside the body that the constraint removes
-  is cited here and not scored by invariant-hunter.
+  is cited here.
 - `<T extends object>` where the body reads a named property → the property in the constraint.
 - **The `const` form (TS 5.0+).** `function keys<T extends readonly string[]>(xs: T)` called as `keys(['a', 'b'])`
   where a downstream consumer wants `'a' | 'b'` and re-narrows with `as` or a manual union: `T` infers `string[]`, the
   literals are lost. Action: `<const T extends readonly string[]>`. Evidence: the parameter type is an array or object
   literal type, and the re-narrowing consumer is named. A scalar `T extends string` already preserves the literal → no
   finding. Below 5.0 the Action is a `readonly ['a', 'b']` parameter type or `as const` at the call site.
-
-**Not Loose:** an opaque body — `function first<T>(xs: T[]): T` — however many callers pass `User[]`. That is
-Generics That Never Vary when the instantiations agree.
 
 ### Over-Powered Type Constructs — TypeScript forms
 
@@ -113,10 +80,6 @@ Generics That Never Vary when the instantiations agree.
 - **Template-literal metaprogramming** (type-level string splitting, case conversion) where a runtime function with a
   typed return, or a plain union, types every use; a template literal *missing* for a structured string is
   smell-hunter's
-- **Many type parameters** nominate only
-
-The simpler form must hold **equal precision** on every enumerated instantiation. Library types, framework
-constraints, and serialization boundaries that need the power → no finding.
 
 ### Enum Construct Mechanics — TypeScript forms
 
@@ -149,37 +112,34 @@ A hand-rolled type equal to a built-in utility.
 `InstanceType`, `Record`. Not parity by default: `T extends null | undefined ? never : T` is `NonNullable<T>` only
 below TS 4.8 (since 4.8 the built-in is `T & {}`, which differs on an unresolved generic `T`); a hand-rolled
 `ReturnType` without the built-in's `T extends (...args: any) => any` constraint, or with a `never` fallback where the
-built-in has `any`, is not `ReturnType<T>`. Gate 3 decides both on every use.
+built-in has `any`, is not `ReturnType<T>`. Gate 2 decides both on every use.
 
-**Gates** (simplicity-hunter's Reinvented Primitives gates 1, 3, 6; gates 2, 4, 5 are moot at type level):
+**Gates:**
 
 1. **Version.** The project's resolved TypeScript version (lockfile) ships the built-in — `Awaited` 4.5, `Omit` 3.5,
    the rest 2.8 or earlier.
-3. **Exact semantic parity**, including homomorphic modifier preservation: `Partial` / `Readonly` / `Required` /
+2. **Exact semantic parity**, including homomorphic modifier preservation: `Partial` / `Readonly` / `Required` /
    `Pick` are homomorphic and preserve `readonly` and `?` from `T`; a hand-rolled form that strips or adds modifiers
    differently is not equal. `Exclude` / `Extract` / `NonNullable` are distributive over unions; a non-distributive
    hand-rolled variant (`[T] extends [U] ? …`) is not equal. `DeepPartial` is not `Partial`; a `Pick` that errors on
    missing keys is `Pick`'s own behaviour, but a lenient one that accepts any key is not.
-6. **Net concept reduction.** Replacing removes a name; if the hand-rolled type is the project's documented
+3. **Net concept reduction.** Replacing removes a name; if the hand-rolled type is the project's documented
    vocabulary re-exported everywhere and the built-in would be aliased back to the same name, the reduction is nil →
    no finding.
 
 **Action:** replace with the built-in.
 
+**Severity:** Low.
+
 **Not findings:** a utility with different semantics (above); a hand-rolled `Awaited` in a project pinned below 4.5.
 
 **Ownership:** simplicity-typescript's Reinvented Primitives list is runtime code; utility types are here.
-
-## Evidence path form
-
-Cite findings as `path/to/file.ts:line` (`.tsx`, `.mts`, `.cts` as they occur).
 
 ## Phase 2 — type scans
 
 `$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4).
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible TypeScript list. **Scans
-nominate only** — the declaration census finds every type; a bare `<\w+` scan is deliberately omitted (it matches JSX,
+Every scan takes the eligible TypeScript list. A bare `<\w+` scan is deliberately omitted (it matches JSX,
 comparisons, and every generic use).
 
 ```bash
@@ -214,18 +174,18 @@ rg -H -n --pcre2 '^\s*(export\s+)?(declare\s+)?(const\s+)?enum\s+\w+' --type ts 
 ```
 
 **Version gates:** the resolved `typescript` version from the lockfile (`package-lock.json`, `pnpm-lock.yaml`,
-`yarn.lock`, `bun.lock`); `erasableSyntaxOnly` and `isolatedModules` from `tsconfig.json` (and any `extends` chain).
+`yarn.lock`, `bun.lock`), not `package.json`'s range; `erasableSyntaxOnly` and `isolatedModules` from `tsconfig.json` (and any `extends` chain).
 
 ## Phase 4 — TypeScript-specific evaluation
 
 For each pair of declarations nominated as duplicates:
 
-- Is either a mirror of a Prisma / OpenAPI / GraphQL / ORM / SDK type? → not this category; stop. The crossing beside
-  it, if any, is boundary-hunter's External Type Leaks.
+- Is either a mirror of a Prisma / OpenAPI / GraphQL / ORM / SDK type, with or without `toDomain()`? → not this
+  category (SKILL.md Terms, Cross-layer mirror); stop.
 - Name the concept, map every member. Source kind: sibling → the utility type; runtime value → `as const` +
   indexed access; schema → the inference type in the role the copy plays (input, output, serialized — none
   matching → drop).
-- Both copies live and already diverged, both consumed → High, divergence named in Evidence.
+- Both copies live and already diverged, both consumed → name the divergence in Evidence.
 - An `as const` value with no parallel declared type → invariant-hunter; not here.
 
 For each type parameter:
@@ -245,18 +205,9 @@ For each conditional / recursive / remapped / template-literal type:
 
 For each hand-rolled mapped or conditional utility:
 
-- Which built-in? Gate 1 (lockfile version), gate 3 (homomorphic modifiers, distributivity, identical behaviour on
-  every use), gate 6 (a name is removed). All three → Reinvented Utility Types. Different semantics → no finding.
+- Which built-in? Gate 1 (lockfile version), gate 2 (homomorphic modifiers, distributivity, identical behaviour on
+  every use), gate 3 (a name is removed). All three → Reinvented Utility Types. Different semantics → no finding.
 
-For each `enum`:
+For each `enum`: apply Enum Construct Mechanics — TypeScript forms above.
 
-- Reverse mapping used, bitwise flags, a named non-TS consumer? → no finding. Otherwise: are members only compared
-  and serialized? Name the sites; note value imports across modules as support. Action names the union, the
-  serialization risk where the value crosses a boundary, and `erasableSyntaxOnly` where set.
-- Numeric and serialized, non-flag → finding. `===` to a raw literal → finding at the comparison. One member →
-  constant. `const enum` as such → no finding.
-
-For each `type X = string`-style alias:
-
-- Not judged here. smell-typescript's brand-or-withdraw rule owns it; cross-reference only if a finding elsewhere
-  cites it.
+A `type X = string`-style alias is not judged here (Applicability).

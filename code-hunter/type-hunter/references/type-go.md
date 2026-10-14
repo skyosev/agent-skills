@@ -1,8 +1,6 @@
 # Type Hunter — Go reference
 
-Contents: Applicability of the universal categories · Generated-code and test-path eligibility · Go principles · Per-category Go content · Go-only category · Evidence path form · Phase 2 — type scans · Phase 4 — Go-specific evaluation
-
-Language-specific rules for Go.
+Contents: Applicability of the universal categories · Generated-code and test-path eligibility · Per-category Go content · Go-only category · Phase 2 — type scans · Phase 4 — Go-specific evaluation
 
 ## Applicability of the universal categories
 
@@ -20,31 +18,12 @@ Language-specific rules for Go.
 ## Generated-code and test-path eligibility
 
 A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs such
-as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
-
-Generated files are still **read as context**: a hand-written struct that mirrors a `.pb.go` message is identified by
-reading the message; the pair is never reported here, and boundary-hunter's External Type Leaks judges only the
-crossing beside it (see Duplicated Type Declarations below).
+`// Code generated … DO NOT EDIT.` line before the first non-comment text. Scan globs such as `*.pb.go` / `*_gen.go` /
+`*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
 
 Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
 
-**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`. Test files are still read as context —
-a `Cache[fakeOrder]` in a test is listed in the Instantiations cell marked `(test)` and never counts as variation.
-
-## Go principles
-
-- **Small named types are the language working as designed.** `type UserID string`, `type Config struct{…}` with no
-  methods carry a domain name and keep signatures readable. No finding, over a primitive or a composite.
-- **Consumer-defined interfaces, not type-level cleverness.** Where TypeScript would derive, Go composes or deletes.
-  Never recommend a construct Go cannot express — no `Pick`, no runtime-value derivation, no conditional type.
-- **Embedding is composition that promotes.** An embed hands every promoted method and field to the outer type's
-  consumers. That is the whole reason Embedding Antipatterns exists and the whole reason "embed the shared struct" is
-  not an automatic consolidation path.
-- **Type arguments are inferred.** `Max(a, b)`, `NewCache(users)` bind `T` without writing it. Regex finds the
-  declaration; the instantiation set is read from call sites.
-- **Untyped constants convert freely.** A `const` with no type is accepted anywhere its kind is — the concrete cost of
-  an `iota` block with no named type.
+**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`.
 
 ## Per-category Go content
 
@@ -63,12 +42,7 @@ Consolidation is composition or deletion, in this order, and the Action says whi
    block, use the other.
 4. **None fits → drop.** A DTO in `api/` with the same fields as a domain struct that has methods, where embedding
    would promote the methods and a field would change the JSON shape, and neither copy can be deleted, is Not a
-   finding. Not a Low with "keep in sync".
-
-**Cross-layer mirrors are out of scope here.** A hand-written struct mirroring a `.pb.go` message, an ORM model, or
-an SDK type — in any package, with any mapper, whatever the mapper drops or copies — is never a source kind here.
-boundary-hunter's External Type Leaks judges the *crossing* beside it: the external type used inward, or a mapper
-output still carrying it. Duplication is between two hand-written structs.
+   finding.
 
 **Repeated inline expressions.** The same func type (`func(context.Context, *Event) error`) written at independent
 sites is a candidate; the Action is one named type. A single unnamed complex type is not a finding.
@@ -77,12 +51,8 @@ sites is a candidate; the Action is one named type. A single unnamed complex typ
 
 `type Cache[T any] struct` used as `Cache[User]` everywhere; a `func Map[T, U any]` whose one call site fixes both.
 Instantiations are read from every call site and every field or variable declaration that names the type
-(`Cache[User]`, `NewCache[User]()`, and inferred `NewCache(users)`). Tests are marked `(test)`.
-
-**Closed consumer set per exported symbol.** Closed and open follow the Go rows of **Closed consumer set** in
-SKILL.md Terms: a `main` package, an `internal/` path, or a package of a module with a `main` package and no
-documented import use is judged in tree; a module with no `main` package and a public module path, or any
-documented import use, is open. Withdraw an open symbol with a `Limitation` line; do not classify the repository.
+(`Cache[User]`, `NewCache[User]()`, and inferred `NewCache(users)`). Closed and open units follow the Go rows of
+**Closed consumer set** in SKILL.md Terms.
 
 Action vocabulary: remove the parameter, the concrete type in its place; the test's fake becomes a fake of the
 production type.
@@ -98,11 +68,8 @@ production type.
   functions per case, an interface the cases implement, or a union constraint (`~int | ~string`) when the cases are
   the union's members and the body's operations are permitted on all of them.
 
-**Not Loose:** an opaque body — stores `T`, returns `T`, passes it through, ranges over `[]T` without touching
-elements. However many callers pass one type, that is Generics That Never Vary.
-
-**Precedence with invariant-hunter:** `any(v).(X)` inside a generic body that a constraint removes is one finding here.
-`payload.(map[string]any)` on decoded JSON is invariant-hunter's, not a constraint question.
+**Precedence with invariant-hunter:** `payload.(map[string]any)` on decoded JSON is invariant-hunter's, not a
+constraint question.
 
 ### Enum Construct Mechanics — Go forms
 
@@ -155,17 +122,11 @@ member); cross-reference, do not score.
 **Ownership:** interface width per consumer is solid-hunter's Fat Interfaces; this category judges a struct's
 promoted method set.
 
-## Evidence path form
-
-Cite findings as `file/path.go:line`.
-
 ## Phase 2 — type scans
 
 `$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4).
 
-Test files are **excluded** (see Test-code scope in SKILL.md). Every scan takes the eligible Go list; generated-code
-globs approximate the authoritative marker. **Scans nominate only** — `rg 'iota'` finds every constant group, the
-struct census finds every struct; the reading phase carries the load.
+Every scan takes the eligible Go list.
 
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
@@ -204,13 +165,13 @@ their bodies.
 
 For each pair of structs nominated as duplicates:
 
-- Is either a mirror of a `.pb.go`, ORM, or SDK type? → not this category; stop. The crossing beside it, if any, is
-  boundary-hunter's External Type Leaks.
+- Is either a mirror of a `.pb.go`, ORM, or SDK type, in any package, whatever the mapper drops or copies? → not
+  this category (SKILL.md Terms, Cross-layer mirror); stop.
 - Name the concept and map every field. Then, in order: does the outer type want the shared method set (embed)? Does
   the wire or storage shape allow nesting (field)? Does every site of one copy accept the other (delete-and-use)?
   None → drop.
 - Both copies live and already diverged (a field in one, absent or differently typed in the other, both consumed)?
-  → High, divergence named in Evidence.
+  → name the divergence in Evidence.
 
 For each type parameter:
 
@@ -221,21 +182,12 @@ For each type parameter:
   → Loose, with the tightest constraint every instantiation satisfies and the `go.mod` gate checked for
   `cmp.Ordered`.
 
-For each `iota` block:
-
-- Is there a named type? No → which consumer accepts the untyped constant? Name it or there is no finding.
-- Named type: is it formatted, logged, or serialized anywhere with no `String()`? Name the site or there is no
-  finding.
-- Gaps, manual values, an unchecked zero sentinel, a missing range check → not here.
-
-For each alias:
-
-- `=` present, no migration comment, no second live name → finding. Otherwise no finding. `type X Y` without `=` is
-  a named type and never a finding here.
+For each `iota` block and each alias: apply the Enum Construct Mechanics and Alias vs Named Type Mechanics Go
+forms above.
 
 For each struct with an embedded field:
 
-- Exported struct embedding a mutex → High. Unexported, or a field → no finding.
+- Exported struct embedding a mutex → finding (form 1). Unexported, or a field → no finding.
 - Enumerate promoted methods and the subset each consumer calls; collisions with the outer type's own methods. Where
   the outer value is passed, assigned, or returned as an interface, that interface's methods count as used. Used
   subset smaller than promoted set, consumer set closed → finding. Consumers read exactly the promoted set → no

@@ -1,8 +1,6 @@
 # Boundary Hunter — TypeScript reference
 
-Contents: Applicability of the categories · Generated-code and test-path eligibility · TypeScript principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Emit and erasure · Per-category TypeScript content · Toolchain · Evidence path form · Phase 2 — graph build · Phase 3 — TypeScript scans · Phase 5 — TypeScript-specific evaluation
-
-Language-specific rules for TypeScript. No tool is installed and no `ts-morph` script is authored.
+Contents: Applicability of the categories · Generated-code and test-path eligibility · TypeScript principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Emit and erasure · Per-category TypeScript content · Toolchain · Phase 2 — graph build · Phase 3 — TypeScript scans · Phase 5 — TypeScript-specific evaluation
 
 ## Applicability of the categories
 
@@ -19,23 +17,16 @@ Language-specific rules for TypeScript. No tool is installed and no `ts-morph` s
 ## Generated-code and test-path eligibility
 
 A file is generated (ineligible for reporting) only when identified by an authoritative in-file marker where one
-exists (`// @generated`, `// Code generated`, GraphQL / protobuf / OpenAPI / Prisma client banners) — never by
-filename guessing. Scan globs such as `*.generated.*`, `__generated__/`, `*.g.ts`, `generated/` are approximations for
-scanning convenience.
-
-Generated files are **read as context**, and their declarations are the **external types** External Type Leaks judges
-— the Prisma client, an OpenAPI or GraphQL codegen output is an external type even when the schema lives in this
-repository (the skill's stated policy).
+exists (`// @generated`, `// Code generated`, GraphQL / protobuf / OpenAPI / Prisma client banners). Scan globs
+such as `*.generated.*`, `__generated__/`, `*.g.ts`, `generated/` are approximations for scanning convenience.
 
 Dependency and build trees (`node_modules/`, `dist/`, `build/`, `.next/`, `out/`), lockfiles, and Markdown-only inputs
 are also ineligible.
 
 **Test paths are ineligible** (see Test-code scope in SKILL.md): `*.test.*`, `*.spec.*`, `*.e2e.*`, `__tests__/`.
 
-**JavaScript files** (`.js`, `.jsx`, `.mjs`, `.cjs`) are **graph nodes, never finding anchors.** Their ESM `import`
-and CJS `require` edges are read so a mixed repository's graph and its cycles are correct, but no finding anchors in
-one: anchoring would need a CJS export census (`module.exports`, `exports.x`) no sibling hunter has, and would make
-JavaScript a fourth supported language. Record them under Exclusions with the graph-inclusion note.
+**JavaScript files** (`.js`, `.jsx`, `.mjs`, `.cjs`) are graph nodes (SKILL.md Terms › Import graph): their ESM
+`import` and CJS `require` edges are read. Record them under Exclusions with the graph-inclusion note.
 
 ## TypeScript principles
 
@@ -63,20 +54,14 @@ JavaScript a fourth supported language. Record them under Exclusions with the gr
   imports is not a finding; an export the entry re-exports and nothing outside imports is.
 - **External consumer** — an import from outside the unit in a non-test file, plus string references (a dynamic
   `import()` with a literal specifier, a route or plugin manifest naming the module).
-- **Publication per unit** — **closed** (judged in tree): a workspace package with `private: true`, or a unit not
-  reachable from any `package.json` `exports` / `main`. **Open** (Dead Exports withdrawn with a `Limitation` line): a
-  unit reachable from `exports` / `main` without `private: true`. No registry state, tags, or publish workflows are
-  read.
+- **Publication** — per SKILL.md Terms › Published unit.
 
 ## Layer map, prohibitions, and policy
 
 - **Layer map sources**, in precedence: repository instructions and named ADR files; then conventional sibling
   directory names from the fixed vocabulary — inner `domain`, `core`, `entities`; middle `application`, `usecase`,
   `usecases`; edge `infra`, `infrastructure`, `adapters`, `persistence`, `db`, `transport`, `http`, `handlers`,
-  `controllers`, `cli`, `ui`, `web`, `components`, `pages` — two or more tiers as **sibling directories under one
-  parent**, no name used in two tiers. `service`, `services`, `api`, `app`, `models` are not vocabulary (`app/` is
-  Next.js's router). Tiers annotate **files** by directory, so two files of one workspace package can carry different
-  tiers.
+  `controllers`, `cli`, `ui`, `web`, `components`, `pages`. Tiers annotate **files** by directory.
 - **Prohibition sources**: a `forbidden` rule in `.dependency-cruiser.{js,cjs,mjs,json}` / `dependency-cruiser.config.*`;
   an Nx `@nx/enforce-module-boundaries` `depConstraints` entry; an `eslint-plugin-boundaries` rule. Each is evidence
   for the edges it names. **None of them is a layer map** — a tag set is not an ordering.
@@ -117,7 +102,7 @@ Record the `Emit:` Scope line with what was read.
 ### Dead Exports — TypeScript forms
 
 - `zero consumers` — the entry exports it and nothing outside the unit imports it, and the unit is closed.
-- `test only` — the only importer is a test path. Low.
+- `test only` — the only importer is a test path.
 - `consolidated barrel` — `export * from './internal/helpers'` exposing N symbols nothing outside imports is **one**
   row: a representative symbol, `Occurrences: N`, Action "named re-exports of the public API". A consumed internal
   among them gets its own Leaked Internals row.
@@ -131,7 +116,7 @@ not decide.
 An exported type or member whose shape is the implementation, with an external consumer touching it: an exported
 `interface CacheEntry` a consumer constructs, an exported mutable module-level `Map` a consumer writes, an exported
 AST node type from a unit whose promise is a formatted string. A parser whose documented product *is* its AST passes
-the rewrite test. Reads are Medium, writes High.
+the rewrite test.
 
 ### Deep Imports — TypeScript forms
 
@@ -164,10 +149,8 @@ still an outward edge.
   throws `ReferenceError`. `function` declarations hoist fully and do not fail. Recorded `provable from {entry}:
   {file:line}`.
 - **Production entry**: the `package.json` `main` / `bin` / `exports` entry, a framework's route or page discovery
-  order. Provable from one → **Critical**; provable only from another entry → **High**, with the order production
-  uses named. `none observed` → **Medium**.
-- Same-layer `type-only` cycles → **Low**. Cross-layer type-only edges → Dependency Direction Violations, with the
-  cycle named in Evidence.
+  order.
+- Cross-layer type-only edges → Dependency Direction Violations, with the cycle named in Evidence.
 - A cycle every one of whose in-scope edges sits in a JavaScript file has **no eligible anchor**: report no row and
   write `Limitation: cycle {path} — no eligible in-scope edge`.
 
@@ -212,11 +195,6 @@ Exports judges; when the project's own script omits the flag, the Toolchain line
 read-only run. `madge` duplicates `depcruise` and is used only in its absence. Every tool here nominates; no finding
 is tool output.
 
-## Evidence path form
-
-Cite findings as `src/path/file.ts:line`. Anchor Generic Boundary Names at `index.ts:1`, else the unit's first file in
-sorted order.
-
 ## Phase 2 — graph build
 
 Nodes are files (`.ts`, `.tsx`, `.mts`, `.cts`, plus `.js`, `.jsx`, `.mjs`, `.cjs` as non-anchoring nodes). Edges are
@@ -224,8 +202,8 @@ Nodes are files (`.ts`, `.tsx`, `.mts`, `.cts`, plus `.js`, `.jsx`, `.mjs`, `.cj
 `paths` aliases, and workspace package names to files. Tag each edge **erased** or **runtime** per the Emit rules.
 Project nodes onto units for the four surface categories; keep file edges for direction and cycles.
 
-These scans read the whole project (`.`), whatever the scope. They keep generated files: those are context, and a
-generated client that imports a hand-written module is its consumer. The `from` scan runs multiline (`-U`) so a
+The graph scans keep generated files: a generated client that imports a hand-written module is its consumer. The
+`from` scan runs multiline (`-U`) so a
 wrapped `import {` list reports from its first line.
 
 ```bash
@@ -244,8 +222,7 @@ rg -n -U --pcre2 "import\s*\{[^}]*\btype\s" --type ts $GRAPH_EXCLUDE -- .
 
 ## Phase 3 — TypeScript scans
 
-`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4). Test
-files are **excluded**. **Scans nominate only.**
+`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4).
 
 ```bash
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
@@ -283,9 +260,8 @@ For each unit:
 For each export at an entry:
 
 - Importers outside the unit, read (default, namespace, aliased, and re-export chains included), string references
-  searched? None → Dead Exports (consolidated when it arrived through `export *`). Only tests → `test only`, Low.
-- Consumed, and does a member fail the rewrite test with a statable reason? → Leaked Internals; reads Medium, writes
-  High.
+  searched? None → Dead Exports (consolidated when it arrived through `export *`). Only tests → `test only`.
+- Consumed, and does a member fail the rewrite test with a statable reason? → Leaked Internals.
 - Consumed only by a sibling file inside the same unit → no finding.
 
 For each import edge:
@@ -299,7 +275,7 @@ For each cycle:
 - Classify every edge with the Emit rules; remove erased edges. Survives → `runtime`; gone → `type-only`.
 - Emit pipeline not establishable → withdraw Kind with a `Limitation` line.
 - `runtime`: a module-level read of a partner's `const` / `class` binding before initialization on the entry path →
-  `provable`; from a production entry → Critical, else High. Otherwise `none observed`, Medium.
+  `provable`, with the entry named and whether it is a production entry. Otherwise `none observed`.
 - Every in-scope edge in a JavaScript file → no anchor; `Limitation` line.
 
 For each exported declaration in an inward-tier unit (boundary source required):

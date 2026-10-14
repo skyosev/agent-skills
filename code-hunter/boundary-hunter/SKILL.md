@@ -1,16 +1,6 @@
 ---
 name: boundary-hunter
-description: |
-  Use when reviewing Go, Python, or TypeScript code for boundary violations: dead and leaked
-  exports, deep imports past a unit's public entry, import edges against the layer map or a stated
-  prohibition, runtime and type-only cycles, external types crossing inward, and generic package
-  names. Shrinking a public API surface, enforcing encapsulation, untangling layers, or preparing a
-  package to be replaceable. Defaults to the codebase.
-
-  Covers an export no consumer outside the unit uses, an export that shows how the unit works,
-  a consumer reaching past the barrel or `__init__`, a module edge pointing outward against a
-  recorded boundary source, modules importing each other, a third-party type in an inward
-  signature, and a unit named for what it contains.
+description: Audit Go, Python, or TypeScript code for boundary violations — dead exports, leaked internals, deep imports, dependency direction violations, import cycles, external type leaks, generic boundary names. Defaults to the codebase.
 disable-model-invocation: true
 ---
 
@@ -22,87 +12,50 @@ importing each other until initialization order decides whether the process star
 `utils` package holding three unrelated capabilities. Goal: **every unit is a black box, replaceable from its public
 entry alone.**
 
-Supports Go, Python, TypeScript via per-language reference files.
-
 **Not covered (owned by other hunters):** unused non-exported functions, constants, and branches, and any Python
 public name with no importers at all (→ simplicity-hunter Dead Code Paths); unused imports and bindings
 (→ slop-hunter); a generic-named *file* and file placement inside a unit (→ smell-hunter God Module in Python and
-TypeScript; in Go nobody's — smell-hunter marks God Module n/a for Go); package-level
-responsibility and change analysis — named actors, independent reasons to change (→ solid-hunter Responsibility
-Sprawl); type-level wiring, self-instantiation, and module-level singleton reads (→ solid-hunter Concrete Dependency
-Chains); two hand-written declarations of one shape with a consolidation path (→ type-hunter Duplicated Type
-Declarations); a promoted method set from an embed (→ type-hunter Embedding Antipatterns); type-system bypasses at a
-boundary layer (→ invariant-hunter); content validation at a trust boundary (→ security-hunter); message chains
-inside object design — recorded as an unowned gap, see Test-code scope. Where ownership is *contested*, the
+TypeScript; in Go nobody's); package-level responsibility and change analysis — named actors, independent reasons to
+change (→ solid-hunter Responsibility Sprawl); type-level wiring, self-instantiation, and module-level singleton reads
+(→ solid-hunter Concrete Dependency Chains); two hand-written declarations of one shape with a consolidation path
+(→ type-hunter Duplicated Type Declarations); a promoted method set from an embed (→ type-hunter Embedding
+Antipatterns); type-system bypasses at a boundary layer (→ invariant-hunter); content validation at a trust boundary
+(→ security-hunter); message chains inside object design (no hunter owns them). Where ownership is *contested*, the
 category's **Ownership:** note in What to Hunt is authoritative.
-
-## When to Use
-
-- Shrinking a unit's public surface to what is consumed
-- Preparing a package to be replaceable from its public entry alone
-- Untangling layers after a feature grew across them
-- Chasing an import cycle, an `ImportError`, or a bundler circular-reference warning
-- Reviewing whether a third-party or generated type has reached the domain
-- Reviewing package and directory names before a module is published or a monorepo is split
-
-## Quick Reference
-
-Full rules in **What to Hunt**; every finding must also clear Not-a-finding and the category's evidence bar. Category
-names are canonical: the heading here, in What to Hunt, in the applicability table, and in the report are identical.
-Forms are labelled variants inside a category, never separate categories. All seven categories are universal in
-definition; Cyclic Dependencies is n/a for Go (the compiler rejects import cycles).
-
-| Category | Core signal | Action | Belongs to another hunter |
-| -------- | ----------- | ------ | ------------------------- |
-| Dead Exports | An export with no external consumer | Unexport; drop from `__all__`; replace the wildcard with named re-exports | An unused *unexported* function or constant, and a Python public name with no importers anywhere → simplicity-hunter (Dead Code Paths); an unused import or binding → slop-hunter (Trivially Dead Code) |
-| Leaked Internals | A consumed export exposing *how* the unit works | Unexport the member; expose the behavior through a method or an owned type | A consumer using more foreign data than its own → smell-hunter (Feature Envy); a promoted `Lock` / `Unlock` from an *embed* → type-hunter (Embedding Antipatterns) |
-| Deep Imports | A consumer reaching past the unit's public entry | Import from the entry; expose the symbol there; `internal/` or `exports` to enforce | Nothing; this category is unshared |
-| Dependency Direction Violations | A module edge pointing outward against the layer map, or an edge an explicit prohibition names | Move the type to its owner; inject from the composition root; invert only where the language leaves no other break | Type-level wiring and self-instantiation → solid-hunter (Concrete Dependency Chains); one change editing many areas → smell-hunter (Shotgun Surgery) |
-| Cyclic Dependencies *(Python, TypeScript)* | Two or more modules importing each other, directly or transitively | Extract the shared concept into a third module, or invert the edge | Nothing; a provable `ImportError` is reported here with the failing site |
-| External Type Leaks | An external type crossing inward | An owned type or interface declared in the inward unit, implemented and converted at the edge | A hand-written mirror of a generated / ORM / SDK type → nobody's when it sits in the external's own layer; a bypass with a reason at a boundary → invariant-hunter; content validation → security-hunter |
-| Generic Boundary Names | A package or directory unit named for what it contains, not what it provides | Name after the capability; split by capability | A generic-named *file* (`utils.ts`) → smell-hunter (God Module); package responsibility and actors → solid-hunter (Responsibility Sprawl) |
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
+## Quick Reference
+
+Category names are canonical: the heading here, in What to Hunt, and in the report are identical. *(conditional)*
+marks a category that is n/a in some language; each language reference's Applicability table says where and why.
+
+| Category | Core signal | Action |
+| -------- | ----------- | ------ |
+| Dead Exports | An export with no external consumer | Unexport; drop from `__all__`; replace the wildcard with named re-exports |
+| Leaked Internals | A consumed export exposing *how* the unit works | Unexport the member; expose the behavior through a method or an owned type |
+| Deep Imports | A consumer reaching past the unit's public entry | Import from the entry; expose the symbol there; `internal/` or `exports` to enforce |
+| Dependency Direction Violations | A module edge pointing outward against the layer map, or an edge an explicit prohibition names | Move the type to its owner; inject from the composition root; invert only where the language leaves no other break |
+| Cyclic Dependencies *(conditional)* | Two or more modules importing each other, directly or transitively | Extract the shared concept into a third module, or invert the edge |
+| External Type Leaks | An external type crossing inward | An owned type or interface declared in the inward unit, implemented and converted at the edge |
+| Generic Boundary Names | A package or directory unit named for what it contains, not what it provides | Name after the capability; split by capability |
+
 ## Core Principles
 
-1. **A unit is its public entry.** The exported surface is a promise; everything else is implementation. Exports say
-   *what the unit provides*, never *how it works*. A consumer that must understand internals to use the API correctly
-   is the defect, and the finding is anchored at the export, not at the consumer.
+1. **Scans and counts nominate; reading decides.** `rg 'export \*'`, `go list`, `depcruise --output-type json`, and
+   every other tool find candidates; fan-in, fan-out, and occurrence counts nominate and set Impact. Nothing is a
+   finding until the consumers have been enumerated by reading, the tier has been read from a recorded source, the
+   cycle's edges have been classified, and the rewrite test has been answered in words.
 
-2. **Owned types cross; implementation types stay home.** Data flowing between units is expressed as the language's
-   own types, standard-library types, or owned domain types. A cache map, a row struct, a state-machine field, an
-   intermediate representation forces every consumer to depend on how the unit works. (No tension with smell-hunter's
-   Primitive Obsession: both resolve in owned domain types.)
+2. **Interfaces at two sites only.** The skill asks for an interface only when it is declared in an inward unit to
+   keep an external type at the edge, or as the last-resort inversion where the language leaves no other way to break
+   an outward import. A concrete type imported across a boundary is fine; the edge is Dependency Direction Violations
+   only when it points outward against the layer map or a prohibition names it.
 
-3. **Direction follows a recorded boundary source, never a guess.** Dependency Direction Violations and External Type
-   Leaks exist only where the repository states an ordering (instructions, an ADR, an `import-linter` `layers`
-   contract, or conventional sibling directory names) or an explicit prohibition (a `forbidden` contract, an Nx
-   constraint, a `mayDependOn` set). Without one, both categories are withdrawn with a Scope line. Tiers are never
-   inferred from the graph, from fan-in, or from who imports an external.
-
-4. **Externals stop at the edge.** Third-party and generated types belong in the units that wrap them. The edge layer
-   *is* the wrapping layer — its own signatures, re-exports, and conversions are never findings. The finding is the
-   crossing: the external type in an inward unit's exported API.
-
-5. **Scans nominate; the graph and reading decide.** `rg 'export \*'`, `go list`, `depcruise --output-type json` find
-   candidates. Nothing is a finding until the consumers have been enumerated by reading, the tier has been read from
-   a recorded source, the cycle's edges have been classified, and the rewrite test has been answered in words.
-
-6. **Documented coupling is policy, not a finding.** An edge the repository's instructions or a contract
-   configuration explicitly permits is withdrawn with a `Policy:` line. Silence is not permission and not
-   prohibition: an edge no rule mentions is judged by the map alone.
-
-7. **Never an interface for its own sake.** "Depend on abstractions" is not this skill's principle. Importing a
-   concrete type across a boundary is not a finding. The only interface this skill asks for is the one declared in an
-   inward unit to keep an external type at the edge, or the last-resort inversion where the language leaves no other
-   way to break an outward import.
-
-8. **Respect the language.** Go's flat packages, compiler-enforced `internal/` and cycle prohibition; Python's
-   convention-only privacy and import-time execution; TypeScript's barrels, `exports`, and type erasure are each the
-   language working as designed. Never recommend an enforcement mechanism the language does not have — Python's
-   remedy vocabulary is convention and contracts, not `internal/`.
+3. **Respect the language.** Calibrate every remedy to the language's own enforcement: Go `internal/`; TypeScript
+   `exports` or a unit-named alias; Python convention and `import-linter` contracts. The loaded reference carries the
+   calibration.
 
 ## Terms
 
@@ -115,32 +68,14 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   src/infra/y.ts`). Dead Exports, Leaked Internals, Deep Imports, and Generic Boundary Names concern a unit's public
   surface and are judged on the projection onto units. JavaScript files (`.js`, `.jsx`, `.mjs`, `.cjs`) are nodes so a
   mixed repository's graph is correct; they are never finding anchors.
-- **Boundary unit** — the construct whose exports form an API and whose imports form edges. Go: the package (import
-  path). Python: the package (a directory with `__init__.py`), or a standalone module where no package structure
-  exists. TypeScript: the workspace package when `package.json` `exports` / `main` names an entry; else the directory
-  with a barrel (`index.ts`); else the file. Generic Boundary Names applies to package and directory units only — a
-  file is never a "boundary name".
-- **Public entry** — the path a consumer is meant to import from. Go: the package path; sub-packages the parent alone
-  imports are implementation. Python: an `__init__.py` that re-exports names; independent of any `__init__`, a
-  `_`-prefixed module or an `internal` / `_internal` package is implementation. TypeScript: the barrel, the `exports`
-  entry, or a tsconfig `paths` alias **that names a unit** — one mapping to a package root or a barrel (`@org/auth` →
-  `packages/auth`, `@auth` → `src/auth/index.ts`). A root wildcard (`@/*` → `src/*`, `~/*`) is a convenience prefix,
-  not an entry; nothing is deep relative to it. A TypeScript directory with no barrel, no `exports`, and no
-  unit-named alias makes every file public and has no Deep Imports.
-- **Export** — per language; the full rules are in each reference's "Boundary unit, public entry, export,
-  publication" section. Go: an uppercase top-level identifier or method — **struct fields** and **reflection-protocol
-  methods** (`String`, `MarshalJSON`, …) are never Dead Exports candidates, because reflection reaches them and the
-  set cannot be closed; an interface-named method (`Close`, `ServeHTTP`) **is** a candidate unless a site uses the type
-  *as that interface*. Name matching alone abstains from nothing. TypeScript: the `export` keyword, judged at the
-  unit's entry. Python: a name in `__all__` or re-exported by a package `__init__.py` — **for Dead Exports only**; a
-  plain non-underscore name has no "unexport" edit. Leaked Internals and Deep Imports do not use this gate — a consumed
-  non-underscore name is judged by the rewrite test whatever `__all__` says, and a deep import is judged by the path
-  reached.
+- **Boundary unit**, **public entry**, **export** — the construct whose exports form an API and whose imports form
+  edges; the path a consumer is meant to import from; the members the unit offers outside itself. Each language
+  defines all three, and the members that are never Dead Exports candidates, in its reference's "Boundary unit,
+  public entry, export, publication" section.
 - **External consumer** — a use of the export from outside the boundary unit, in a non-test file. Imports are the
   usual form; **string references also count** (Python entry points in `pyproject`, Django settings strings, plugin
   registries, template names, Go `//go:linkname`, TypeScript dynamic `import()` with a literal). A test-file import is
-  recorded (`test only: {file}`) and never counts. A sibling file inside a TypeScript or Python unit is not external.
-  In Go, an exported identifier with only package-local use is the `package-local only` form of Dead Exports.
+  recorded (`test only: {file}`) and never counts.
 - **Published unit** — a unit whose exports may have consumers outside the tree. **Any evidence of documented import
   use opens the set** (mixed → open → withdrawn). **Closed** (judged in tree): Go — a `main` package; an `internal/`
   path; a package of a module that contains a `main` package **and** whose repository documents no import use (no
@@ -163,8 +98,8 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   and `src/infra`) and no name used in two tiers. `service`, `services`, `api`, `app`, and `models` are deliberately
   absent: `service/` names a microservice as often as a middle tier, `api/` holds domain contracts as often as
   transport, `app/` is Next.js's router, `models/` is generic. Recorded as `Layer map: {source} — {mapping}`. Tiers
-  annotate nodes by directory, so two files of one workspace package can carry different tiers. The map is never
-  guessed from the graph.
+  annotate nodes by directory, so two files of one workspace package can carry different tiers. Tiers are read from a
+  recorded source — never inferred from the graph, from fan-in, or from who imports an external.
 - **Boundary source** — what a Dependency Direction Violations or External Type Leaks finding needs before it exists:
   either the layer map (an ordering violated) or an **explicit prohibition** naming the edge or the external — an
   `import-linter` `forbidden` / `independence` contract, a dependency-cruiser `forbidden` rule, an Nx
@@ -191,11 +126,6 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   wire enums, getters, nullability, optional semantics — and a repository that wants its generated types in the domain
   says so once in instructions (`Policy:`). Not external: the standard library, as each reference defines it.
   Generated files are ineligible for findings and read as context.
-- **Mirror and mapper** — a hand-written declaration parallel to an external type, and the function converting between
-  them. **The mirror is never a finding here.** The finding is the **crossing**: the external type used inward beside
-  the mirror, or a mapper whose output still carries external types or external enum values *when the mapper's output
-  is an inward type*. A complete mapper is the remedy working. A field-for-field clone in the *same* layer as the
-  external is nobody's finding, by design.
 - **Edge** — one import statement from node A to node B, at `file:line`. Cycles, direction violations, and deep
   imports are judged per edge; one finding per edge (see Within-skill precedence).
 - **Rewrite test** — the Leaked Internals evidence bar: would a reimplementation of the unit from its *promised
@@ -203,90 +133,19 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   state-machine field, an intermediate representation. The test is about the unit's promise, not the member's kind — a
   parser library whose documented product is its AST passes with that AST; a domain type, a result, an option struct
   pass. The Exposed member cell states the reason; a member whose reason cannot be stated is not a finding.
-- **Runtime cycle** — a cycle that still exists after every erased edge is removed from the graph. A cycle that
-  disappears when erased edges are removed is **type-only**, even when some of its edges are runtime imports: `A → B`
-  runtime plus `B → A` type-only is not a runtime cycle, because after erasure nothing points back. Kind is a property
-  of the cycle, never of a single edge.
-- **Provable failure** — a runtime cycle's Failure value decided by reading: module `b` has, at module level, a read
-  of a binding from cycle partner `a` — `from a import X`, `a.X`, or a call at module level into a function whose body
-  reads `a.X` (one hop) — and `a` defines `X` *after* the statement that imports `b`. From the entry that starts at
-  `a`, `b` runs while `a` is partially initialized and the read fails (`ImportError` / `AttributeError`; TypeScript
-  ESM: a TDZ `ReferenceError` on a `const` or `class` binding). Recorded `provable from {entry}: {site}`. Reads inside
-  functions never called at module level are not traced. No interpreter and no bundler runs.
-- **Production entry** — an import order production actually uses: the entry module named by `[project.scripts]`,
-  `__main__.py`, `manage.py` / `wsgi.py`, a `package.json` `main` / `bin`, a framework's module discovery order, or a
-  package `__init__` whose import sequence fixes which partner loads first. A provable failure from a production entry
-  is failing today; from any other entry it is order-sensitive and working by luck.
 - **Form** — a labelled variant inside one category, carried in the report's Form cell: Dead Exports `zero consumers`
   / `package-local only` (Go) / `test only` / `consolidated barrel` (Python, TypeScript); Deep Imports `crossing` /
   `exposure` (Go); Cyclic Dependencies `runtime` / `type-only`; External Type Leaks `signature` / `re-export` /
   `mapper output`; Generic Boundary Names `generic name` / `clause ≠ directory` (Go). Dependency Direction Violations
   has one form and no Form cell; its Basis cell says whether the map or a prohibition is the boundary source.
 
-## Not a finding on these grounds alone
-
-Conditionals, not category exemptions — each states what does **not** justify a finding and, where one exists, what
-would:
-
-- **A concrete type imported across a boundary.** Never a finding. *Is* Dependency Direction Violations when the edge
-  points outward against the layer map or a prohibition names it, whatever the type's kind.
-- **An external type in an edge-layer unit's own signature, re-export, or conversion** (handler, adapter, repository
-  implementation, UI component). The wrapping layer. *Is* External Type Leaks when the same type appears in an inward
-  unit's exported API.
-- **An external type in any unit's API when no boundary source exists.** Withdrawn, all three forms: without a tier or
-  a prohibition the skill cannot tell an adapter from a domain.
-- **A standard-library type anywhere** (`context.Context`, `time.Time`, `pathlib.Path`, `Date`, Node builtins with or
-  without `node:`, `@types/node`, TypeScript `lib.*` types).
-- **A type from another first-party workspace module** (a `go.work` member, a `workspace:*` package, a package the
-  repository's `pyproject` declares). Owned; never an external type. *Is* Dependency Direction Violations when the
-  edge points outward.
-- **A hand-written mirror of a generated / ORM / SDK type with a complete mapper.** The remedy working. *Is* External
-  Type Leaks when the external type is used inward beside the mirror, or when the mapper's output still carries
-  external types or enum values. A field-for-field clone in the same layer as the external is nobody's finding.
-- **An owned type or interface declared in an inward unit, implemented at the edge, and received from the composition
-  root.** The External Type Leaks remedy, and a live seam under simplicity-hunter's and solid-hunter's existing
-  definitions. *Is* simplicity-hunter's Unnecessary Abstractions when the inward unit constructs the wrapper itself
-  and no external type was kept out.
-- **A TypeScript or Python `export` consumed only by sibling files inside the unit.** The keyword is how files share.
-  *Is* Dead Exports in Go, where the analogue — an exported identifier used only package-locally — has a cheaper form:
-  unexport.
-- **A Go struct field, or a method with a reflection-protocol name.** `encoding` and `fmt` reach them without an
-  import; the set cannot be closed. Never Dead Exports. An interface-named method (`Close`, `Read`, `ServeHTTP`) is
-  *not* covered by this bullet: it is a candidate unless a site uses the type as that interface.
-- **An export referenced only by string** (entry point, settings, template, registry). The string is the consumer; the
-  Consumers cell names it.
-- **An open (published) unit's export with zero in-tree consumers.** Withdrawn with a `Limitation` line, never
-  reported as "unused internally".
-- **A generated file's export.** Generated files are ineligible; their types are the external types the leak category
-  judges.
-- **An import deferred inside a function.** Nomination only; by itself it neither proves nor excludes an
-  initialization hazard — a function called at module level runs during init.
-- **A deep import in a test file**, and any test-file edge. Test files are out of scope, not exempt.
-- **An import from a TypeScript directory with no barrel, no `exports`, and no unit-named alias**, an import through a
-  root wildcard alias (`@/…`), or an import of a Go sub-package of a package that is itself the entry. No deep import
-  exists where every file is the entry. Python differs: a `_module` or an `internal` package is deep whatever the
-  `__init__` says.
-- **A Go package clause differing from its directory** for `package main`, `_test` packages, `/vN` major-version
-  directories, and hyphenated directories whose clause drops the hyphen or a `go-` prefix.
-- **A generic-named unit with one capability** (`strutil` holding string helpers; `errors` holding error types). *Is*
-  Generic Boundary Names when two or more unrelated capabilities are enumerated under the generic name.
-- **A generic-named file** (`utils.ts`, `helpers.py`), whatever it holds. smell-hunter's God Module.
-- **A Dependency Direction Violations edge a contract configuration explicitly permits**, or repository instructions
-  sanction. The `Policy:` line withdraws it. An edge no rule mentions is not permitted by silence.
-- **Fan-in or fan-out counts alone.** A hub is a hub. Counts nominate and set Impact; they never decide a finding.
-- **An inward unit's private (unexported) use of an external type.** Not External Type Leaks, which judges the
-  exported API. A known non-owner.
-
 ## What to Hunt
-
-Categories are named, not numbered. Cross-references use category names (e.g. "→ Deep Imports"). Fan-in, fan-out, and
-occurrence counts nominate and set Impact; they never decide a finding.
 
 ### Dead Exports
 
 An export with no external consumer.
 
-**Signals** — every one of them *nominates*; none is a threshold:
+**Signals:**
 
 - An exported function, type, or constant with zero import sites outside its unit
 - An exported constructor for a type nothing outside the unit uses
@@ -304,10 +163,13 @@ package. Python and TypeScript consolidated form: a wildcard re-export exposing 
 representative symbol and `Occurrences: N`; a consumed member the rewrite test fails (Python: a `_name` the
 submodule's `__all__` lists, the only way `import *` carries one) gets its own Leaked Internals row.
 
+**Not a finding:** a TypeScript or Python `export` consumed only by sibling files inside the unit — the keyword is how
+files share. Go's analogue, an exported identifier used only package-locally, *is* the `package-local only` form.
+
 **Action:** unexport; remove from `__all__`; replace the wildcard with named re-exports of the public API. Test-only:
 the export exists for the test alone, and the Action names the public behavior the test should assert after
-unexporting — **never** "make it an internal test". After unexporting, a symbol with no callers at all becomes
-simplicity-hunter's next audit — sequential, not double.
+unexporting. After unexporting, a symbol with no callers at all becomes simplicity-hunter's next audit — sequential,
+not double.
 
 **Ownership:** an *exported* symbol with no external consumer is here. An unused *unexported* function or constant,
 and a Python non-`__all__` name with no importers anywhere, are simplicity-hunter's Dead Code Paths; unused imports
@@ -338,7 +200,8 @@ dependence is the reason, cited.
 
 **Ownership:** this category judges the *producer's surface*; smell-hunter's Feature Envy judges the *consumer's
 placement*. A consumer reaching an exported member that fails the rewrite test is one finding here, anchored at the
-export; members that pass the rewrite test leave the placement question to smell-hunter. An exported struct
+export; members that pass the rewrite test leave the placement question to smell-hunter. smell-hunter's Primitive
+Obsession points at the same remedy — owned domain types — so the two never conflict. An exported struct
 *embedding* `sync.Mutex` promotes `Lock` / `Unlock` — type-hunter's Embedding Antipatterns judges that promoted method
 set; an exported mutex *field* (`Mu sync.Mutex`) read or locked by an external consumer is here.
 
@@ -356,10 +219,15 @@ A consumer reaching past the unit's public entry.
 
 **Evidence bar:** *crossing* form — the consumer's import line, the entry it bypassed (barrel, `exports`, the
 `__init__` surface, a unit-named alias, the parent Go package) or the private path reached (`pkg._x`,
-`pkg.internal.x`), and the symbol reached. An import through a root wildcard alias bypasses nothing. *Exposure* form
-(Go, any module, Low) — a sub-package consumed only by its parent or the parent's siblings, importable from the rest
-of the module because it is not under `internal/`, with no outside importer yet. `internal/` restricts import to the
-tree rooted at its parent, so in-module packages are exactly what it protects against.
+`pkg.internal.x`), and the symbol reached. *Exposure* form (Go, any module, Low) — a sub-package consumed only by its
+parent or the parent's siblings, importable from the rest of the module because it is not under `internal/`, with no
+outside importer yet. `internal/` restricts import to the tree rooted at its parent, so in-module packages are exactly
+what it protects against.
+
+**Not a finding:** an import from a unit with no public entry (a TypeScript directory with no barrel, no `exports`,
+and no unit-named alias), an import through a root wildcard alias (`@/…`), or an import of a Go sub-package of a
+package that is itself the entry — where every file is the entry, nothing is deep. A Python `_module` or `internal`
+package is deep whatever its `__init__` says.
 
 **Action:** import from the entry; expose the needed symbol there. Enforcement vocabulary per language: Go
 `internal/`; TypeScript `package.json` `exports`, or a unit-named alias; Python has none — convention and
@@ -389,15 +257,31 @@ source.**
 **Action:** stop the outward import — move the type to the unit that owns it (the Action when the outward import
 fetches a domain type defined in an edge unit); pass the value in from the composition root; and only where the
 language cannot otherwise break the import (Go, typically) define the interface *in the inward unit* and implement it
-at the edge. **Never "define an interface" as the default remedy.**
+at the edge.
 
 **Ownership:** solid-hunter's Concrete Dependency Chains is type-level wiring — self-instantiation, a module-level
 singleton read; import direction between layers is here, and the last-resort interface is declared in the inward unit,
-which is solid-hunter's own DIP shape. smell-hunter routes dependency direction here from Shotgun Surgery.
+which is solid-hunter's own DIP shape. smell-hunter routes dependency direction here from Shotgun Surgery; one change
+editing many areas stays smell-hunter's Shotgun Surgery.
 
 ### Cyclic Dependencies *(Python, TypeScript)*
 
 Two or more modules importing each other, directly or transitively, on the module graph.
+
+- **Runtime cycle** — a cycle that still exists after every erased edge is removed from the graph. A cycle that
+  disappears when erased edges are removed is **type-only**, even when some of its edges are runtime imports: `A → B`
+  runtime plus `B → A` type-only is not a runtime cycle, because after erasure nothing points back. Kind is a property
+  of the cycle, never of a single edge.
+- **Provable failure** — a runtime cycle's Failure value decided by reading: module `b` has, at module level, a read
+  of a binding from cycle partner `a` — `from a import X`, `a.X`, or a call at module level into a function whose body
+  reads `a.X` (one hop) — and `a` defines `X` *after* the statement that imports `b`. From the entry that starts at
+  `a`, `b` runs while `a` is partially initialized and the read fails (`ImportError` / `AttributeError`; TypeScript
+  ESM: a TDZ `ReferenceError` on a `const` or `class` binding). Recorded `provable from {entry}: {site}`. Reads inside
+  functions never called at module level are not traced. No interpreter and no bundler runs.
+- **Production entry** — an import order production actually uses: the entry module named by `[project.scripts]`,
+  `__main__.py`, `manage.py` / `wsgi.py`, a `package.json` `main` / `bin`, a framework's module discovery order, or a
+  package `__init__` whose import sequence fixes which partner loads first. A provable failure from a production entry
+  is failing today; from any other entry it is order-sensitive and working by luck.
 
 **Signals:**
 
@@ -407,7 +291,7 @@ Two or more modules importing each other, directly or transitively, on the modul
 - An import deferred inside a function
 
 **Evidence bar:** the cycle path; **Kind** — `runtime` when the cycle survives removal of every erased edge,
-`type-only` when it does not; **Failure** — `provable from {entry}: {site}` (see Terms), `observed: {log or test}` (a
+`type-only` when it does not; **Failure** — `provable from {entry}: {site}` (above), `observed: {log or test}` (a
 cited existing output), or `none observed`. Deferred imports inside functions are a nomination signal only: they
 neither prove nor exclude an init hazard. Same-layer type-only cycles are Low, with no "explicitly justified" concept;
 cross-layer type-only edges route to Dependency Direction Violations.
@@ -422,6 +306,12 @@ error hunter scores it.
 
 An external type crossing inward.
 
+- **Mirror and mapper** — a hand-written declaration parallel to an external type, and the function converting
+  between them. **The mirror is never a finding here.** The finding is the **crossing**: the external type used inward
+  beside the mirror, or a mapper whose output still carries external types or external enum values *when the mapper's
+  output is an inward type*. A complete mapper is the remedy working. A field-for-field clone in the *same* layer as
+  the external is nobody's finding, by design.
+
 **Signals:**
 
 - `gin.Context`, `echo.Context`, `django.http.HttpRequest`, `flask.Request`, `sqlalchemy.Session`, `Express.Request`,
@@ -435,8 +325,7 @@ the external type. `re-export` form: an inward unit re-exports or aliases an ext
 = pb.User`, `export type { User } from '@prisma/client'`). `mapper output` form: a conversion into an inward type
 whose result still carries the external type or its enum values. Edge-layer units using, re-exporting, or converting
 between external types are the wrapping layer and never a finding — which is why no form runs without a boundary
-source. A mirror is never a finding; the crossing beside it is. **Exported API only:** an inward unit's private use of
-an external is not this category.
+source. **Exported API only:** an inward unit's private use of an external is not this category.
 
 **Action:** first ask whether the external concept belongs in the inward signature at all — transaction plumbing
 usually does not. If it does: an owned type or interface **declared in the inward unit**, implemented and converted at
@@ -446,9 +335,9 @@ the edge, injected from the composition root, so the edge unit becomes the only 
 a test seam or DI boundary while an injector actually uses it) and solid-hunter's seam definition (a production
 consumer receives it from outside); it is not a new exemption. What stays simplicity-hunter's Unnecessary
 Abstractions: a wrapper the inward unit constructs itself, with no external type kept out. A hand-written mirror of a
-generated / ORM / SDK type is never duplication for type-hunter and never a leak here; only the crossing beside it is.
-A type-system bypass with a reason in a boundary layer is invariant-hunter's, content validation at a trust boundary
-is security-hunter's, and whether the external *type* crosses inward is here — different questions on adjacent sites.
+generated / ORM / SDK type is never duplication for type-hunter. A type-system bypass with a reason in a boundary
+layer is invariant-hunter's, content validation at a trust boundary is security-hunter's, and whether the external
+*type* crosses inward is here — different questions on adjacent sites.
 
 ### Generic Boundary Names
 
@@ -481,47 +370,22 @@ the rewrite test with a consumer touching it is Leaked Internals; exposed but un
 granularity. The reported finding's Evidence cell names the other readings in one clause, or its Action cell where
 the table has no Evidence column.
 
-## Applicability
-
-Seven categories are universal in definition; each language reference declares them applicable or not, with the
-reason. **A language with no reference is not supported** — its files are excluded, never implicitly audited.
-
-| Category | Go | Python | TypeScript |
-| -------- | -- | ------ | ---------- |
-| Dead Exports | yes — adds the `package-local only` form | yes — `__all__` and `__init__` re-exports only | yes — `export` at the unit's entry |
-| Leaked Internals | yes | yes — adds an `__init__` re-exporting a `_name` | yes |
-| Deep Imports | yes — adds the `exposure` form | yes — no enforcement mechanism | yes |
-| Dependency Direction Violations | yes — package edges | yes — module edges | yes — file edges |
-| Cyclic Dependencies | **n/a** — the compiler rejects import cycles | yes | yes |
-| External Type Leaks | yes | yes | yes |
-| Generic Boundary Names | yes — adds the `clause ≠ directory` form | yes | yes — never a file |
-
-There are no language-only categories: Go's extra forms live inside universal categories.
-
 ## Test-code scope
 
-**Test files are excluded from findings.**
-Paths per language: Go `*_test.go`; Python `test_*.py`, `*_test.py`, `tests/`, `conftest.py`; TypeScript `*.test.*`,
-`*.spec.*`, `*.e2e.*`, `__tests__/`. The exclusion is **by path**.
+**Test files are excluded from findings.** Test paths are listed in each language reference; the exclusion is **by
+path**.
 
 Test files are **read as context**:
 
 - A test-file import of an export is recorded in the Consumers cell as `test only: {file}` and never counts as an
-  external consumer. The resulting Dead Exports finding is Low, and its Action names the public behavior the test
-  should assert once the member is unexported. The Action never recommends converting to a white-box test: this
-  skill's identity is that the public API suffices, and `package foo_test` is that API's consumer, only a test one.
+  external consumer; the result is the Dead Exports `test only` form.
 - Test-file deep imports and test-file edges are never findings and never close a reported cycle.
 
 Test evidence never raises Severity. Anchor the finding at the production declaration or edge.
 
-**Recorded gap:** Fowler's Message Chains (the Law of Demeter) has no owner in the unified suite. At
-the boundary the defect is already judged — a return exposing a third unit's internal type is Leaked Internals at the
-export, a return of another unit's public type is legitimate dependency — but chains inside object design are neither.
-smell-hunter is the candidate.
-
 ## Severity and Impact
 
-Every finding carries **both**, per the sibling definitions. They answer different questions and routinely diverge.
+Every finding carries **both**. They answer different questions and routinely diverge.
 
 **Severity — behavioral risk if left as-is:**
 
@@ -539,7 +403,7 @@ Every finding carries **both**, per the sibling definitions. They answer differe
 - **Low** — generic boundary names, `clause ≠ directory`, the Go exposure form, test-only exports, same-layer
   type-only cycles, a dead export at member granularity, a consolidated barrel row whose symbols are all unconsumed.
 
-A candidate that fails its evidence bar or matches a Not-a-finding conditional produces **no finding at any severity**.
+A candidate that fails its evidence bar or matches a Not-a-finding line produces **no finding at any severity**.
 Severity is never a confidence scale: a consumer set that could not be closed, a tier that could not be assigned, a
 publication status left mixed, a cycle Kind that depends on an emit setting that could not be read — **withdrawn** with
 a `Limitation` line, never downgraded. When precedence consolidates two readings of one edge, the strongest
@@ -552,8 +416,6 @@ impact at Medium severity; a dead export in a leaf is Low.
 - **High** — substantial reduction on a unit imported or changed often
 - **Medium** — clear improvement on a moderately reached unit
 - **Low** — clears the evidence bar but touches a leaf or a rarely changed unit
-
-Recommendations group by Severity (Critical → High → Medium → Low), then by Impact within each group.
 
 ## Audit Workflow
 
@@ -568,8 +430,8 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 
    **Party mode:** when the orchestrator supplies a scope snapshot, treat `scope.txt` as a **file manifest only**
    (one path per line): `SCOPE=$(cat <snapshot>/scope.txt)`. Read run metadata (base SHA — `$MB` in diff mode —
-   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; do not re-resolve. The
-   resolution above is for standalone runs only.
+   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; the resolution
+   above is for standalone runs only.
 
    **Persist run state.** Shell variables do not survive between tool calls, and `rg … --` with an empty variable
    searches the whole working directory. Create one run directory (`RUN=$(mktemp -d) && echo "$RUN"`) and use the
@@ -582,8 +444,8 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
    commit — state that findings must be re-located by symbol name.
 
-   The raw manifest is **immutable** and language-independent. Do not redefine it on a mixed scope — silently
-   narrowing breaks the party guarantee that all hunters audit the same surface.
+   The raw manifest is **immutable** and language-independent: on a mixed scope it stays whole, so every hunter in a
+   party audits the same surface.
 
    **Whitespace in paths is unsupported.** The newline-delimited manifest plus `-- $SCOPE` shell expansion
    word-splits on spaces; whitespace paths are a declared limitation.
@@ -593,16 +455,14 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
 
-   **Supported languages are Go, Python, and TypeScript.** Every other extension is **excluded, not audited**:
-   without a reference there is no unit definition, no entry rule, no export vocabulary, no eligibility rule.
-   JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`) is the one extension that is still **read into the import graph** —
-   its ESM `import` and CJS `require` edges keep a mixed repository's graph correct — but a `.js` file is never a
-   finding anchor. Record `excluded — no reference for .<ext>: {count} files` in Scope, naming each extension, and
-   note the JavaScript graph inclusion.
+   **Supported languages are Go, Python, and TypeScript.** Every other extension is **excluded, not audited**.
+   JavaScript (`.js`, `.jsx`, `.mjs`, `.cjs`) files still enter the import graph as non-anchoring nodes (Terms).
+   Record `excluded — no reference for .<ext>: {count} files` in Scope, naming each extension, and note the
+   JavaScript graph inclusion.
 
 3. **Load language references.** For every detected language, read `references/boundary-<lang>.md` from the directory
    this SKILL.md was read from (e.g. `references/boundary-go.md`). **Fail closed:** if a required reference cannot be
-   read, **stop and report**; do not continue with the universal categories only.
+   read, **stop and report**.
 
 4. **Derive per-language eligible subsets** by applying each reference's generated-code and vendoring rules **plus the
    test-path exclusion** to that language's files. These subsets are then immutable. Record in Scope: raw manifest
@@ -629,8 +489,7 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    there. The import graph, consumers, tiers, and publication evidence are *read* as **context** wherever they live:
    a unit's consumers, a cycle's partner, and a layer's other side routinely sit outside any diff. Diff and path
    scope narrow the manifest, never the context reading. A finding anchors at the export declaration, the consumer's
-   import line, the leaking signature, or the package clause. A cycle has no privileged edge; it anchors at any
-   eligible in-scope edge of the cycle, the first in sorted path order when several qualify.
+   import line, the leaking signature, or the package clause; report-format.md gives the cycle and unit anchors.
 
 5. **Read repository instructions** (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`) and the named ADR paths for the
    **layer map**, **explicit prohibitions**, and **policy**: a stated layering, a sanctioned coupling, a generated
@@ -638,13 +497,11 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    configurations each reference names. Record `Layer map: {source} — {mapping}` or `Layer map: none`,
    `Prohibitions: {source files}` or `Prohibitions: none`, and any `Policy:` lines. **With neither a map nor a
    prohibition, Dependency Direction Violations and External Type Leaks are not evaluated** — record the Scope line
-   and judge the other five categories. This step precedes the toolchain so no command runs against the project's
-   own instructions.
+   and judge the other five categories.
 
-6. **Record the toolchain — present-only, never installed.** Run each loaded reference's Toolchain section and write
-   one `Toolchain:` line per tool with the exact invocation. Four outcomes per tool: **ran** (command, version,
-   coverage), **skipped — not installed**, **skipped — not configured**, **errored**. Nothing is installed, no
-   configuration is written into the project, and no tool output is a finding — every tool here is a nominator.
+6. **Record the toolchain — present-only.** Run each loaded reference's Toolchain section with the tools the project
+   already has, writing no configuration into the project, and write one `Toolchain:` line per tool with the exact
+   invocation, in the form `references/report-format.md` gives.
 
 7. **Read the emit settings** when TypeScript is in scope, per the TypeScript reference's "Emit and erasure" section,
    and record the `Emit:` line. Where the emit pipeline cannot be established, cycle Kind is withdrawn per candidate
@@ -656,8 +513,7 @@ Project-wide, whatever the scope. One file-level graph, each edge tagged **erase
 reference: Go from `go list` (or the import scan on failure); Python and TypeScript from import scans, with the
 present graph tool as a nominator and cross-check. Graph scans run on `.` — never on the step-4 lists — and keep
 generated files, which are context and can be consumers. Annotate nodes with their boundary unit and, where a layer
-map exists, their tier. Record `Graph: {N nodes, M edges, E erased, U units} from {source}` in Scope. JavaScript files are
-nodes; they carry no unit annotation and anchor nothing.
+map exists, their tier. Record `Graph: {N nodes, M edges, E erased, U units} from {source}` in Scope.
 
 ### Phase 3: Scan and Nominate
 
@@ -665,6 +521,8 @@ Scans produce **candidates only**. For each loaded reference, run its Phase 3 sc
 step-4 list (`<run>/go.txt`, `python.txt`, `typescript.txt`, restored as `$GO_FILES`, `$PY_FILES`, `$TS_FILES`;
 the single path `.` in codebase mode). Pass an explicit path to **every** `rg` invocation. Diff mode nominates
 from the working tree over the manifest files, not from added lines: a boundary is a property of the current code.
+
+Done when every scan in each loaded reference's Phase 3 block has run and every hit is listed as a candidate.
 
 ### Phase 4: Enumerate
 
@@ -686,19 +544,21 @@ Findings claim the enumerated set only.
 
 ### Phase 5: Evaluate Each Finding
 
-For each candidate: apply **Not-a-finding** first; confirm the category applies in that file's language (see
-Applicability); apply the ownership tests — the export definition per language, the rewrite test, the publication
-rule, the boundary-source rule, the mirror answer — and within-skill precedence; then clear the category's evidence
-bar from What to Hunt. Check policy: a `Policy:` line withdraws what it names. Run each loaded reference's Phase 5
+For each candidate: apply the category's own **Not a finding:** line first, where it has one; confirm the category
+applies in that file's language (the loaded reference's Applicability table); apply the ownership tests — the export
+definition per language, the rewrite test, the publication rule, the boundary-source rule, the mirror answer — and
+within-skill precedence; then clear the category's evidence bar from What to Hunt. Check policy: a `Policy:` line withdraws what it names. Run each loaded reference's Phase 5
 block for its language-specific judgment.
 
-Assign **Severity and Impact** to every finding (both required; they diverge). One finding per edge and per exported
-member. Nothing is held back; `Audit completed: N findings` counts every reported finding.
+Assign **Severity and Impact** to every finding. One finding per edge and per exported member. Nothing is held back; `Audit completed: N findings` counts every reported finding.
 
 **The zero-findings line is reached only when no category has a candidate** — no export, no module-graph cycle, no
 module edge between different tiers or named by a prohibition, no deep import, no external type in an exported
 signature, no generic-named unit. It is never keyed on cross-unit edges: two files inside one barrel directory
 importing each other are a cycle candidate although the projection onto units shows no edge at all.
+
+Done when every candidate is a reported finding, a withdrawal (`Limitation` or `Policy:` line), a drop (failed
+evidence bar or a Not-a-finding line), or a hand-off to its owning hunter.
 
 ### Phase 6: Produce Report
 
@@ -708,67 +568,10 @@ mode (e.g. the party-hunter orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-## Red Flags — stop and re-check
-
-| Thought | Reality |
-| ------- | ------- |
-| "`domain/` importing `infra/` — obvious violation" | Where is the layer map recorded? Instructions, an `import-linter` `layers` contract, or sibling directories from the fixed vocabulary. No boundary source, no finding. |
-| "The directory is called `service/`, so it is the application tier" | `service`, `api`, `app`, `models` are not vocabulary. They name a microservice, a contracts package, a router, and everything. |
-| "The linter config lists these tags, so that is the layering" | A contract permits or forbids *edges*. A `forbidden` rule is evidence for the edge it names; it never becomes a tier for any other edge. |
-| "No rule mentions this edge, so the project allows it" | Silence is not permission. Judge it against the map; `Policy:` needs an explicit permission. |
-| "`grep` found no importers — dead export" | Default, namespace, and aliased TypeScript imports, Python `import *`, Go grouped `const (…)` blocks and methods all defeat name grep. Enumerate by reading, and search string references too. |
-| "It is exported and nothing in the repo uses it" | Is the unit closed? A published library's export withdraws with a `Limitation` — never "unused internally". |
-| "`Close()` has no callers — dead export" | Is the type ever used *as* `io.Closer` — assigned, converted, passed, returned, stored? Then no finding. Name matching alone abstains from nothing. |
-| "`MarshalJSON` has no callers" | A reflection protocol. `encoding/json` reaches it without an import; never a candidate. |
-| "The exported struct field is unused" | Struct fields are never Dead Exports. Reflection reaches them and the set cannot be closed. |
-| "The barrel re-exports twelve dead symbols — twelve findings" | One consolidated row with a representative symbol and `Occurrences: 12`. A consumed `_name` among them gets its own Leaked Internals row. |
-| "The export leaks a cache — Leaked Internals" | Does a consumer *touch* it? Exposed but untouched is Dead Exports at member granularity, Low. |
-| "A cache field is always implementation" | State the rewrite-test reason against the unit's *promise*. A parser whose product is its AST keeps the AST. No reason statable, no finding. |
-| "One edge is a value import, so the cycle is runtime" | Kind is a property of the cycle: does it survive removal of every erased edge? `A → B` runtime plus `B → A` type-only does not. |
-| "A cycle with deferred imports is safer" | Import placement decides nothing. A function called at module level runs during init. Medium either way unless a read is provable. |
-| "The cycle will blow up at import time" | Provable means a module-level read of a partner binding defined *after* the partner's own import, from a named entry. Otherwise `none observed`. |
-| "I'll run `python -c 'import a'` to confirm" | No project code is executed. The failure is read, or cited from an existing log. |
-| "The cycle is Critical" | Only from a **production** entry, or with an observed log. From another entry it is High, with the order production uses named. |
-| "`@/utils/internal/x` bypasses the barrel" | `@/*` → `src/*` is a root wildcard: a prefix, not an entry. Nothing is deep relative to it. |
-| "The domain mirrors the Prisma model — leak" | The mirror is never a finding. The crossing is: the external used inward beside it, or a mapper output still carrying it. |
-| "`.proto` is ours, so `pb.User` is first-party" | Stated policy: generated code is external whoever owns the schema. A `Policy:` sentence in instructions opts out. |
-| "`React.FC` in a component — external leak" | Components are the edge tier. The wrapping layer's own signatures are never leaks. |
-| "Define an interface so the domain does not import the adapter" | Not the default remedy. Move the type to its owner, or inject from the composition root. An interface only where the language leaves no other break — and it is declared in the *inward* unit. |
-| "`pkg/utils` is a generic name" | Enumerate two or more unrelated capabilities. One capability under a generic-ish name is no finding. |
-| "The 700-line `utils.ts` is a generic boundary name" | A file is never a boundary unit. smell-hunter's God Module. |
-| "The package spans persistence, HTTP, and pricing" | solid-hunter's Responsibility Sprawl. This skill judges the *name*, not the responsibilities. |
-| "The consumer walks `a.b.c.d` across a boundary" | Message Chains has no owner in this suite; recorded as a gap. Only an exposed internal *type* is a finding here. |
-| "I'm not sure the tier is right, so I'll report it Low" | Severity is not confidence. Withdraw it with a `Limitation` line. |
-| "The report looks thin — I'll list what I checked and found clean" | Zero-finding sections are omitted. A thin report is a valid result. |
-| "I'll `npm i -D dependency-cruiser` first" | Nothing is installed. Absent tool: `skipped — not installed`, and the graph is read. |
-| "I'll just fix it while I'm here" | No code edits. The report is the deliverable. |
-| "The language reference won't load — I'll do the universal categories only" | Fail closed. Stop and report. |
-
 ## Operating Constraints
 
-- **No code edits.** Audit report only. Implementation is a separate step.
-- **The report is the template.** `references/report-format.md` fixes the shape: Scope, then one section per
-  category with at least one finding, then Recommendations. A category with no findings gets no heading, table,
-  or "none found" line.
-- **Scope: boundary cleanliness only.** A finding that doesn't answer "is this unit a black box, replaceable from its
-  public entry?" belongs to another hunter. Contested boundaries are resolved at the category that owns them: each
-  **Ownership:** note in What to Hunt states what is kept here and what routes away.
-- **Evidence required.** Every finding cites `file:line` (path form per the language reference) with the exact
-  declaration, import statement, or signature, and the category's evidence cells — Consumers, Exposed member, Public
-  entry, Basis, Kind and Failure, Form and boundary source, Capabilities — are filled, never inferred.
-- **One finding per edge and per member.** When two categories describe the same edge or the same exported member,
-  within-skill precedence picks the primary one and the Evidence cell (else the Action cell) names the other reading.
-- **Never install; never execute project code.** Tools are used only when the project already has them. No cycle is
-  reproduced by importing a module, no bundler is run to establish emit, no scratch prefix is created.
-- **Boundary sources are read, never guessed.** No tier is inferred from the graph, from fan-in, from who imports an
-  external, or from a directory name outside the fixed vocabulary. With no map and no prohibition, both dependent
-  categories are withdrawn with a Scope line.
-- **Documented coupling is `Policy:`.** A coupling the repository states as intentional is acknowledged and
-  withdrawn, not reported; a conflict between instructions and a configuration is reported with the conflict named,
-  instructions outranking configuration.
-- **Handoff, not duplication.** When a candidate belongs to another hunter — an unexported dead function, a
-  generic-named file, a package spanning responsibilities, a mirror with a complete mapper — cross-reference it and
-  do not score it here.
-- **Respect the language.** Calibrate to the audited language's enforcement mechanisms; the reference carries the
-  calibration. Never recommend `internal/` in Python, a barrel in Go, or a cycle remedy for a language whose compiler
-  already rejects cycles.
+- **Report only.** The audit report is the deliverable; source files stay untouched.
+- **Read; never install or execute.** Use only tools the project already has. Establish a cycle's failure and the
+  emit pipeline by reading code and existing logs — never by importing a project module or running a bundler.
+- **Evidence from reading.** Every finding cites `file:line` with the exact declaration, import statement, or
+  signature, and fills its category's evidence cells from what was read, never by inference.

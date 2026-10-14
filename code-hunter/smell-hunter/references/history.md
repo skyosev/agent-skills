@@ -1,6 +1,6 @@
 # Shotgun Surgery — git-history pipeline
 
-Read at Phase 4. Run each block as written; replace `<run>` with the run directory printed in Phase 1. Each block
+Run each block as written; replace `<run>` with the run directory printed in Phase 1. Each block
 restores what it uses, so the blocks may run in separate tool calls.
 
 ```bash
@@ -13,8 +13,8 @@ for c in $COMMITS; do
   git show --pretty=format:'@@@ %h %s' --name-only "$c" || exit 1    # STOP: git show failed
 done > <run>/commits.txt
 
-# 3. Count area PAIRS, not whole sets, so partially overlapping commits still co-occur. An area is the folder
-#    holding the file. Commits touching BULK or more areas are bulk changes and are skipped.
+# 3. Count area PAIRS, not whole sets, so partially overlapping commits still co-occur. Commits touching BULK or
+#    more areas are bulk changes and are skipped.
 awk -v BULK=15 '
   function flush(   n, i, j, t, k, p) {
     n = 0; for (p in dirs) k[++n] = p

@@ -1,8 +1,6 @@
 # Invariant Hunter — Go reference
 
-Contents: Applicability of universal categories · Generated-code and test-path eligibility · Go principles · Not a finding on these grounds alone — Go · Language-only categories · Per-category Go content · Toolchain · Idiom calibration · Evidence path form · Phase 2 — invariant scans · Phase 5 — Go-specific evaluation · Red Flags — Go
-
-Language-specific rules for Go.
+Contents: Applicability of universal categories · Generated-code and test-path eligibility · Go principles · Not a finding on these grounds alone — Go · Language-only categories · Per-category Go content · Toolchain · Idiom calibration · Phase 2 — invariant scans · Phase 5 — Go-specific evaluation
 
 ## Applicability of universal categories
 
@@ -22,14 +20,12 @@ Python and TypeScript route error handling there.
 ## Generated-code and test-path eligibility
 
 A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs
-such as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the
-marker.
+`// Code generated … DO NOT EDIT.` line before the first non-comment text. Scan globs such as `*.pb.go` /
+`*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
 
 Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
 
-**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`. Test files are still read as context — a
-test that passes `nil` proves the parameter is nil-able.
+**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`.
 
 ## Go principles
 
@@ -44,8 +40,6 @@ test that passes `nil` proves the parameter is nil-able.
   severs the caller's cancellation.
 
 ## Not a finding on these grounds alone — Go
-
-Added to the universal list in SKILL.md:
 
 - **A zero-value type designed and documented for zero-value use.** *Is* a finding when a method panics on it.
 - **`_ = f()` with a justifying comment that the code confirms** — `Close` on a file opened read-only, a logger
@@ -138,8 +132,7 @@ consumer that accepts the unchecked sentinel, or the conversion site and the inp
 contract with lazy init. For types that must not be copied: **Go cannot make a struct non-copyable** — the mitigations
 are API design and detection, not enforcement. Keep such types behind pointers (constructors return `*T`; don't accept
 or return the struct by value), document the no-copy invariant, and run `go vet`'s `copylocks` analyzer, which is what
-actually catches violations. (The unexported `noCopy` marker used by the standard library exists solely to make
-`copylocks` fire — a vet convention, not a language guarantee.)
+actually catches violations.
 
 **Action (sentinels and conversions):** reject the zero sentinel at the consumer or the constructor; convert external
 input through a parse function that range-checks (`ParseStatus(n) (Status, error)`).
@@ -298,11 +291,9 @@ standard toolchain, and its default analyzers include `copylocks`, `lostcancel`,
 project's pinned version.
 
 **Execution:** read-only. `GOPROXY=off go vet ./...` or the project's command; `errcheck ./...` with the project's
-flags. `GOPROXY=off` stops the go command from downloading missing modules; a load failure is then `errored`, never a
-fetch. Record in Scope, per tool: `ran — <command>, <version>, <coverage>, <options>` / `skipped — not configured` /
-`skipped — configured, not installed` / `errored — <message>` (packages fail to load, module download needed).
-Options that change what a tool sees are part of the record: `errcheck -blank` (off by default — blank assignments
-are then *not* checked), `-asserts`, `-exclude` lists, `golangci-lint` exclusion rules (`issues.exclude-rules` in v1,
+flags. `GOPROXY=off` stops the go command from downloading missing modules; a load failure (packages fail to load,
+module download needed) is then `errored`, never a fetch. Options that change what a tool sees are part of the
+record: `errcheck -blank` (off by default — blank assignments are then *not* checked), `-asserts`, `-exclude` lists, `golangci-lint` exclusion rules (`issues.exclude-rules` in v1,
 `linters.exclusions` in v2).
 
 **Outcome rules:**
@@ -310,20 +301,15 @@ are then *not* checked), `-asserts`, `-exclude` lists, `golangci-lint` exclusion
 - `errcheck` not configured → one Low recommendation to adopt it; regex cannot see implicitly ignored returns.
 - `errcheck` configured but not installed, or ran with `-blank` off → state the coverage limitation; recommend nothing.
 - `go vet` ran → `copylocks`, `lostcancel`, `waitgroup` nominations are triaged.
-- Any tool skipped or errored → the heuristic scans below run alone, and the report says so.
 
 Vet's checks are heuristic — low-false-positive, not zero; triage rather than transcribe.
 
 ## Idiom calibration
 
-`if err != nil` after every call is Go working as designed, never defensive access and never a finding. Functional
+Functional
 packages built from plain functions with no exported structs are not zero-value traps. Constructors returning `*T`
 and accepting dependencies are the idiom, not temporal coupling. A `default: panic("unreachable")` arm on a sealed
 type switch is exhaustiveness by convention and is neither a finding here nor Dead Code for simplicity-hunter.
-
-## Evidence path form
-
-Cite findings as `file/path.go:line`.
 
 ## Phase 2 — invariant scans
 
@@ -427,14 +413,3 @@ For each typed `iota` zero member and each `T(n)` conversion into a named consta
 For each shared variable touched by more than one goroutine:
 
 - Name the accessors on both sides and the lock state of each. One side unlocked → finding.
-
-## Red Flags — Go
-
-| Thought | Reality |
-| ------- | ------- |
-| "The comment says the close error is ignorable" | Open the file's open mode. A comment is a claim to verify. |
-| "`CLAUDE.md` says panic is policy" | For the patterns it names. A `panic` on a request body is still reachable from untrusted input. |
-| "No recovery middleware — Critical" | `net/http` recovers handler panics itself. Critical needs a spawned goroutine or a server with no built-in recovery. |
-| "No `default` on this type switch" | Sealed set? Rejects or falls back after the switch? Then not a finding. Silent zero value → finding. |
-| "`context.Background()` in a service — finding" | Is there an incoming `ctx` being replaced? No incoming context, no severed propagation. |
-| "`go vet` ran; I'll recommend enabling `copylocks`" | It is a default analyzer and already ran. Triage its output; recommend nothing. |

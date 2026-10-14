@@ -1,13 +1,6 @@
 ---
 name: smell-hunter
-description: |
-  Use when reviewing Go, Python, or TypeScript code for classic code smells, preparing a
-  refactor, auditing code after rapid feature development, or hunting for misplaced
-  responsibilities and undermodeled domain concepts.
-
-  Covers feature envy, data clumps, shotgun surgery, temporal coupling, comments as
-  deodorant, temporary fields, primitive obsession, god modules, mutable global state,
-  anemic domain models, class abuse, and language-specific antipatterns.
+description: Audit Go, Python, or TypeScript code for code smells — feature envy, data clumps, shotgun surgery, temporal coupling, primitive obsession, god modules, global state, anemic models, class abuse. Defaults to the codebase.
 disable-model-invocation: true
 ---
 
@@ -17,122 +10,40 @@ Audit code for **code smells** — structural patterns indicating deeper design 
 smells and language-specific antipatterns outside specialized hunters' scope. Goal: **data lives where it's used,
 changes are localized, domain concepts are modeled explicitly, language idioms are respected.**
 
-Supports Go, Python, TypeScript via per-language reference files.
-
 **Not covered (owned by other hunters):** long method / mixed concerns, dead code, speculative generality, boolean
-parameters, interface pollution, callback hell and unflattened promise chains (→ simplicity-hunter); magic numbers
-and missing "why" documentation (→ doc-hunter); the construct of an existing enum, constant group, or Go/Python alias
-(→ type-hunter); SOLID violations (→ solid-hunter); module boundary and dependency direction (→ boundary-hunter);
-invariant enforcement (→ invariant-hunter); security (→ security-hunter); test quality (→ test-hunter); AI-generated
-noise and cosmetic style (→ slop-hunter). Where ownership is *contested* rather than simply elsewhere, that
-category's **Ownership:** note in What to Hunt is authoritative.
-
-Smells are symptoms, not diagnoses: each finding indicates a *likely* design problem warranting investigation.
-Context decides whether it is a genuine issue or an acceptable trade-off.
-
-## When to Use
-
-- Reviewing structural design problems before a refactor
-- Auditing after rapid feature development or prototyping
-- Hunting misplaced responsibilities and data
-- Identifying missing domain types and abstractions
-- Preparing a codebase for long-term maintainability
-- Complementing specialized hunters with cross-cutting smell detection
-
-## Quick Reference
-
-Full rules in **What to Hunt**; every finding must also clear Not-a-finding and the Phase 5 reporting gate.
-Conditional categories run only where the language reference declares them applicable (see Applicability).
-
-| Category | Core signal | Action | Belongs to another hunter |
-| -------- | ----------- | ------ | ------------------------- |
-| Feature Envy | Uses more foreign data than its own | Move to the data's owner | A consumer reaching an exported *implementation* member → boundary-hunter (Leaked Internals) |
-| Data Clumps | Same 3+ values travel together across signatures | Extract a named type | Duplication *in test setup* → test-hunter |
-| Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept | Dependency direction → boundary-hunter (Dependency Direction Violations); SRP and *variant dispatch* → solid-hunter |
-| Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit | Constraints that are *staying* → doc-hunter; a Go type *constructible* invalid → invariant-hunter (Zero-Value Traps, Go only) |
-| Comments as Deodorant | Comment explains *what* non-trivial code does | Extract, don't annotate | See the comment ownership rule below |
-| Temporary Field | Field meaningful in only one code path | Per-state type or a local | Discriminant already present (Python, TypeScript) → invariant-hunter (Leaky Discriminated Unions) |
-| Primitive Obsession | Primitives standing in for domain concepts | Named / branded type, validated construction | Existing enum construct, Go/Python alias → type-hunter; validated-state brands → invariant-hunter; security brands → security-hunter |
-| God Module | One file accumulating unrelated responsibilities | Split by responsibility | Sprawl *in a class* → solid-hunter |
-| Mutable Global State | Writes to global state after initialization | Explicit ownership; inject | The *read* inside a unit's logic → solid-hunter (Concrete Dependency Chains) |
-| Anemic Domain Model | Entity transitions live outside the entity | Move the transition onto the entity | Invariant *enforcement* → invariant-hunter |
-| Class Abuse | Class where a function or module would do | Replace with the simpler construct | Class/interface *design* → solid-hunter |
+parameters, interface pollution, callback hell and unflattened promise chains, replacing a project implementation with
+an equivalent existing primitive (Reinvented Primitives) (→ simplicity-hunter); magic numbers and missing "why"
+documentation (→ doc-hunter); the construct of an existing enum, constant group, or Go/Python alias (→ type-hunter);
+SOLID violations (→ solid-hunter); module boundary and dependency direction (→ boundary-hunter); invariant enforcement
+(→ invariant-hunter); security (→ security-hunter); test quality (→ test-hunter); AI-generated noise and cosmetic
+style (→ slop-hunter).
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
-## Core Principles
+## Quick Reference
 
-1. **Smells are symptoms, not diseases.** A smell indicates a probable design problem, not a guaranteed one. Evaluate
-   in context — some are intentional trade-offs. Goal: awareness, not mechanical elimination.
-
-2. **Follow the data.** Feature envy, data clumps, and primitive obsession all point to misplaced or undermodeled
-   data. When data and behavior want to be together, let them. Values that always travel together are a missing type.
-
-3. **One change, one place.** Shotgun surgery is the hallmark of misaligned module boundaries or scattered
-   responsibilities. The fix is cohesion.
-
-4. **Comments are not deodorant.** A comment explaining confusing code band-aids a design problem. The fix is clearer
-   code — better names, extracted functions, simpler structure — not more comments.
-
-5. **Model the domain.** A string that is an email address, two floats that are a coordinate, parameters that always
-   appear together — these are domain concepts begging for a type.
-
-6. **Use the language, don't fight it.** Every supported language has constructs that eliminate whole smell
-   categories. Prefer idiomatic design over transplanted patterns; the language reference carries the calibration.
-   Replacing a project implementation with an equivalent *existing* primitive is simplicity-hunter's Reinvented
-   Primitives — smell-hunter owns broader non-idiomatic design, not that substitution.
-
-7. **Refactor incrementally.** Split by responsibility, not size. Abstract only when needed (wait for the second use
-   case). Preserve behavior first — add tests before restructuring.
-
-## Terms
-
-- **Area** — the unit of code organization Shotgun Surgery counts: the folder holding the file. Neutral on purpose: a
-  Go package is not a module, and a Python module is not a package.
-- **Composition root** — a function that builds dependencies and passes them *into other units' constructors*, and
-  never stores or calls them itself: Go `main()`, wire/fx providers; Python app factory, container module, `Depends`
-  providers; TypeScript entry point, Nest module, container registration.
-- **Entity vs data carrier** — an *entity* is a domain type with identity whose state changes through named
-  transitions (`order.ship()`, `user.suspend()`). A *data carrier* — DTO, config object, wire, request or response
-  type, ORM row mapper — moves values across a boundary and has no transitions. Anemic Domain Model judges entities
-  only.
-- **Write after initialization** — a rebinding *or* an in-place mutation (element store, append, mutating method
-  call) of a global that can run after package or module initialization finishes. Go `init()` and package-level
-  initializers, Python and TypeScript module top level are initialization; a lazy first-use assignment is not.
+| Category | Core signal | Action |
+| -------- | ----------- | ------ |
+| Feature Envy | Uses more foreign data than its own | Move to the data's owner |
+| Data Clumps | Same 3+ values travel together across signatures | Extract a named type |
+| Shotgun Surgery | One logical change edits many unrelated areas | Consolidate the concept |
+| Temporal Coupling | Call order required, nothing enforces it | Redesign so order is implicit |
+| Comments as Deodorant | Comment explains *what* non-trivial code does | Extract, don't annotate |
+| Temporary Field | Field meaningful in only one code path | Per-state type or a local |
+| Primitive Obsession *(conditional)* | Primitives standing in for domain concepts | Named / branded type, validated construction |
+| God Module *(conditional)* | One file accumulating unrelated responsibilities | Split by responsibility |
+| Mutable Global State *(conditional)* | Writes to global state after initialization | Explicit ownership; inject |
+| Anemic Domain Model *(conditional)* | Entity transitions live outside the entity | Move the transition onto the entity |
+| Class Abuse *(conditional)* | Class where a function or module would do | Replace with the simpler construct |
 
 ## Not a finding on these grounds alone
 
-Conditionals, not category exemptions — each states what does **not** justify a finding and, where a corresponding
-finding exists, what would:
-
-- **A read-only lookup table with no write path** — a global holding an effectively-constant map or slice is not
-  Mutable Global State. The smell is writes after initialization, not the declaration keyword. *Is* a finding when
-  a write after initialization (see Terms) exists.
-- **Genuine DTOs, config objects, and wire types** — a data carrier with no behavior is not an Anemic Domain Model.
-  *Is* a finding when the type is a domain entity whose transitions were extracted elsewhere.
-- **Data plus functions, where behavior is not expressed as methods** — not an Anemic Domain Model. Method syntax is
-  not the bar; misplaced transitions are.
-- **A data clump appearing twice** — repetition alone does not justify a new type. Occurrence count is supporting
-  evidence, not a gate: report it, do not decide on it. *Is* a finding when the group has an obvious domain name and
-  every site would consume the extracted type.
-- **Feature envy in a utility function** — a helper deliberately written over a foreign type is not misplaced. *Is* a
-  finding when the function's name and purpose belong to the type it envies.
-- **Switching on a foreign type's discriminant to answer the home module's own question** — consuming another
-  module's result type is what result types are for; the function belongs with the *policy* it implements, not the
-  data it reads. Moving it would make the data's module depend on one consumer's policy. "Drops one import" is not a
-  gain worth reporting.
-- **Two same-typed parameters that cannot be transposed in practice** — adjacent `string` parameters are not
-  Primitive Obsession when call sites cannot plausibly swap them (different shapes, one always literal, compile-time
-  keyed). *Is* a finding when a swap would type-check and silently change behavior.
-- **A class with real state and multiple methods** — not Class Abuse. That is what classes are for.
 - **A shape the specific framework construct mandates** — exempt only the shape the named construct requires, and
   name the construct. "This project uses Nest" is not evidence; "Angular `@Component` must be a class" is. Framework
   carve-outs are listed per language in the reference.
 
 ## What to Hunt
-
-Categories are named, not numbered. Cross-references use category names (e.g. "→ Temporary Field").
 
 ### Feature Envy
 
@@ -148,6 +59,15 @@ Uses more data from another module, package, or type than from its own receiver,
 
 **Action:** Move it to the module owning the data, minding import cycles and the language's rules on where methods
 may be defined. Uses two types equally? Consider extracting the shared data into its own type.
+
+**Not a finding:**
+
+- **A utility function** — a helper deliberately written over a foreign type is not misplaced. *Is* a finding when
+  the function's name and purpose belong to the type it envies.
+- **Switching on a foreign type's discriminant to answer the home module's own question** — consuming another
+  module's result type is what result types are for; the function belongs with the *policy* it implements, not the
+  data it reads. Moving it would make the data's module depend on one consumer's policy. "Drops one import" is not a
+  gain worth reporting.
 
 **Ownership:** this category judges the consumer's *placement*. A consumer reaching an exported *implementation*
 member — a cache, a row struct, a mutex — is boundary-hunter's Leaked Internals, anchored at the export; members that
@@ -178,12 +98,14 @@ the values together; recommend a factory or validating constructor that derives 
 moves from a comment into the construction path. Grouping without either a real transposition risk or an enforced
 invariant is convenience, not safety — say which one the extraction buys.
 
-**Ownership:** duplicated *test setup* data is test-hunter's test-duplication section (see Test-code scope) — do not
-flag it here.
+**Not a finding: a clump appearing twice** — repetition alone does not justify a new type. Occurrence count is
+supporting evidence, not a gate: report it; the domain name and the consuming sites decide. *Is* a finding when the group has an obvious
+domain name and every site would consume the extracted type.
 
 ### Shotgun Surgery
 
-One logical change requires edits across many unrelated files or areas.
+One logical change requires edits across many unrelated files or areas. An **area** is the folder holding the file —
+neutral on purpose: a Go package is not a module, and a Python module is not a package.
 
 **Signals:**
 
@@ -196,9 +118,10 @@ boilerplate; one area owning the concept end-to-end.
 
 **Ownership:** **variant dispatch is solid-hunter's.** A variant added to an open set that edits every scattered
 switch or `if`-chain is solid-hunter's Rigid Extension Points, which carries the registry gate and the openness test;
-route it, do not evaluate it here. This category keeps **non-variant** scattering: a field addition rippling through
-mappers, validators and serializers; a config concept spanning layers; a rename that is find-and-replace — including
-the scattering only git history reveals (Phase 4), where no shared discriminant exists to dispatch on.
+route it. Dependency direction is boundary-hunter's Dependency Direction Violations. This category keeps
+**non-variant** scattering: a field addition rippling through mappers, validators and serializers; a config concept
+spanning layers; a rename that is find-and-replace — including the scattering only git history reveals (Phase 4),
+where no shared discriminant exists to dispatch on.
 
 **Evidence rule (the one exception to a purely in-file anchor).** The finding still anchors to an **in-scope source
 location**: the concrete site edited per change — the mapper, the validator, the registration list. Commit hashes and
@@ -288,7 +211,7 @@ construct yet**. An existing constant group or enum built with the wrong constru
 Mechanics; an existing Go or Python alias used as an identity type is its Alias vs Named Type Mechanics; TypeScript
 aliases stay here under brand-or-withdraw. Boolean parameters belong to simplicity-hunter. Brands encoding
 *validated* state (parse-don't-validate) belong to invariant-hunter; brands for security-sensitive strings (SQL
-fragments, HTML, paths) belong to security-hunter. Cross-reference instead of duplicating.
+fragments, HTML, paths) belong to security-hunter.
 
 **Signals:**
 
@@ -301,6 +224,10 @@ fragments, HTML, paths) belong to security-hunter. Cross-reference instead of du
 
 **Action:** Define a domain type with validating construction, so the type system prevents mixing. Remedy vocabulary
 is per-language — see the reference.
+
+**Not a finding: two same-typed parameters that cannot be transposed in practice** — adjacent `string` parameters
+are not Primitive Obsession when call sites cannot plausibly swap them (different shapes, one always literal,
+compile-time keyed). *Is* a finding when a swap would type-check and silently change behavior.
 
 ### God Module *(conditional)*
 
@@ -318,6 +245,8 @@ package-level responsibility sprawl is solid-hunter's.
 - A file imported by nearly every other file
 - Package entry files carrying business logic instead of re-exports
 
+**Evidence:** enumerate the unrelated responsibilities by name; fewer than two named is not a finding.
+
 **Action:** Split by responsibility; each file gets one clear purpose. Genuinely shared utilities group by domain
 concept (`string_utils`, `date_utils`).
 
@@ -328,8 +257,12 @@ label on a 100-line file is noise.
 
 ### Mutable Global State *(conditional)*
 
-Globals holding mutable state, creating hidden coupling and test interference. **The smell is writes after
-initialization**, not the declaration keyword — see Not-a-finding.
+Globals holding mutable state, creating hidden coupling and test interference.
+
+**Write after initialization** — a rebinding *or* an in-place mutation (element store, append, mutating method
+call) of a global that can run after package or module initialization finishes. Go `init()` and package-level
+initializers, Python and TypeScript module top level are initialization; a lazy first-use assignment is not. The
+smell is a write after initialization, not the declaration keyword.
 
 **Signals:**
 
@@ -339,19 +272,24 @@ initialization**, not the declaration keyword — see Not-a-finding.
 - A global lock protecting global state (a sign the state should be owned by something)
 
 **Action:** Move state into instances passed via dependency injection. Where a global lifetime is genuinely required,
-construct it in the composition root and inject it explicitly. Constants and immutable globals are fine. A unit that
-*reads* the global instead of receiving it is solid-hunter's Concrete Dependency Chains, anchored at the consumer —
-this category anchors at the global's declaration and write sites. Two anchors, one finding each, cross-referenced;
-neither reports the other's site.
+construct it in the composition root and inject it explicitly. A unit that *reads* the global instead of receiving it is
+solid-hunter's Concrete Dependency Chains, anchored at the consumer — this category anchors at the global's
+declaration and write sites. Two anchors, one finding each, cross-referenced.
+
+**Not a finding: a read-only lookup table with no write path** — a global holding an effectively-constant map or
+slice. *Is* a finding when a write after initialization exists.
 
 **Singleton split (with Class Abuse).** A *stateful* singleton is a Mutable Global State finding; the remedy is
 explicit ownership and injection — **never** "replace with a module-level instance", which preserves the global
 lifetime and merely removes the wrapper. A *stateless*, namespace-shaped singleton is a Class Abuse finding, remedied
-by module-level functions. One finding per site, cross-referenced — never both.
+by module-level functions.
 
 ### Anemic Domain Model *(conditional)*
 
-Domain entities whose state transitions live outside the entity, in services that mutate it from outside.
+Domain entities whose state transitions live outside the entity, in services that mutate it from outside. An
+*entity* is a domain type with identity whose state changes through named transitions (`order.ship()`,
+`user.suspend()`). A *data carrier* — DTO, config object, wire, request or response type, ORM row mapper — moves
+values across a boundary and has no transitions. This category judges entities only.
 
 **Ownership:** this category owns *placement of transitions*. Entity-invariant *enforcement* routes to
 invariant-hunter.
@@ -363,12 +301,20 @@ invariant-hunter.
   (`order.ship()`)
 - Tell-don't-ask at call sites: interrogate entity state, then act, repeatedly
 
+Name at least one misplaced transition and where it lives now; cite each external field assignment.
+
+**Not a finding:** a data carrier with no behavior (*is* a finding when the type is a domain entity whose transitions
+were extracted elsewhere); data plus functions where behavior is not expressed as methods — method syntax is not the
+bar, misplaced transitions are.
+
 **Action:** Move the transition onto the entity. Keep services as orchestrators between entities, not the sole home
 of domain logic.
 
 ### Class Abuse *(conditional)*
 
 A class where a plain function, closure, or module would be simpler and more idiomatic.
+
+**Ownership:** class and interface *design* is solid-hunter's; this category asks only whether a class is needed.
 
 **Signals:**
 
@@ -379,40 +325,29 @@ A class where a plain function, closure, or module would be simpler and more idi
 - Stateless "Service" classes receiving all data through method parameters
 
 **Action:** Single-method class → exported function (closure for dependencies); static-only or stateless class →
-module with named function exports; stateless singleton → module-level functions (a *stateful* singleton is Mutable
-Global State — see the singleton split); state-holding class with meaningful behavior → keep it, it is the right
-tool.
+module with named function exports; stateless singleton → module-level functions; state-holding class with meaningful
+behavior → keep it, it is the right tool.
 
-**Evidence:** statelessness is confirmed by reading the type, never inferred from scan output.
+**Evidence:** confirm statelessness by reading the type.
+
+**Not a finding: a class with real state and multiple methods** — that is what classes are for.
 
 ### Within-skill precedence
 
-One site, one finding. When two categories here read the same site, the first matching rule decides the category,
-and the Evidence cell names the other reading in one clause:
+**One site, one finding.** When two categories here read the same site, the first matching rule decides the
+category, and the Evidence cell names the other reading in one clause:
 
 - A function outside a domain entity performing one of its state transitions → Anemic Domain Model, not Feature
   Envy. Feature Envy keeps envy of data that is not an entity's transition.
 - Three or more values travelling together → Data Clumps, whose Evidence names any swap risk. Exactly two same-typed
   values a caller could swap → Primitive Obsession.
 - A stateful singleton → Mutable Global State; a stateless one → Class Abuse (the singleton split).
-- Go `init()` functions whose order matters → `init()` Abuse; Temporal Coupling is the cross-reference.
 
 ## Applicability
 
-Six categories are universal. Five are conditional: defined once above, declared applicable or not by each language
-reference, with the reason — the reasons live only there. **A language with no reference is not supported** — its
-files are excluded, never implicitly audited.
-
-| Conditional category | Go | Python | TypeScript |
-| -------------------- | -- | ------ | ---------- |
-| Primitive Obsession | yes | yes | yes |
-| God Module | **n/a** | yes | yes |
-| Mutable Global State | yes | yes | yes |
-| Anemic Domain Model | **n/a** | yes | yes |
-| Class Abuse | **n/a** | yes | yes |
-
-Language-only categories are defined entirely in their reference: `init()` Abuse, Stuttering Names and Pointer
-Out-Parameters (Go); Mutable Default Arguments (Python).
+Six categories are universal. The five marked *(conditional)* run only where each language reference's Applicability
+table says yes; a language with no reference is not supported. Language-only categories are defined entirely in their
+reference: `init()` Abuse, Stuttering Names and Pointer Out-Parameters (Go); Mutable Default Arguments (Python).
 
 ## Test-code scope
 
@@ -424,16 +359,17 @@ Python and TypeScript:
 - **Shared mutable state between tests** → test-hunter
 
 Everything else applies: a temporal-coupling trap in a test helper, feature envy in a fixture builder, and a
-temporary field on a test harness type are all reportable here. Each language reference's scan profile enforces this
-split.
+temporary field on a test harness type are all reportable here. Test paths are listed in each language reference,
+whose scan profile enforces this split.
 
 **One overlap to route deliberately.** test-hunter nominates oversized test-utility files under setup bloat.
 *Duplication or bulk* is test-hunter's; *unrelated responsibilities collected in one test-support module* is God
-Module here. Cross-reference; never report both.
+Module here. Cross-reference; one site, one finding.
 
 ## Severity and Impact
 
-Every finding carries **both**. They answer different questions and routinely diverge.
+Every finding carries **both**. They answer different questions and routinely diverge. Calibrate both to the code's
+criticality and change frequency: a smell in a prototype is less urgent than one in a payment system.
 
 **Severity — behavioral risk if left as-is:**
 
@@ -441,7 +377,7 @@ Every finding carries **both**. They answer different questions and routinely di
   a mutable default already leaking state between calls). Smells are rarely Critical.
 - **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
 - **Medium** — correctness or maintainability risk without imminent impact.
-- **Low** — hygiene; no behavioral risk. A stuttering name is Low however widespread.
+- **Low** — hygiene; no behavioral risk.
 
 **Impact — how much the change is worth:** defect exposure reduced, cognitive burden reduced, affected surface.
 Contextual; never derived from occurrence count or pattern alone. A data clump across 9 request-handler signatures is
@@ -450,8 +386,6 @@ High impact at Low severity: every handler author reads it.
 - **High** — substantial reduction on code read or changed often
 - **Medium** — clear improvement on a moderately reached surface
 - **Low** — clears the reporting gate but touches a small, rarely hit surface
-
-Recommendations group by Severity (Critical → High → Medium → Low), then by Impact within each group.
 
 ## Audit Workflow
 
@@ -466,8 +400,8 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
 
    **Party mode:** when the orchestrator supplies a scope snapshot, treat `scope.txt` as a **file manifest only**
    (one path per line): `SCOPE=$(cat <snapshot>/scope.txt)`. Read run metadata (base SHA — `$MB` in diff mode —
-   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; do not re-resolve. The
-   resolution above is for standalone runs only.
+   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; the resolution
+   above is for standalone runs only.
 
    **Persist run state.** Shell variables do not survive between tool calls, and `rg … --` with an empty variable
    searches the whole working directory. Create one run directory (`RUN=$(mktemp -d) && echo "$RUN"`) and use the
@@ -480,8 +414,8 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
    commit — state that findings must be re-located by symbol name.
 
-   The raw manifest is **immutable** and language-independent. Do not redefine it on a mixed scope — silently
-   narrowing breaks the party guarantee that all hunters audit the same surface.
+   The raw manifest is **immutable** and language-independent: on a mixed scope it stays whole, so every hunter in a
+   party audits the same surface.
 
    **Whitespace in paths is unsupported.** The newline-delimited manifest plus `-- $SCOPE` shell expansion
    word-splits on spaces; whitespace paths are a declared limitation.
@@ -491,14 +425,13 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
 
-   **Supported languages are Go, Python, and TypeScript.** Every other extension — `.js`, `.jsx`, `.mjs`, `.cjs`
-   included — is **excluded, not audited**: without a reference there is no eligibility rule, no scan set, no
-   evidence form, no remedy vocabulary. Record `excluded — no reference for .<ext>: {count} files` in Scope, naming
-   each extension. A language becomes supported when its reference defines those four things.
+   Every other extension — `.js`, `.jsx`, `.mjs`, `.cjs` included — is **excluded, not audited**: without a reference
+   there is no eligibility rule, no scan set, no evidence form, no remedy vocabulary. Record
+   `excluded — no reference for .<ext>: {count} files` in Scope, naming each extension.
 
 3. **Load language references.** For every detected language, read `references/smell-<lang>.md` from the directory
    this SKILL.md was read from (e.g. `references/smell-go.md`). **Fail closed:** if a required reference cannot be
-   read, **stop and report**; do not continue with shared categories only.
+   read, stop and report.
 
 4. **Derive per-language eligible subsets** by applying each reference's generated-code and vendoring rules to that
    language's files. These subsets are then immutable. Record in Scope: raw manifest count, each per-language
@@ -526,59 +459,49 @@ Recommendations group by Severity (Critical → High → Medium → Low), then b
    reading the envied type's module.
 
 5. **Read repository instructions** when present (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, convention docs) for
-   stated design decisions, framework constraints, and naming conventions. Then understand the project's domain
-   model — core entities, value objects, operations — and its conventions for type design and module organization.
-   Both feed Anemic Domain Model, Primitive Obsession, and God Module judgment.
+   stated design decisions, framework constraints, and naming conventions. Then name the project's core
+   entities, value objects and operations, and its conventions for type design and module organization; Anemic
+   Domain Model, Primitive Obsession, and God Module judgment uses this list.
 
 ### Phase 2: Scan for Smell Candidates
 
-Scans produce **candidates only** — each match needs manual validation in Phases 3–5 before becoming a finding.
-Expect many regex false positives; the value is surfacing locations to inspect.
+Scan hits **nominate** candidates; Phases 3–5 decide. For each loaded reference, run its Phase 2 scan block against
+that language's eligible list from Phase 1 step 4, and judge each candidate under the rules of its own file's
+language — including language-only categories the reference appends.
 
-For each loaded reference, run its Phase 2 scan block against that language's eligible list from Phase 1 step 4
-(`<run>/go.txt`, `python.txt`, `typescript.txt`, restored as `$GO_FILES`, `$PY_FILES`, `$TS_FILES`). Every `rg`
-invocation passes that list after `--`; an empty list is a STOP, because `rg` with no path searches the whole working
-directory. Judge each finding under the rules of its own file's language — including language-only categories the
-reference appends.
+Done when every scan in each loaded reference's Phase 2 block has run and every hit — each `comments-<lang>.txt`
+read page by page to its last line — is listed as a candidate.
 
 ### Phase 3: Evaluate Feature Envy and Data Clumps
 
-For each function with cross-module data access:
+For every Feature Envy candidate, open the body and count the members it touches on its own state versus the foreign
+type (the Own/Foreign column). For every Data Clumps candidate, open every signature that carries the group and count
+its parameters as written.
 
-- Does it access more members from another type than from its own state?
-- Would moving it to the other type's module improve cohesion?
-- Is it a deliberate utility over a foreign type (see Not-a-finding)?
-
-For each signature with 3+ parameters:
-
-- Do the same parameters appear together in other signatures? At how many sites?
-- Is there a named domain concept these parameters represent?
-- Is the site test setup (→ test-hunter)?
+Done when every Feature Envy candidate has its own/foreign count and every Data Clumps candidate its per-signature
+count, or is dropped under its category's Not-a-finding line.
 
 ### Phase 4: Evaluate Shotgun Surgery — once per audit
 
-Detected from git history, so it has no language dimension: run **once**, not once per loaded reference. High churn
-on a single file is not shotgun surgery — the signal is many *unrelated* areas changing together for one logical
-change.
-
-Run the pipeline in `references/history.md`; it nominates area pairs and commits, and states how to read them.
-
-**Before reporting, satisfy the evidence rule** (see Shotgun Surgery): name the in-scope source location edited per
-change. Commits are supporting evidence, not the anchor.
+Run the pipeline in `references/history.md` once — git history has no language dimension. The signal is many
+*unrelated* areas changing together for one logical change, not churn on a single file. Anchor each finding by the
+Shotgun Surgery evidence rule.
 
 ### Phase 5: Evaluate Each Finding
 
 **Reporting gate.** Report only when the smell points at a design problem worth naming — the proposed change reduces
 misplacement, scattering, or hidden coupling enough to outweigh its churn.
 
-For each candidate: apply Not-a-finding first; confirm the category is applicable to that file's language; clear the
-gate; then apply the per-category evidence bar from What to Hunt. Run each loaded reference's Phase 5 block for its
-language-only categories and language-specific judgment.
+For each candidate: apply the general Not-a-finding list and the category's own Not-a-finding line first; confirm
+the category is applicable to that file's language; clear the gate; then apply the per-category evidence bar from
+What to Hunt. Run each loaded reference's Phase 5 block for its language-only categories and language-specific
+judgment.
 
-Conditional categories carry gates scan output cannot satisfy; each is stated in its What to Hunt entry.
+Assign **Severity and Impact** to every finding. Nothing is held back; `Audit completed: N findings` counts every
+reported finding.
 
-Assign **Severity and Impact** to every finding (both required; they diverge). Nothing is held back;
-`Audit completed: N findings` counts every reported finding.
+Done when every candidate is a reported finding, dropped under a named Not-a-finding line or the reporting gate, or
+routed to its owning hunter.
 
 ### Phase 6: Produce Report
 
@@ -588,49 +511,14 @@ mode (e.g. the party-hunter orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-## Red Flags — stop and re-check
-
-| Thought | Reality |
-| ------- | ------- |
-| "The regex matched, so it's feature envy" | Scan output is a nomination. Open the body and count what it touches. |
-| "This class has one method — Class Abuse" | Does it hold state? A stateful one-method class is not the smell. |
-| "These 6 files always change together" | One commit is not a pattern. And where is the in-scope anchor the finding cites? |
-| "Seven switch sites — recommend a registry" | Variant dispatch is solid-hunter's Rigid Extension Points, registry gate included. Route it; this category keeps non-variant scattering. |
-| "Three functions take this trio" | Open all three signatures. A parameter miscounted, misnamed, or present in only one signature voids the clump. |
-| "`utils.py` is 700 lines — God Module" | Line count nominates. Enumerate the unrelated responsibilities or drop it. |
-| "The comment explains the code, so it's deodorant" | Only when the code is non-trivial. Trivial → slop-hunter; absent → doc-hunter. |
-| "This is a global" | Is there a write path after initialization? A read-only table is not the smell. |
-| "It's a Nest project, so the class shape is mandated" | Which construct requires it? Providers support `useValue` / `useFactory` / tokens. |
-| "The entity has no methods" | Which transition is misplaced, and where does it live now? Shape is not the bar. |
-| "There's a comment saying 'call Init first'" | That is evidence *of* temporal coupling, not an exemption from it. |
-| "I'll flag it in both categories" | One finding per site, cross-referenced. Stateful singleton → Mutable Global State only. |
-| "The report looks thin — I'll note what I checked and found clean" | Zero-finding sections are omitted. A thin report is a valid result. |
-| "I'll just fix it while I'm here" | No code edits. The report is the deliverable. |
-| "The language reference won't load — I'll do shared categories only" | Fail closed. Stop and report. |
-
 ## Operating Constraints
 
-- **No code edits.** Audit report only. Implementation is a separate step.
-- **The report is the template.** `references/report-format.md` fixes the shape: Scope, then one section per
-  category with at least one finding, then Recommendations. A category with no findings gets no heading, table,
-  or "none found" line.
-- **Scope: classic code smells and language-specific antipatterns only.** A finding that doesn't answer "is this a
-  structural smell?" belongs to another hunter — do not flag it here. Contested boundaries are resolved at the
-  category that owns them: each **Ownership:** note in What to Hunt states what is kept here and what routes away.
-- **Evidence required.** Every finding cites `file:line` (path form per the language reference) with the exact code.
-  The single exception is Shotgun Surgery's supporting commit evidence, which supplements — never replaces — an
-  in-scope anchor.
-- **One finding per site.** When two categories describe the same code, Within-skill precedence picks the category;
-  cross-reference the other.
-- **Context matters.** A smell in a prototype is less urgent than one in a payment system. Calibrate Severity and
-  Impact to the code's criticality and change frequency.
-- **Pragmatism.** Report the smell, assess the cost/benefit in the Action column, and let the team decide whether to
-  act.
+- **Report only.** The audit report is the deliverable; source files stay untouched.
+- **Evidence required.** Every finding cites `file:line` with the exact code.
 - **Respect the language.** Idiomatic constructs are not smells. Calibrate to the audited language's conventions —
   the reference carries the calibration — not to patterns from another language.
-- **Routing.** Follow the category's **Ownership:** note. Cross-reference the sibling by skill and exact category
-  name; never re-score its analysis.
-- **Assess refactoring risk briefly, but never defer on API shape.** When a recommendation would affect
-  serialization behavior, introduce import cycles, or collide with a framework constraint, note the risk in the
-  Action column — those are *behavior*. A change to exported API shape is **not** grounds to downgrade, defer, or
-  soften a finding.
+- **Routing.** Each category's **Ownership:** note is authoritative where ownership is contested; follow it.
+  Cross-reference the sibling by skill and exact category name, and leave its scoring to it.
+- **Score behavior, not API churn.** When a recommendation would affect serialization behavior, introduce import
+  cycles, or collide with a framework constraint, note the risk in the Action column — those are *behavior*. A change
+  to exported API shape leaves the finding's severity and timing unchanged: never downgrade, defer, or soften on it.

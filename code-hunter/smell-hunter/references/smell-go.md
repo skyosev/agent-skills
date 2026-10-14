@@ -1,8 +1,6 @@
 # Smell Hunter — Go reference
 
-Contents: Applicability of conditional categories · Generated-code eligibility · Language-only categories · Per-category Go content · Framework carve-outs · Idiom calibration · Evidence path form · Phase 2 — smell scans · Phase 5 — Go-specific evaluation
-
-Language-specific rules for Go.
+Contents: Applicability of conditional categories · Generated-code eligibility · Language-only categories · Per-category Go content · Framework carve-outs · Idiom calibration · Phase 2 — smell scans · Phase 5 — Go-specific evaluation
 
 ## Applicability of conditional categories
 
@@ -19,9 +17,8 @@ Language-specific rules for Go.
 ## Generated-code eligibility
 
 A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs
-such as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the
-marker.
+`// Code generated … DO NOT EDIT.` line before the first non-comment text. Scan globs such as `*.pb.go` /
+`*_gen.go` / `*_generated.go` approximate it.
 
 Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
 
@@ -38,7 +35,7 @@ Complex logic, side effects, or non-trivial initialization in `init()` functions
 - `init()` with error handling — errors in `init` cannot be returned, only panicked
 - `init()` that registers global state (e.g. `http.HandleFunc` in library code)
 - Multiple `init()` functions in one package with ordering dependencies (reported here; Temporal Coupling is the
-  cross-reference — see Within-skill precedence in SKILL.md)
+  cross-reference, one site, one finding)
 - `init()` that makes the package untestable through import side effects
 
 **Action:** Move initialization into explicit constructors or a `Setup()` called from `main()`. Reserve `init()` for
@@ -62,8 +59,7 @@ naming-convention *drift introduced by the audited change* (its diff orientation
 `auth.Middleware`; `db.DBConnection` for `db.Connection`; `errors.ErrorCode` for `errors.Code`.
 
 **Action:** Drop the package-name prefix. `user.Name` already reads as "the Name in the user package"; the stutter is
-noise and violates the convention documented in Effective Go. Severity is **Low** however widespread — this is
-hygiene, not behavioral risk.
+noise and violates the convention documented in Effective Go. Severity is **Low** however widespread.
 
 **Report table:**
 
@@ -159,7 +155,6 @@ Define a named type and a validating constructor: `type UserID string` with `fun
 error)`; `type Money int64` in cents rather than `float64`; `time.Duration` rather than a bare `int`; typed string
 constants rather than raw comparisons. The type system then prevents mixing `UserID` with `OrderID` at compile time.
 
-
 ### Mutable Global State — Go markers
 
 - `var db *sql.DB`, `var client *http.Client` at package level, assigned at runtime
@@ -169,10 +164,9 @@ constants rather than raw comparisons. The type system then prevents mixing `Use
 - Global loggers replaced at runtime: `var logger = log.New(...)` plus `SetLogger()`
 - `var once sync.Once` with `var instance *Service`
 
-**Do not flag** effectively-constant lookup tables (`var weekdayMap = map[string]time.Weekday{...}`) when no write
-path exists after initialization — Go has no `const` maps, so `var` is the only option. Confirm there is no write
-after initialization (SKILL.md Terms); filling the table in `init()` is initialization. A
-`//nolint:gochecknoglobals` with a read-only comment is corroborating, not decisive.
+An effectively-constant lookup table (`var weekdayMap = map[string]time.Weekday{...}`) is the read-only-table
+Not-a-finding: Go has no `const` maps, so `var` is the only option, and filling the table in `init()` is
+initialization. A `//nolint:gochecknoglobals` with a read-only comment is corroborating, not decisive.
 
 ### Temporal Coupling — Go remedies
 
@@ -182,16 +176,10 @@ the constructor rather than through separate `Set*` methods.
 
 ## Framework carve-outs
 
-Go has no widely-mandated type shape, so carve-outs are narrow and must name the construct:
+Go has no widely-mandated type shape, so carve-outs are narrow (Pointer Out-Parameters lists its own):
 
 - **Driver and codec registration in `init()`** — `database/sql` driver registration, encoding registrations, and
   similar static, error-free registrations are the intended use of `init()`. Not an `init()` Abuse finding.
-- **Generated protobuf/gRPC service structs** — shape is mandated by the generator; eligibility already excludes them
-  by marker.
-- **Reflection-based stdlib out-params** — `errors.As`, `json.Unmarshal` and same-shaped wrappers. See Pointer
-  Out-Parameters for the full carve-out list.
-
-"This project uses framework X" is not evidence. Name the construct that requires the shape.
 
 ## Idiom calibration
 
@@ -200,17 +188,10 @@ consumer are the language working as designed — never smells. Repeated `if err
 Functional-style packages built from plain functions and closures are idiomatic and are explicitly out of scope (see
 Applicability). Calibrate to Go conventions, not to patterns from Java, C#, or Python.
 
-## Evidence path form
-
-Cite findings as `file/path.go:line`.
-
 ## Phase 2 — smell scans
 
-`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4).
-
-Test files are **included** (see Test-code scope in SKILL.md). Data Clumps and Mutable Global State exclude them, so
-test setup duplication and shared test state stay with test-hunter: those scans run on `$GO_PROD`, the list without
-test files, with `$TEST_OWNED_EXCLUDE` for codebase mode. A list of test files only becomes `/dev/null`, never empty.
+Test files are `*_test.go`. Data Clumps and Mutable Global State scans run on `$GO_PROD`, the list without test
+files, with `$TEST_OWNED_EXCLUDE` for codebase mode. A list of test files only becomes `/dev/null`, never empty.
 
 ```bash
 GO_FILES=$(cat <run>/go.txt); [ -n "$GO_FILES" ] || exit 1          # STOP: empty restore
@@ -223,7 +204,7 @@ TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/*_test.go"
 rg -nH --pcre2 '\b[a-z]\w+\.[A-Z]\w+\.' --type go $EXCLUDE -- $GO_FILES
 
 # Data clumps: signatures with 3+ parameters, multi-line included — test setup belongs to test-hunter
-rg -H -nHU --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\((?:[^,)]*,){2,}[^)]*\)' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
+rg -nHU --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\((?:[^,)]*,){2,}[^)]*\)' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
 
 # Primitive obsession: two bare string/int params in sequence (swap candidates)
 rg -nH --pcre2 'func.*\(\s*\w+\s+string\s*,\s*\w+\s+string' --type go $EXCLUDE -- $GO_FILES
@@ -271,19 +252,14 @@ For each `init()`:
 - Does it make the package hard to test through import side effects?
 - Is it one of the carve-out registrations?
 
-For each package-level `var`:
+For each package-level `var` with a write after initialization:
 
-- Is there a write after initialization (SKILL.md Terms)? If not, it is not a finding.
 - Is it reachable from multiple goroutines?
 - Is it a `sync.Once` + instance pair — a stateful singleton, reported as Mutable Global State?
 
 For each exported identifier:
 
 - Does the name repeat its package name? Cross-check the `package` line against the symbol prefix.
-
-For Primitive Obsession candidates:
-
-- Could two adjacent same-typed parameters actually be transposed at a real call site, type-checking silently?
 
 For each pointer-out-parameter candidate:
 

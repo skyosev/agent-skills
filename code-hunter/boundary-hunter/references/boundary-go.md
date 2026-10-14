@@ -1,8 +1,6 @@
 # Boundary Hunter — Go reference
 
-Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Per-category Go content · Toolchain · Evidence path form · Phase 2 — graph build · Phase 3 — Go scans · Phase 5 — Go-specific evaluation
-
-Language-specific rules for Go.
+Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Per-category Go content · Toolchain · Phase 2 — graph build · Phase 3 — Go scans · Phase 5 — Go-specific evaluation
 
 ## Applicability of the categories
 
@@ -19,18 +17,12 @@ Language-specific rules for Go.
 ## Generated-code and test-path eligibility
 
 A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs such
+`// Code generated … DO NOT EDIT.` line before the first non-comment text. Scan globs such
 as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
-
-Generated files are still **read as context**, and their declarations are the **external types** External Type Leaks
-judges — a `.pb.go` message is an external type even when the `.proto` lives in this repository (the skill's stated
-policy; see SKILL.md Terms).
 
 Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
 
-**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`. Test files are still read as context — a
-test-only importer is recorded `test only: {file}` and never counts as an external consumer. `package foo_test` is the
-public API's consumer, only a test one; the Action never turns it into an internal test.
+**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`, including `package foo_test`.
 
 ## Go principles
 
@@ -68,21 +60,15 @@ public API's consumer, only a test one; the Action never turns it into an intern
     reaches an `any` / `interface{}` boundary and could be asserted elsewhere is treated as used (abstain).
 - **External consumer** — an import of the package from another package, in a non-test file; plus string references
   (`//go:linkname`, a name in a code-generation directive or a registry keyed by string).
-- **Publication per unit** — **closed** (judged in tree): a `main` package; any package under an `internal/` path; a
-  package of a module that contains a `main` package **and** whose repository documents no import use. **Open**
-  (Dead Exports withdrawn with a `Limitation` line): a module with no `main` package and a public module path, or
-  **any** documented import use — a `go get <module path>` line or a quoted `"<module path>…"` import path in a
-  README or doc, a `doc.go` on a non-main package, an `examples/` directory. Mixed evidence opens. No tags, releases,
-  or CI workflows are read.
+- **Publication** — per SKILL.md Terms › Published unit; the Phase 3 block scans its Go signals.
 
 ## Layer map, prohibitions, and policy
 
 - **Layer map sources**, in precedence: repository instructions and named ADR files; then conventional sibling
   directory names from the fixed vocabulary — inner `domain`, `core`, `entities`; middle `application`, `usecase`,
   `usecases`; edge `infra`, `infrastructure`, `adapters`, `persistence`, `db`, `transport`, `http`, `handlers`,
-  `controllers`, `cli`, `cmd`, `ui`, `web`. `cmd` is an edge-tier name in Go. Two or more tiers must be present as
-  **sibling directories under one parent**, with no name used in two tiers. `service`, `services`, `api`, `app`, and
-  `models` are not vocabulary. Go has no `import-linter` equivalent that expresses an ordering.
+  `controllers`, `cli`, `cmd`, `ui`, `web`. `cmd` is an edge-tier name in Go. Go has no `import-linter` equivalent
+  that expresses an ordering.
 - **Prohibition sources**: `.go-arch-lint.yml` — a component's `mayDependOn` set that excludes the target, or a
   `cannotDependOn` entry naming it. The rule is evidence for the edge it names and never becomes a tier.
 - **Policy**: `.go-arch-lint.yml` entries that explicitly permit an edge, and repository instructions. An edge no rule
@@ -110,16 +96,13 @@ Forms:
 
 - `zero consumers` — no package outside imports the identifier, and the unit is closed.
 - `package-local only` — the identifier is used, but only inside its own package. The Action is the lowercase rename.
-- `test only` — the only importer is a `*_test.go` file (including `package foo_test`). Low; the Action names the
-  public behavior the test should assert after unexporting.
-
-A candidate whose unit is open is **withdrawn** with `Limitation: {package} open; {signal}; consumer set not closed`.
+- `test only` — the only importer is a `*_test.go` file (including `package foo_test`).
 
 ### Leaked Internals — Go forms
 
 An exported field or type whose shape is the implementation, with an external consumer touching it: `Mu sync.Mutex`
 locked by an importer, `Cache map[string]*Conn` ranged over, an exported state enum an importer switches on to decide
-its own behavior. Reads are Medium, writes High.
+its own behavior.
 
 **Not here:** a struct *embedding* `sync.Mutex`, which promotes `Lock` / `Unlock` — type-hunter's Embedding
 Antipatterns judges the promoted method set. An exported `Config` struct a consumer reads passes the rewrite test: the
@@ -131,8 +114,7 @@ configuration *is* the unit's promise.
   `pkg/auth/tokens` where `pkg/auth` is the entry. Under `internal/` this form cannot occur; the compiler rejects it,
   and a package that *is* reachable is by definition not protected. The Public entry cell names the parent package.
 - `exposure` — a sub-package imported only by its parent or the parent's siblings, not under `internal/`, with no
-  outside importer yet. Low, in **any** module: `internal/` restricts import to the tree rooted at its parent, so
-  in-module packages are exactly what it protects against. Action: move it under the `internal/` of the nearest
+  outside importer yet, in **any** module. Action: move it under the `internal/` of the nearest
   common parent of all its importers — `pkg/crypto/internal/impl` when only `pkg/crypto` imports it,
   `pkg/internal/impl` when `pkg/auth` imports it too. Public entry cell: `none yet — exposure`.
 
@@ -185,14 +167,7 @@ Module resolution can need the network, and build errors or unresolvable tags ma
 graph from the import scan below and record `go list: errored — {message}; graph from import scan (build tags not
 resolved)`. Findings then claim the scanned graph.
 
-No other tool is run. `golang.org/x/tools/cmd/deadcode` is **dropped**: it needs installing, and RTA over `main`
-packages is not a symbol census — it says nothing about exported types, constants, or variables, and cannot establish
-deadness for a library. `go-arch-lint` is read as a **configuration** (`.go-arch-lint.yml`), never executed.
-
-## Evidence path form
-
-Cite findings as `file/path.go:line`. Anchor Generic Boundary Names and the exposure form at the package clause line
-of the unit's first file in sorted order (`pkg/crypto/impl/impl.go:1`).
+No other tool is run. `go-arch-lint` is read as a **configuration** (`.go-arch-lint.yml`), never executed.
 
 ## Phase 2 — graph build
 
@@ -200,8 +175,7 @@ Nodes are packages (import paths), edges are the `Imports` lists from `go list`,
 Go edges are **runtime**: Go has no type-only import. Annotate each package with its directory tier where a layer map
 exists, and with `internal/` membership.
 
-Both commands read the whole project (`.`), whatever the scope. The fallback keeps generated files: they are context,
-and a generated file (Wire's `wire_gen.go`) can be the only consumer of an export.
+The fallback keeps generated files: Wire's `wire_gen.go` can be the only consumer of an export.
 
 ```bash
 # Graph (preferred) — one line per package: import path, then its imports
@@ -213,8 +187,7 @@ rg -n -A 30 '^\s*(import\s+\(|import\s+")' --type go --glob '!**/vendor/**' --gl
 
 ## Phase 3 — Go scans
 
-`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4). Test files are
-**excluded**. **Scans nominate only.**
+`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4).
 
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
@@ -263,10 +236,9 @@ For each exported identifier nominated:
 - An interface-named method? → is there a use-as-interface site, or does the value reach an `any` boundary? Either
   → no finding. Neither → candidate.
 - Consumers outside the package, read (not grepped), string references included? None and the unit is **closed** →
-  `zero consumers`. Only inside its own package → `package-local only`. Only `*_test.go` → `test only`, Low. Unit
+  `zero consumers`. Only inside its own package → `package-local only`. Only `*_test.go` → `test only`. Unit
   **open** → withdraw with a `Limitation` line.
-- Consumed, and does the member fail the rewrite test with a statable reason? → Leaked Internals instead; reads
-  Medium, writes High.
+- Consumed, and does the member fail the rewrite test with a statable reason? → Leaked Internals instead.
 
 For each import edge:
 
@@ -278,9 +250,9 @@ For each import edge:
 
 For each package:
 
-- Only its parent or the parent's siblings import it, and it is not under `internal/` → Deep Imports `exposure`, Low.
+- Only its parent or the parent's siblings import it, and it is not under `internal/` → Deep Imports `exposure`.
 - Generic name, and two or more unrelated capabilities enumerated → Generic Boundary Names.
-- Clause ≠ directory, and none of the four exceptions → `clause ≠ directory`, Low.
+- Clause ≠ directory, and none of the four exceptions → `clause ≠ directory`.
 - Responsibilities spanning actors → solid-hunter; cross-reference, do not score.
 
 For each exported signature in an inward-tier package (boundary source required):
@@ -288,5 +260,3 @@ For each exported signature in an inward-tier package (boundary source required)
 - Does it name an external type — outside every module of the repository, not stdlib, or marker-generated? →
   `signature`. An alias or a type defined as an external → `re-export`. A conversion whose result still carries the
   external → `mapper output`. Edge tier → no finding. No boundary source → no finding, all forms.
-
-Cyclic Dependencies is **n/a**: a Go import cycle does not compile, and nothing nominates one.

@@ -1,15 +1,10 @@
 # Boundary Hunter — report format
 
-Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
-table schemas.
-
 The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
 `## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
 line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else.
-
-**Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two of
-them. When a category needs more detail, trim an existing column rather than appending.
+lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
+table, or "none found" line; a thin report is a valid result.
 
 **Layer map and Prohibitions lines.** `Layer map: {source} — {mapping}` (e.g. `Layer map: CLAUDE.md — domain <
 application < infra`) or `Layer map: none`. `Prohibitions: {contract type, file}` per source, or `Prohibitions: none`.
@@ -25,20 +20,17 @@ bundler-only build with no readable emit settings) withdraws cycle Kind with a `
 
 **Toolchain lines.** One per tool per language, in the form `<tool>: ran — <command>, <version>, <coverage>` /
 `skipped — not installed` / `skipped — not configured` / `errored — <message>`. Every tool here is a **nominator**;
-no finding is tool output. `knip` run without `--include-entry-exports` is recorded as such — without the flag it
-skips exactly the unit-entry surface Dead Exports judges. `depcruise` against a config without
-`tsPreCompilationDeps: true` has no type-only edges in its graph; the line says the classification was read from
-source and `viaOnly` was not relied on.
+no finding is tool output. The TypeScript reference names the `knip` and `depcruise` caveats a line records.
 
 **Enumeration line.** Present whenever consumers were found by reading rather than by scan — which is the normal
 case. States what was searched (import forms read, string references searched, the use-as-interface search) and how
-the set was closed. Findings claim the enumerated set only.
+the set was closed.
 
 **Limitation lines.** One per **open (published) unit** whose Dead Exports were withdrawn:
 `Limitation: {unit} open; {the signal that opened it}; consumer set not closed`. One per **cycle with no eligible
 in-scope anchor** (every in-scope edge is a JavaScript file): `Limitation: cycle {path} — no eligible in-scope edge`.
 One per **cycle whose Kind could not be established**: `Limitation: cycle {path} — emit pipeline not established`. One
-per candidate withdrawn because a consumer set or a tier could not be closed. A withdrawal is never a Low finding.
+per candidate withdrawn because a consumer set or a tier could not be closed.
 
 **Policy line.** Present only when repository instructions or a contract configuration explicitly permitted an edge or
 sanctioned a coupling; quotes the instruction or names the rule, and names the category and sites it withdrew. A
@@ -57,9 +49,8 @@ cell names the conflict.
   form.
 - **Basis** (Dependency Direction Violations) is `map: {tier} → {tier}, {source}` or `prohibition: {contract type},
   {file}, "{rule}"`. Nothing else is a basis.
-- **Kind** and **Failure** (Cyclic Dependencies): Kind is `runtime` or `type-only`, decided by whether the cycle
-  survives removal of every erased edge. Failure is `provable from {entry}: {file:line}`, `observed: {log or test}`,
-  or `none observed`. The **Cycle** cell marks erased edges (`a.ts → b.ts → a.ts (erased)`).
+- **Kind** and **Failure** (Cyclic Dependencies): Kind is `runtime` or `type-only`. Failure is
+  `provable from {entry}: {file:line}`, `observed: {log or test}`, or `none observed`. The **Cycle** cell marks erased edges (`a.ts → b.ts → a.ts (erased)`).
 - **Unit and boundary source** (External Type Leaks) carries the unit and why it is judged inward: its tier and the
   map, or the prohibition. **External type** names the package, not only the symbol.
 - **Capabilities** (Generic Boundary Names) enumerates the two or more unrelated capabilities found under the name;
@@ -69,8 +60,9 @@ When within-skill precedence chose one reading of an edge or a member over anoth
 cell names the other readings in one clause; a table with no Evidence column carries that clause, and the fan-in that
 sets Impact, in its Action cell. A cycle anchors at any eligible in-scope edge — the first in sorted path
 order when several qualify; there is no privileged closing edge. Generic Boundary Names and the Go exposure form have
-no natural `file:line`: anchor at the package clause, `__init__.py:1`, or `index.ts:1`, else the first file of the
-unit in sorted order.
+no natural `file:line`: anchor at the Go package clause of the unit's first file in sorted order
+(`pkg/crypto/impl/impl.go:1`), at `__init__.py:1`, or at `index.ts:1`, else at line 1 of the unit's first file in
+sorted order.
 
 ```md
 # Boundary Hunter Audit — {date}

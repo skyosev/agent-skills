@@ -1,31 +1,19 @@
 # SOLID Hunter — report format
 
-Read at Phase 5. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
-table schemas.
-
 The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
 `## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
 line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else.
-
-**Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two of
-them. When a category needs more detail, trim an existing column rather than appending.
-
-**No Toolchain lines.** No supported language has a SOLID analyzer a project would configure; the Scope block carries
-none.
+lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
+table, or "none found" line; a thin report is a valid result.
 
 **Architecture style line.** Always present: `struct-based` / `class-based` / `mixed` / `functional (limited
-findings)`. In a functional codebase Broken Substitution, Fat Interfaces, Concrete Dependency Chains, and
-struct/class-level Responsibility Sprawl fire only where structs, classes and interfaces exist; Rigid Extension Points
-and Go package-level Responsibility Sprawl fire regardless.
+findings)`.
 
 **Policy line.** Present only when repository instructions withdrew a pattern; quotes the instruction and names the
 category and sites it withdrew.
 
-**Enumeration line.** Present whenever implementors were found by reading consumers rather than by scan — structural
-typing (TypeScript, Python `Protocol`) hides implementors from regex. States what was searched (`implements`,
-subclassing, consumers read) and names the gap: implementors outside the searched consumers, external packages
-included, are not found. Findings claim the enumerated set only.
+**Enumeration line.** Present whenever implementors were found by reading consumers rather than by scan (SKILL.md
+Phase 3). States what was searched (`implements`, subclassing, consumers read) and names the gap.
 
 **Evidence cells.**
 
@@ -41,9 +29,6 @@ included, are not found. Findings claim the enumerated set only.
   fake follows as support. Never an average: an average hides which consumer proves the split.
 - **Form** (Concrete Dependency Chains) is `self-instantiation` or `global read`, and the Action states what the
   caller cannot control today.
-
-When Broken Substitution and Fat Interfaces both cleared their bars at one site, the reported finding's Evidence cell
-names the other reading in one clause.
 
 ```md
 # SOLID Hunter Audit — {date}

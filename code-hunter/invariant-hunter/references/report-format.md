@@ -1,35 +1,24 @@
 # Invariant Hunter — report format
 
-Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
-table schemas.
-
 The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
 `## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
 line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else.
+lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
+table, or "none found" line; a thin report is a valid result.
 
 Go-only categories (Unchecked Errors, Nil Pointer Risks, Zero-Value Traps, Error Chain Correctness, Context Misuse,
 Panic/Recover Misuse, Race Conditions) use the table schemas supplied in `invariant-go.md`.
 
-**Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two
-of them. When a category needs more detail, trim an existing column rather than appending.
-
 **Toolchain lines.** One per tool per language, in the form `<tool>: ran — <command>, <version>, <coverage>,
 <options that change what it sees>` / `skipped — not configured` / `skipped — configured, not installed` /
-`errored — <message>`, followed by the strictness flags read from the applicable config. A tool that ran with
-`errcheck -blank` off says so; it is not coverage of `_ = f()`.
+`errored — <message>`, followed by the strictness flags read from the applicable config.
 
 **Policy line.** Present only when repository instructions withdrew a pattern; quotes the instruction and names the
 category and sites it withdrew.
 
-**Evidence cells.** Guard (Unguarded Type Assertions) names the check present: `none`, `isinstance on sibling`,
-`zod parse`, and when present, whether it reaches the asserted property. Evidence (Loose Optionality) is the
-construction-and-mutation argument in one cell (evidence bar in SKILL.md), plus the consumer sites folded into the
-finding. Guaranteed By (Defensive Access) names the upstream site that always sets the value. Defect (Leaky
-Discriminated Unions) is one of `parallel flag`, `no exhaustiveness arm`, `leaking field`, `cast past discriminant`.
-Complexity (Runtime Checks Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as-runtime
-row it is the reason — `trust boundary`, `serialization`, or `type complexity: <what>`. Justification (Type-System
-Bypasses) is `none`, `bare`, or the quoted reason.
+**Evidence cells** follow each category's evidence bar in SKILL.md. Defect (Leaky Discriminated Unions) is one of
+`parallel flag`, `no exhaustiveness arm`, `leaking field`, `cast past discriminant`. Complexity (Runtime Checks
+Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as-runtime row it is the reason — `trust boundary`, `serialization`, or `type complexity: <what>`.
 
 ```md
 # Invariant Hunter Audit — {date}

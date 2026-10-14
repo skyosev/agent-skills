@@ -1,17 +1,9 @@
 # Simplicity Hunter — TypeScript reference
 
-Contents: Generated-code eligibility · Reinvented Primitives · Dead-code liveness channels · Complex Control Flow — TypeScript signals · Coexisting Generations — Phase 4 · Evidence path form · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
-
-Language-specific rules for TypeScript.
-
 ## Generated-code eligibility
 
-A file is generated (ineligible for reporting) only when identified by an authoritative in-file marker — **never** by
-filename guessing. No TypeScript-wide generated-code marker is defined here; when a project documents one, apply it.
-Scan globs such as `*.generated.*` / `__generated__/**` / `*.g.ts` / `generated/**` are approximations for scanning
-convenience; eligibility uses the marker rule when one exists.
-
-Vendored trees (`node_modules/`, `dist/`), lockfiles, and Markdown-only inputs are also ineligible.
+**Marker:** no TypeScript-wide marker is defined; when a project documents one, apply it. Scan globs:
+`*.generated.*` / `__generated__/**` / `*.g.ts` / `generated/**`. **Vendored:** `node_modules/`, `dist/`.
 
 ## Reinvented Primitives
 
@@ -25,16 +17,12 @@ Vendored trees (`node_modules/`, `dist/`), lockfiles, and Markdown-only inputs a
 | Manual `Promise` wrappers around already-promisified APIs | Existing promisified surface |
 | Ad-hoc date arithmetic | Date library already present as a dependency |
 
-**Signals:** hand-rolled `groupBy` / `uniq` / `chunk` / deep-equal; manual `Promise` wrappers around already-promisified
-APIs; ad-hoc date arithmetic where a date library is already a dependency.
-
 Exact semantic parity includes designed-in differences (e.g. `Object.groupBy` returns a null-prototype object and
 coerces non-symbol keys).
 
 ## Dead-code liveness channels
 
-Beyond the shared channels (SKILL.md Terms): `package.json` `exports` / `bin`. Cite channels relevant to *this*
-symbol.
+Beyond the shared channels (SKILL.md Terms): `package.json` `exports` / `bin`.
 
 ## Complex Control Flow — TypeScript signals
 
@@ -61,7 +49,6 @@ reachable.
 
 ```bash
 # 1. Read package.json; list overlapping-concern dependencies (HTTP, dates, state, validation, test runners).
-#    Coexistence alone nominates; it is never a finding by itself.
 
 # 2. Generation-named symbols and paths
 rg -l --type ts 'Legacy|Deprecated|V1|V2' --glob '!**/node_modules/**' --glob '!**/dist/**' .
@@ -72,23 +59,12 @@ find . -type d \( -name 'v[0-9]*' -o -name legacy -o -name old -o -name new \) \
 rg -n --type ts '@deprecated' --glob '!**/node_modules/**' --glob '!**/dist/**' .
 ```
 
-Confirm liveness for every candidate stratum. Capability and project intent decide the survivor; recency nominates
-only.
-
-## Evidence path form
-
-Cite findings as `file/path.ts:line` (or `.tsx` / `.mts` / `.cts` as appropriate).
-
 ## Phase 2 — complexity scans
 
-`$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4):
-`TS_FILES=$(cat <run>/typescript.txt); [ -n "$TS_FILES" ] || exit 1`. The Duplication list filters it (Phase 3
-below).
-
-Test files are included (complexity in tests is in scope). Duplication excludes them — see Phase 3 below.
+Restore the eligible list first: `TS_FILES=$(cat <run>/typescript.txt); [ -n "$TS_FILES" ] || exit 1`.
 
 ```bash
-# Dependencies, build output, generated-code approximations. Tests stay in (see SKILL.md Test-code scope).
+# Dependencies, build output, generated-code approximations.
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
 
 # Deep nesting (4+ indentation levels, 2-space indent)
@@ -118,5 +94,4 @@ DUP_EXCLUDE="$EXCLUDE --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.*
 # Seeds: codebase mode ($TS_FILES is .) enumerates; diff and path mode filter the eligible list.
 if [ "$TS_FILES" = . ]; then DUP_FILES=$(rg --files --type ts $DUP_EXCLUDE .)
 else DUP_FILES=$(printf '%s\n' $TS_FILES | grep -Ev '\.(test|spec|e2e)\.[^/]*$|(^|/)__tests__/'); fi
-# Project-wide searches take $DUP_EXCLUDE so test-code duplication stays with test-hunter.
 ```

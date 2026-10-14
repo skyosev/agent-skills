@@ -1,17 +1,12 @@
 # Smell Hunter — report format
 
-Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
-table schemas.
-
 The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
 `## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
 line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else.
+lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
+table, or "none found" line; a thin report is a valid result.
 
 Language-only categories appended by a language reference use the table schemas supplied in that reference.
-
-**Column ceiling.** No table carries more than eight columns beyond the `#` index, Severity and Impact included. Add
-detail by trimming a column, never by appending one. **Areas** is defined in SKILL.md Terms.
 
 ```md
 # Smell Hunter Audit — {date}
@@ -47,10 +42,6 @@ detail by trimming a column, never by appending one. **Areas** is defined in SKI
 | # | Location | Concept | Areas Touched | Commits | Severity | Impact | Action |
 | - | -------- | ------- | ------------- | ------- | -------- | ------ | ------ |
 | 1 | order/mapper.go:60 | "Add a field to `Order`" | 5 (`order`, `api`, `db`, `ui`, `cfg`) | `a1b2c3d`, `e4f5g6h` | Medium | High | Generate the mappers from the schema |
-
-The `Location` column is mandatory: the in-scope site that must be edited per change. Commits support it; they
-never replace it. **Variant** dispatch — a new union member editing every scattered switch — is solid-hunter's Rigid
-Extension Points and is not reported here.
 
 ### Temporal Coupling
 

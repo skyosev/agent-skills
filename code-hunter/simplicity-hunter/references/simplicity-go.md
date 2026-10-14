@@ -1,23 +1,17 @@
 # Simplicity Hunter — Go reference
 
-Contents: Generated-code eligibility · Language-only categories · Reinvented Primitives · Dead-code liveness channels · Coexisting Generations — Go carve-outs and Phase 4 · Error-handling note · Evidence path form · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
-
-Language-specific rules for Go.
+Contents: Generated-code eligibility · Language-only categories · Reinvented Primitives · Dead-code liveness channels · Coexisting Generations — Go carve-outs and Phase 4 · Error-handling note · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
 
 ## Generated-code eligibility
 
-A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs such
-as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
-
-Vendored trees (`vendor/`), lockfiles, and Markdown-only inputs are also ineligible.
+**Marker:** a `// Code generated … DO NOT EDIT.` line before the first non-comment text. Scan globs: `*.pb.go` /
+`*_gen.go` / `*_generated.go`. **Vendored:** `vendor/`.
 
 ## Language-only categories
 
 ### Interface Pollution
 
-Interfaces created for theoretical extensibility rather than actual need. (Core principle flavoured for Go: an
-interface that serves one call site and has one implementation is indirection, not simplification.)
+Interfaces created for theoretical extensibility rather than actual need.
 
 **Signals:**
 
@@ -26,11 +20,9 @@ interface that serves one call site and has one implementation is indirection, n
 - Interface that mirrors a concrete struct's full method set
 - "Just in case" interfaces that have existed for months without a second implementation
 
-**Ownership — existence, not width.** An interface a production consumer receives from outside (handwritten wiring,
-a wire or fx provider — the mechanism is irrelevant), or that a second implementation or a test double uses, is
-solid-hunter's Fat Interfaces question, not an existence question. This category owns the interface with **no live
-seam** (SKILL.md Terms): never held as another package's parameter or field, one implementation, no fake. In Go it
-replaces Unnecessary Abstractions for interfaces — report it here, never also there.
+**Ownership — existence, not width.** An interface with a live seam (SKILL.md Terms; in Go the outside wiring may be
+handwritten or a wire or fx provider) is solid-hunter's Fat Interfaces question. This category owns the interface with
+**no live seam**: never held as another package's parameter or field, one implementation, no fake.
 
 **Action:** Remove the interface and use the concrete type. Introduce the interface when a second implementation or
 test double is actually needed.
@@ -43,9 +35,8 @@ test double is actually needed.
 
 ### Channel & Goroutine Overuse
 
-Concurrency patterns more complex than the problem requires. (Core principle: **channels are not always the answer.**
-A mutex protecting a map is simpler than a channel-based worker pattern for simple state. Use channels for
-communication, mutexes for state protection.)
+Concurrency patterns more complex than the problem requires. A mutex protecting a map is simpler than a
+channel-based worker pattern for simple state.
 
 **Signals:**
 
@@ -82,8 +73,7 @@ source-level complexity, and carries a do-not-copy-a-non-zero-Builder constraint
 
 ## Dead-code liveness channels
 
-Beyond the shared channels (SKILL.md Terms): Go build tags (`//go:build`, `// +build`). Cite channels relevant to
-*this* symbol.
+Beyond the shared channels (SKILL.md Terms): Go build tags (`//go:build`, `// +build`).
 
 ## Coexisting Generations — Go carve-outs and Phase 4
 
@@ -111,27 +101,16 @@ find . -type d \( -name legacy -o -name old \) \
 rg -n --type go '// Deprecated:' --glob '!**/vendor/**' .
 ```
 
-Confirm liveness for every candidate stratum across the whole project. Nominate survivors on capability and project
-intent; `git log -1 --format=%as -- <path>` and recent call-site choice nominate only.
-
 ## Error-handling note
 
 Idiomatic `if err != nil` repetition is not complexity (complements the shared Error handling Not-a-finding). Flag only
 when error handling creates genuinely deep indentation or duplicated non-trivial construction/wrapping logic.
 
-## Evidence path form
-
-Cite findings as `file/path.go:line`.
-
 ## Phase 2 — complexity scans
 
-`$GO_FILES` is this language's eligible list, restored from `<run>/go.txt` (SKILL.md Phase 1 step 4):
-`GO_FILES=$(cat <run>/go.txt); [ -n "$GO_FILES" ] || exit 1`. The Duplication list filters it (Phase 3 below).
-
-Test files are included (complexity in tests is in scope). Duplication excludes them — see Phase 3 below.
+Restore the eligible list first: `GO_FILES=$(cat <run>/go.txt); [ -n "$GO_FILES" ] || exit 1`.
 
 ```bash
-# Generated-code globs approximate the authoritative marker (eligibility uses the marker).
 EXCLUDE='--glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Deep nesting (4+ indentation levels, tab-indented)
@@ -168,5 +147,4 @@ DUP_EXCLUDE="$EXCLUDE --glob !**/*_test.go"
 # Seeds: codebase mode ($GO_FILES is .) enumerates; diff and path mode filter the eligible list.
 if [ "$GO_FILES" = . ]; then DUP_FILES=$(rg --files --type go $DUP_EXCLUDE .)
 else DUP_FILES=$(printf '%s\n' $GO_FILES | grep -v '_test\.go$'); fi
-# Project-wide searches take $DUP_EXCLUDE so test-code duplication stays with test-hunter.
 ```

@@ -1,20 +1,12 @@
 # Slop Hunter — Go reference
 
-Contents: Generated-code eligibility · Language-only categories · Per-category Go markers · Formatter · Idiom calibration · Evidence path form · Phase 2 — slop scans · Phase 5 — Go-specific evaluation
-
-Language-specific rules for Go. Every universal category applies; one language-only category is added below.
+Contents: Generated-code eligibility · Language-only categories · Per-category Go markers · Formatter · Idiom calibration · Phase 2 — slop scans · Phase 5 — Go-specific evaluation
 
 ## Generated-code eligibility
 
-A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs
-such as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the
-marker.
-
-Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
-
-Slop-hunter runs no scan globs: `$GO_FILES` is the eligible list itself, so `foo_gen.go` without a marker is scanned
-and a marked file is not. Test files (`*_test.go`) are eligible.
+Generated-code marker: a `// Code generated … DO NOT EDIT.` line before the first non-comment text. Vendored trees
+(`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible. Test files (`*_test.go`) are
+eligible.
 
 ```bash
 cd "$(git rev-parse --show-toplevel)" || exit 1
@@ -66,9 +58,6 @@ opening is convention, not slop — see Verbose Documentation.
 - Godoc describing the implementation instead of the behavior
 - Godoc on an interface method that restates the method name
 
-Exported symbols keep their summary line (`// Foo does …` is the convention). Strip only what restates the
-signature beyond it.
-
 ### Style Drift
 
 - Import grouping that breaks the project's pattern (standard library / third-party / internal)
@@ -79,18 +68,14 @@ signature beyond it.
 - Idioms from other languages: `GetX()` for `X()`, `toString()` for `String()`, `userId` for `userID`
 - `gofmt` output on touched lines (see Formatter)
 
-**Ownership:** naming drift introduced by the change is here; *stuttering* (`user.UserName`) as a package-design
-smell is smell-hunter's Stuttering Names.
-
 ### Trivially Dead Code
 
 Go's compiler rejects unused imports and unused local variables, so those never appear in compiling code and
 `//nolint` cannot hide them. What Go does allow:
 
-- `_ = x` silencing a non-error binding the author meant to use — here. `_ = f()` where `f` returns an `error` is
-  invariant-hunter's Unchecked Errors
-- Unused function parameters (after a refactor) — here
-- Unused struct fields — here
+- `_ = x` silencing a non-error binding the author meant to use
+- Unused function parameters (after a refactor)
+- Unused struct fields
 - Bare `//nolint` or `//nolint:<linter>` with no trailing `// reason`
 - Commented-out code; `TODO` / `FIXME` without owner, ticket, or condition
 
@@ -99,9 +84,6 @@ the project's lint config requires it for an intentionally ignored return; a par
 interface, function type, or callback (`ServeHTTP(w, r)` that ignores `r`); a struct field that carries a struct tag
 or is exported — reflection and other packages read it.
 
-Unused functions and constants → simplicity-hunter Dead Code Paths. Exported dead symbols → boundary-hunter Dead
-Exports.
-
 ### Hedging and Narration
 
 Narration logging: `log.Print*` / `log.*` / `slog.*` / `zap` / `logrus` calls whose message is `entering`,
@@ -109,15 +91,12 @@ Narration logging: `log.Print*` / `log.*` / `slog.*` / `zap` / `logrus` calls wh
 
 ## Formatter
 
-**Adoption:** `gofmt` is canonical. It runs on every Go file with no adoption evidence required — the Go exception to
-the adoption rule.
+**Adoption:** always — `gofmt` is canonical and needs no adoption evidence.
 
 **Execution:** `gofmt -l $GO_FILES`. Passing the eligible list is the exclusion mechanism; `gofmt -l .` would list
-vendored and generated files. If `gofmt` is not on `PATH`, record `skipped — gofmt not installed`. A non-zero exit
-with a parse error is `errored — <message>`.
+vendored and generated files. Not installed means `gofmt` is not on `PATH`. A parse error is `errored`.
 
-In diff mode, `gofmt -d <file>` gives the violating lines; keep only those inside a `@@` range of
-`git diff -U0 "$MB" -- <file>`. Convention cell: `gofmt, touched line`.
+In diff mode, `gofmt -d <file>` gives the violating lines. Convention cell: `gofmt, touched line`.
 
 `goimports` is not `gofmt`: treat it as a formatter only when the project invokes it, then run `goimports -l`.
 
@@ -126,17 +105,9 @@ In diff mode, `gofmt -d <file>` gives the violating lines; keep only those insid
 Baseline rung 4 (the Style Drift order in SKILL.md): Effective Go and the Go Code Review Comments wiki. `gofmt`
 output is not a style choice.
 
-Repeated `if err != nil` is Go working as designed, never drift. A `//nolint` with a reason is a decision, not slop.
-
-## Evidence path form
-
-Cite findings as `file/path.go:line`.
+Repeated `if err != nil` is Go working as designed, never drift.
 
 ## Phase 2 — slop scans
-
-All scans take `$GO_FILES`, restored at the top of every call. Diff mode keeps the `+++` file headers and `@@` hunk
-headers, so each `+` line maps to a file and a working-tree line number. Untracked files have no diff: diff mode
-scans them whole with the whole-file commands, with `F` set to the untracked subset.
 
 ```bash
 # ---- Every call: restore run state ----
@@ -188,8 +159,8 @@ For each `fmt.Errorf` candidate:
 For each `//nolint`:
 
 - Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real
-  (`errcheck` on a dropped error)? Severity Medium: the noise hides a finding. Score only the bare suppression; the
-  dropped error itself is invariant-hunter's Unchecked Errors — cross-reference, do not score.
+  (`errcheck` on a dropped error)? Then the noise hides a finding (SKILL.md Severity). Score only the bare
+  suppression; cross-reference the dropped error to invariant-hunter's Unchecked Errors.
 
 For each `_ = x`:
 
@@ -199,7 +170,3 @@ For each `_ = x`:
 For each doc comment on an unexported symbol:
 
 - Does it say anything the name and signature do not? If not, Verbose Documentation.
-
-For each drifted name:
-
-- Is it introduced by the change (here) or a package-wide stutter (smell-hunter)?

@@ -1,8 +1,6 @@
 # SOLID Hunter — Go reference
 
-Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Per-category Go content · Composition roots and framework carve-outs · Evidence path form · Phase 2 — solid scans · Phase 4 — Go-specific evaluation
-
-Language-specific rules for Go.
+Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Per-category Go content · Composition roots and framework carve-outs · Phase 2 — solid scans
 
 ## Applicability of the categories
 
@@ -14,18 +12,14 @@ Language-specific rules for Go.
 | Fat Interfaces (ISP) | **yes** | interface | The existence test decides ownership before width: an interface with no live seam is simplicity-hunter's Interface Pollution |
 | Concrete Dependency Chains (DIP) | **yes** | struct | |
 
-No Go-only categories.
-
 ## Generated-code and test-path eligibility
 
-A file is generated (ineligible for reporting) only when it carries an authoritative in-file marker: a
-`// Code generated … DO NOT EDIT.` line before the first non-comment text. **Never** guess by filename. Scan globs such
-as `*.pb.go` / `*_gen.go` / `*_generated.go` are approximations for scanning convenience; eligibility uses the marker.
+Generated-code marker: a `// Code generated … DO NOT EDIT.` line before the first non-comment text. The scan globs
+`*.pb.go` / `*_gen.go` / `*_generated.go` approximate it.
 
 Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are also ineligible.
 
-**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`. Test files are still read as context — a
-hand-written fake proves an interface's seam is live; a test that stubs seven members supports a width finding.
+**Test paths are ineligible** (see Test-code scope in SKILL.md): `*_test.go`.
 
 ## Go principles
 
@@ -67,8 +61,9 @@ when the arms differ by a single call; an interface with one implementation per 
 `map[Kind]Iface`, only when the arms carry behavior. Registration in each variant's `init()` is the standard way to
 keep the core package ignorant of variants — recommend it only when the map itself is the remedy.
 
-Go has **no compile-time exhaustiveness** for type switches or string kinds, so `default: panic("unreachable")` is the
-best available and is never a finding of any hunter. It also never decides openness here.
+Go has **no compile-time exhaustiveness** for type switches or string kinds: a sealed set's missing arm is scored by
+no hunter, and `default: panic("unreachable")` is the best available and never a finding of any hunter. Neither
+decides openness here.
 
 ### Broken Substitution — Go forms
 
@@ -91,10 +86,9 @@ contract type at all.
 
 ### Fat Interfaces — Go forms
 
-The seam test first: an interface only ever returned by the package that implements it, never held as a parameter or
-struct field by another package, with one implementation and no fake, is simplicity-hunter's Interface Pollution. A
-seam is live when a consumer receives it as a parameter or field — handwritten wiring, a wire provider, an fx provider,
-all count — or when a second implementation or a hand-written fake exists.
+The seam test (SKILL.md) in Go: a consumer in another package holding the interface as a parameter or struct field
+makes it live — handwritten wiring, a wire provider, and an fx provider all count. With no live seam it is
+simplicity-hunter's Interface Pollution.
 
 The Action is **define it at the consumer**: `type userReader interface { Get(ctx, id) (*User, error) }` in the
 consuming package, the producer's concrete type satisfying it implicitly. An interface a single consumer uses fully
@@ -129,11 +123,6 @@ control — reported only when the Evidence names what that costs.
 - **wire** — a `//go:build wireinject` file, `wire.Build(…)`, or a generated `wire_gen.go`: provider functions are
   roots. **fx** — `fx.Provide`, `fx.Invoke`, `fx.New`: providers are roots and an fx-resolved dependency counts as a
   live seam for the existence test.
-- Naming the construct is required. "The project uses fx" does not exempt a constructor that builds its own client.
-
-## Evidence path form
-
-Cite findings as `file/path.go:line`.
 
 ## Phase 2 — solid scans
 
@@ -187,46 +176,3 @@ rg -H -n 'func\s+main\(\)|wire\.Build|fx\.(Provide|Invoke|New)' --type go $EXCLU
 **Embedding has no reliable scan.** Bare-identifier patterns inside a struct body match `return`, `break`, `continue`;
 qualified embeds (`sync.Mutex`, `pkg.Client`) defeat case anchoring. Enumerate the `type X struct` sites above and read
 their bodies.
-
-## Phase 4 — Go-specific evaluation
-
-For each construction site nominated:
-
-- Does the constructed type have methods, and do any of them do I/O or hold process-external state? No → value, not a
-  finding.
-- Does the enclosing function **keep** the object — store it in a field, call it — or hand it to another constructor?
-  Handed on → composition root, not a finding, whatever the file.
-- Is the enclosing function a wire/fx provider or `main()`'s wiring? → root.
-- What can the caller not control as a result — the host, the timeout, the clock, a shared pool's lifecycle? Name it,
-  or there is no finding.
-
-For each interface:
-
-- Is the seam live — received from outside by a production consumer, an fx/wire-resolved dependency, a second
-  implementation, or a hand-written fake? No → simplicity-hunter's Interface Pollution; cross-reference, do not score.
-- Live: which consumers call which subset, and are the unused members *unrelated* to the used ones? One consumer
-  using everything does not close the finding.
-- Do any implementors panic or stub a member? Apply the within-skill routing before choosing the category.
-
-For each type assertion or type switch on an interface:
-
-- Is the asserted-from type a **contract type** (methods, implementors) or a **data variant set** (a sealed interface
-  over data structs, `any` / open data)? Variant set → not here; invariant-hunter's Unguarded Type Assertions judges
-  the guard, and a sealed set's missing arm is no hunter's (see Rigid Extension Points — Go forms).
-- Does the branch **compensate** for a broken promise, or unlock an extra outside the contract? Extra → no finding.
-- Optional-interface check with a fallback → capability dispatch, no finding.
-
-For each switch on a discriminant:
-
-- List every site project-wide. One site → no finding.
-- Do the arms share one responsibility? Heterogeneous → recommend exhaustiveness per site, raise nothing.
-- `git log -S'<token>' --name-only --format='%h %ad %s' --date=short -- .`, `<token>` being the constant name or the
-  kind literal without its quotes — did adding a variant touch two or more of the listed sites? No history evidence
-  and no variant-adding diff → withdraw.
-
-For each package in scope:
-
-- Which actors do its files serve, and which members belong to each? Two actors with independent reasons to change →
-  finding at the package unit, including for a package of plain functions.
-- Is the concern instead a generic name or a clause that differs from the directory? → boundary-hunter's Generic
-  Boundary Names.

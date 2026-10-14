@@ -1,6 +1,6 @@
 # Diff scope — resolution
 
-Read at Phase 1 when the scope is a diff. Resolve fail-closed:
+Resolve fail-closed:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)" || exit 1                     # git diff and git ls-files must agree on paths

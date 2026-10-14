@@ -1,23 +1,16 @@
 # Slop Hunter — report format
 
-Read at Phase 6. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
-table schemas.
-
 The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
 `## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
 line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else.
+lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
+table, or "none found" line; a thin report is a valid result.
 
 Language-only categories appended by a language reference (Go: Unnecessary Error Wrapping) use the table
 schema supplied in that reference.
 
-**Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two
-of them. When a category needs more detail, trim an existing column rather than appending.
-
-**Consolidated rows.** A Style Drift row may stand for N occurrences of one rule-enforceable pattern. Location is the
-representative site; Occurrences is `N` (enumerated) or `≥ N` (partial scan); the Action fits the enforcement state
-(run the fixer / enable the rule and fix / fix the N sites). Every other row has `Occurrences: 1`. A consolidated row
-counts once in `Audit completed`.
+**Consolidated rows** (SKILL.md Style Drift → Consolidation): Occurrences is `N`, or `≥ N` for a partial scan; every
+other row has `Occurrences: 1`. `Audit completed` counts every reported finding, a consolidated row once.
 
 **Convention cell.** Names the baseline source used — config file, repository instruction, nearby code, or style
 guide. For a formatter finding in diff mode it also carries the touched-line rule: `gofmt, touched line`.

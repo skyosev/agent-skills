@@ -1,145 +1,85 @@
 ---
 name: type-hunter
-description: |
-  Use when reviewing Go, Python, or TypeScript code for type structure debt: duplicated type
-  declarations, generics that never vary or are loosely constrained, over-powered type constructs,
-  enum and alias construct mechanics, Go embedding that leaks API surface, and hand-rolled
-  TypeScript utility types. Reducing type duplication, simplifying type-level code, or cleaning up
-  type definitions after growth. Defaults to the codebase.
-
-  Covers one shape declared twice by hand, a type parameter bound to one concrete type, a
-  constraint that does not express what the body does, a construct more powerful than any use
-  needs, an existing enum or alias built with the wrong construct, and promoted method sets a
-  struct's consumers should not have.
+description: Audit Go, Python, or TypeScript code for type structure debt — duplicated type declarations, generics that never vary, loose type parameter constraints, over-powered type constructs, enum and alias construct mechanics, Go embedding antipatterns, reinvented TypeScript utility types. Defaults to the codebase.
 disable-model-invocation: true
 ---
 
 # Type Hunter
 
-Audit code for **type structure debt** — one shape declared twice by hand, a type parameter that every instantiation
-binds to the same type, a constraint that hides what the body does with `T`, a conditional type where an intersection
-would do, a constant group with no named type, an alias where a distinct type was meant, an exported struct promoting
-`Lock` and `Unlock` to every importer. Goal: **every type is declared once, no more generic than its uses, and built
-with the simplest construct that types every existing use at equal precision.**
-
-Supports Go, Python, TypeScript via per-language reference files.
+Audit code for **type structure debt**: a type declared more than once by hand, more generic than its uses, or built
+with a construct more powerful than its uses need at **equal precision**. Examples: one shape declared twice by hand,
+a type parameter every instantiation binds to the same type, a constraint that hides what the body does with `T`, a
+constant group with no named type, an exported struct promoting `Lock` and `Unlock` to every importer.
 
 **Not covered (owned by other hunters):** primitives standing in for domain concepts where no named construct exists
 yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package
 organization (→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports);
-the *crossing* beside any hand-written mirror of a generated, ORM, SDK, or protobuf type — the external type used
-inward, or a mapper output still carrying it (→ boundary-hunter's External Type Leaks; the mirror itself is never a
-finding there either); optionality, unguarded narrowing, `any` / `Any` as a *value* type, exhaustiveness, `as const`
-adoption for a value with no parallel declaration (→ invariant-hunter's Runtime Checks Promotable to Types),
-`satisfies` in place of an `as T` (→ invariant-hunter's Unguarded Type Assertions), validation of external input into
-an enum, never-checked zero sentinels (→ invariant-hunter); repeated logic and repeated runtime values, abstractions
-with one call site, runtime control flow, reinvented runtime primitives (→ simplicity-hunter); a struct embedding an
-interface it implements only partly, interface width (→ solid-hunter); test design and the structure of fixture or
-mock types (→ test-hunter; see Test-code scope); documentation restating types (→ slop-hunter); content validation at
-trust boundaries (→ security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to
-Hunt is authoritative.
-
-## When to Use
-
-- Reducing type duplication across modules or packages after rapid growth
-- Simplifying over-engineered generics or type-level logic
-- Reviewing constant groups, enums, and aliases for the construct they are built with
-- Cleaning up type definitions after prototyping
-- Reviewing Go struct embedding before a package is exported or published
-
-## Quick Reference
-
-Full rules in **What to Hunt**; every finding must also clear Not-a-finding and the category's evidence bar. Category
-names are canonical: the heading here, in What to Hunt, and in the report are identical. Six categories are universal
-(with per-language applicability, see Applicability); Embedding Antipatterns is Go-only and Reinvented Utility Types is
-TypeScript-only.
-
-| Category | Core signal | Action | Belongs to another hunter |
-| -------- | ----------- | ------ | ------------------------- |
-| Duplicated Type Declarations | One shape declared twice by hand, where one declaration could follow the other, a runtime value, or a schema | Derive with the named mechanism, or delete one copy and use the survivor | Repeated *logic* or repeated *runtime values* → simplicity-hunter (Duplication); values travelling together with no type → smell-hunter (Data Clumps); a mirror of a generated / ORM / SDK / protobuf type → boundary-hunter, always; `as const` with no parallel declared type → invariant-hunter |
-| Generics That Never Vary | A type parameter bound to one concrete production type across every instantiation | Remove the parameter; use the concrete type | A value-level wrapper, manager, factory, or interface with no live seam → simplicity-hunter (Unnecessary Abstractions) |
-| Loose Type Parameter Constraints | A constraint that does not express what the body does with `T` | Tighten to the operation the body performs; Go type switch → concrete functions, an interface, or a union constraint; TypeScript → `const` type parameter | `any` / `Any` as a *value* type → invariant-hunter (Type-System Bypasses); a cast inside a generic body that a tighter constraint removes is **one finding here** |
-| Over-Powered Type Constructs *(Python, TypeScript)* | A type-level construct more powerful than any existing use needs | Replace with the simpler construct at equal precision | Runtime complexity → simplicity-hunter; a template literal type *missing* for a structured string → smell-hunter (Primitive Obsession) |
-| Enum Construct Mechanics | An existing constant group or enum built with the wrong construct, with a consumer that pays for it | Go: named type, `String()`; TypeScript: string-literal union or `as const` object with the derived union; Python: member comparison | Raw values compared with no constant group → smell-hunter (Primitive Obsession); validation of external input into the enum → invariant-hunter / security-hunter; a never-checked zero sentinel → invariant-hunter (Zero-Value Traps) |
-| Alias vs Named Type Mechanics *(Go, Python)* | An alias where a distinct type was meant | Go: named type, or delete the alias; Python: `NewType` | A bare primitive with no alias → smell-hunter; TypeScript aliases → smell-hunter (brand-or-withdraw) |
-| Embedding Antipatterns *(Go)* | An embedding that promotes API surface the outer type's consumers should not have | Unexported field; delegate the used methods | A partly implemented embedded interface → solid-hunter (Broken Substitution); interface width → solid-hunter (Fat Interfaces) |
-| Reinvented Utility Types *(TypeScript)* | A hand-rolled type equal to a built-in utility | Replace with the built-in | Hand-rolled *runtime* primitives → simplicity-hunter (Reinvented Primitives) |
+the *crossing* beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror);
+optionality, unguarded narrowing, `any` / `Any` as a *value* type, exhaustiveness, `as const` adoption for a value with
+no parallel declaration (→ invariant-hunter's Runtime Checks Promotable to Types), `satisfies` in place of an `as T`
+(→ invariant-hunter's Unguarded Type Assertions), validation of external input into an enum, never-checked zero
+sentinels (→ invariant-hunter); repeated logic and repeated runtime values, abstractions with one call site, runtime
+control flow, reinvented runtime primitives (→ simplicity-hunter); a struct embedding an interface it implements only
+partly, interface width (→ solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope,
+see Test-code scope); documentation restating types (→ slop-hunter); content validation at trust boundaries
+(→ security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is
+authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
+## Quick Reference
+
+Category names are canonical: the heading here, in What to Hunt, and in the report are identical. A language tag
+marks a category that applies only there; each language reference's Applicability table states, per category,
+whether it applies and why.
+
+| Category | Core signal | Action |
+| -------- | ----------- | ------ |
+| Duplicated Type Declarations | One shape declared twice by hand, where one declaration could follow the other, a runtime value, or a schema | Derive with the named mechanism, or delete one copy and use the survivor |
+| Generics That Never Vary | A type parameter bound to one concrete production type across every instantiation | Remove the parameter; use the concrete type |
+| Loose Type Parameter Constraints | A constraint that does not express what the body does with `T` | Tighten to the operation the body performs; Go type switch → concrete functions, an interface, or a union constraint; TypeScript → `const` type parameter |
+| Over-Powered Type Constructs *(Python, TypeScript)* | A type-level construct more powerful than any existing use needs | Replace with the simpler construct at equal precision |
+| Enum Construct Mechanics | An existing constant group or enum built with the wrong construct, with a consumer that pays for it | Go: named type, `String()`; TypeScript: string-literal union or `as const` object with the derived union; Python: member comparison |
+| Alias vs Named Type Mechanics *(Go, Python)* | An alias where a distinct type was meant | Go: named type, or delete the alias; Python: `NewType` |
+| Embedding Antipatterns *(Go)* | An embedding that promotes API surface the outer type's consumers should not have | Unexported field; delegate the used methods |
+| Reinvented Utility Types *(TypeScript)* | A hand-rolled type equal to a built-in utility | Replace with the built-in |
+
 ## Core Principles
 
-1. **Declare once; consolidate.** Two hand-written declarations of one shape are a maintenance trap: a change to one
-   must be replicated in the other. The finding names the concept, maps every member, and names the consolidation
-   path — a derivation that preserves the shape, or deleting one copy and using the other. Where the language offers
-   neither for the variant at hand, there is no finding; "keep in sync" is not an Action.
+1. **Scans nominate; reading decides.** Scan hits, occurrence counts, member counts, and parameter counts *nominate*
+   candidates. Nothing is a finding until every site its evidence bar names has been read.
 
-2. **Generics must vary.** A type parameter every instantiation binds to the same concrete type is indirection, not
-   abstraction. The evidence is the enumerated instantiation set, tests marked and never counted as variation.
-
-3. **Constraints document intent.** `[T any]`, `<T>`, an unbounded `TypeVar` say nothing. The constraint should state
-   what the body does with `T`; a body that compares, indexes, calls methods, type-switches, or bridges with an
-   assertion has outgrown its constraint. A body that treats `T` as opaque has not, however many callers pass one
-   shape — that is the generics-must-vary question.
-
-4. **Simplest construct at equal precision.** A conditional type, a recursive type, an `@overload` tower, a
-   `ParamSpec`, a hand-rolled mapped type earns its place only where a simpler form loses precision on some existing
-   use. The replacement must accept the same inputs, reject the same inputs, and yield the same or a narrower result
-   on every enumerated use. If any use needs the power, no finding.
-
-5. **Structure, not enforcement.** This skill asks whether a type is declared once, no more generic than its uses, and
-   built with the right construct. Whether the code *guarantees* an invariant — optionality, narrowing, bypasses,
-   exhaustiveness — is invariant-hunter's question. Whether a primitive *should become* a domain type is
-   smell-hunter's.
-
-6. **Consumers pay; counts nominate.** An enum built with the wrong construct is a finding when a consumer pays for it
-   — an untyped constant accepted where an `int` is, a formatted type with no `String()`, a `.value` comparison. Style
-   alone is not a defect. Occurrence counts, member counts, and parameter counts nominate candidates and never decide
-   a finding.
-
-7. **Respect the language.** Go's small named types, consumer-defined interfaces, and composition are the language
-   working as designed; Go has no derivation from a runtime value and no type-level constructs beyond constraints.
-   TypeScript's structural typing makes plain aliases interchangeable, so alias mechanics are not judged there.
-   Python's consolidation paths are weaker than TypeScript's; the reference names the ones that exist. Never recommend
-   a type-level solution the language cannot express.
-
-8. **Scans nominate; reading decides.** `rg 'iota'`, `rg 'TypeVar\('`, `rg 'enum\s+\w+'` find every group. Nothing is
-   a finding until the canonical declaration, every instantiation, every promoted-member consumer, and every site of a
-   copy to be deleted have been read.
+2. **Respect the language.** Recommend only constructs the audited language expresses and the project's version gates
+   permit; the language reference carries the calibration.
 
 ## Terms
 
-- **Type structure debt** — the skill's question: is this type declared once, no more generic than its uses, built
-  with the simplest construct that types every existing use at equal precision? Not "does the code enforce this
-  invariant" (invariant-hunter) and not "is this primitive a missing domain type" (smell-hunter).
 - **Declaration vs value** — the simplicity/type ownership test. Repeated *logic or runtime values* across functions
   is simplicity-hunter's Duplication. Two *type declarations* of one shape — interface, type alias, struct, dataclass,
   `TypedDict`, Pydantic model, enum, union — are this skill's Duplicated Type Declarations, whatever the language. A
-  hand-written union parallel to a runtime array is a declaration duplicating a value: here, in a language that can
-  derive the union from the value (TypeScript); elsewhere Not a finding.
+  hand-written union parallel to a runtime array is a declaration duplicating a value, so it is here.
 - **Source kind** — where the canonical declaration lives: *sibling type* (the other hand-written declaration),
   *runtime value* (`as const` array or object), *schema* (Zod, io-ts, Valibot, ArkType, TypeBox, Pydantic, msgspec —
-  whatever the project already has). Named in the report's Source cell. A *generated or external type* (`.pb.go`,
-  OpenAPI client, Prisma, ORM model, SDK type) is never a source kind here — see Cross-layer mirror.
+  whatever the project already has). Named in the report's Source cell.
 - **Consolidation path** — the concrete fix a Duplicated Type Declarations finding must name; one of two. (a) A
   *type-level derivation* that preserves the shape: TypeScript `Pick` / `Omit` / `Partial` / `Readonly` /
   intersection, `(typeof arr)[number]`, the installed schema library's inference type in the right role; Go embedding
   a shared struct where the outer type should carry its method set, otherwise an explicit field where the wire or
   storage shape allows it; Python inheritance of `TypedDict`, dataclass, or Pydantic model, `Required` / `NotRequired`
   for omittable-key variants. (b) *Delete and use*: one copy is deleted and the other used directly, which requires that
-  every former site of the deleted copy accepts the surviving one. **A finding requires one of the two.** Where neither
-  exists for the variant at hand, the duplicate is Not a finding — not a Low with "keep in sync". Pydantic can build
-  optional variants at runtime; that produces no static field types and is not a path here.
+  every former site of the deleted copy accepts the surviving one. **A finding requires one of the two**; where neither
+  exists for the variant at hand, the candidate is dropped.
 - **Cross-layer mirror** — a hand-written declaration mirroring a generated, ORM, SDK, or protobuf type, with or
   without a mapper and whatever the mapper does. Never duplication here, because the only "fix" this skill could name
   puts the external type where boundary-hunter says it must not go. boundary-hunter's External Type Leaks judges the
-  *crossing* — the external type used inward beside the mirror, or a mapper output still carrying it; the mirror
-  itself is never a finding there, and a same-layer clone is nobody's finding by design. Duplication is between two
-  *hand-written* declarations whose consolidation path exists.
+  **crossing** — the external type used inward beside the mirror, or a mapper output still carrying it; the mirror
+  itself is never a finding there, and a same-layer clone is nobody's finding by design. Generated files are still read
+  as context to identify a mirror. Duplication is between two *hand-written* declarations whose consolidation path
+  exists.
 - **Instantiation** — one concrete binding of a type parameter, found project-wide by reading call sites and
   declarations, not by regex: TypeScript and Python infer arguments without writing them, Go writes them rarely at
-  call sites. Test-file instantiations are recorded and marked `(test)` but never counted as variation.
+  call sites.
 - **Closed consumer set** — invariant-hunter's per-symbol rule, reused for every usage-based narrowing (Generics That
   Never Vary, Over-Powered Type Constructs, Embedding Antipatterns' used-subset argument). An exported symbol whose unit
   is closed is judged in tree, export alone being no limit; one whose unit is open has instantiations or callers outside
@@ -160,7 +100,8 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   finding (no consolidation path exists, a second production instantiation exists, the body is opaque); nothing is
   recorded. **Withdraw:** the evidence could not be completed (a consumer set not closed, a site that could not be
   read, an instantiation set that could not be enumerated); one Scope `Limitation` line is recorded. A repository
-  policy that removes a pattern is recorded as its `Policy:` line instead. Neither is ever a Low finding.
+  policy that removes a pattern is recorded as its `Policy:` line instead. Neither is ever a Low finding: Severity is
+  not a confidence scale.
 - **Existence vs construct** — the smell/type ownership test for enums and aliases. No named construct yet (raw
   string compared, bare `str` parameter) → smell-hunter's Primitive Obsession, whose reference names the remedy. A
   constant group, enum, or alias *exists* and is built with the wrong construct → here. Because this skill fires only
@@ -168,52 +109,12 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   exception: smell-typescript's brand-or-withdraw rule keeps the alias question there.
 - **Equal precision** — the bar every "simpler form" must clear (Over-Powered Type Constructs, Reinvented Utility
   Types, and Duplicated Type Declarations' derivation): on every enumerated use the replacement accepts the same
-  inputs, rejects the same inputs, and produces the same or a narrower result. `A & B` is not `DeepMerge<A, B>` when
-  a member exists in both with different types (the intersection yields `never`); `int | str` is not an `@overload`
-  tower that maps `int → int` and `str → str`.
-- **Target scope and context** — findings anchor in the manifest; the canonical declaration, every instantiation,
-  every consumer of a promoted method, every site of a copy to be deleted, and test files are read wherever they live.
-
-## Not a finding on these grounds alone
-
-Conditionals, not category exemptions — each states what does **not** justify a finding and, where one exists, what
-would:
-
-- **Separate request and response types at an API boundary** that differ by validation, serialization tags, or
-  consumer. *Is* Duplicated Type Declarations when both are hand-written, live in one layer serving one boundary, and
-  a consolidation path at equal precision exists.
-- **Any hand-written type mirroring a generated, ORM, SDK, or protobuf type** — see Cross-layer mirror in Terms.
-- **Two types sharing some members, each with its own.** Not duplicates. Members that travel together as parameters
-  with no type at all are smell-hunter's Data Clumps.
-- **A duplicate with no consolidation path in this language** (a Python patch type with every field optional over a
-  dataclass or model; a Pydantic model beside a `TypedDict` where neither can be deleted; a Python `Literal` parallel
-  to a runtime sequence; a Go constant set beside a slice of the same values; a Go DTO where embedding leaks methods
-  and a field changes the wire shape). No finding at any severity.
-- **An exported symbol whose consumer set cannot be closed inside the tree** (a library's published generic, struct,
-  or embedded surface). Withdrawn with a Scope `Limitation` line; the same symbol unexported, or in a closed unit,
-  is judged.
-- **A generic whose second instantiation is a test.** Still Generics That Never Vary; the test is cited and the Action
-  says how it survives. A second *production* instantiation drops the finding.
-- **`[T any]` / `<T>` / an unbounded `TypeVar` where the body treats `T` as opaque** (stores, returns, passes
-  through). The constraint matches the use, however many callers pass one shape — that question is Generics That Never
-  Vary. *Is* Loose Type Parameter Constraints when the body compares, indexes, calls methods, type-switches, or bridges
-  with an assertion.
-- **A type-level construct one existing use needs.** Library types, framework constraints, and serialization
-  boundaries may need conditional or recursive types; if any enumerated use requires the power, or the simpler form
-  loses precision on any use, no finding.
-- **A hand-rolled utility with different semantics from the built-in** (`DeepPartial`, a non-distributive `Exclude`,
-  a `Pick` that errors on missing keys). Not reinvention.
-- **Raw strings compared with no constant group** — smell-hunter's Primitive Obsession; this skill needs an existing
-  construct.
-- **A bare `str` / `string` parameter for an identifier with no alias declared** — smell-hunter's. *Is* Alias vs Named
-  Type Mechanics when two aliases of the primitive exist and are mixed at a site.
-- **Language-specific forms** — enum, alias, embedding, and `as const` conditionals — are stated in each language
-  reference's per-category sections and Phase 4 block, and apply with the same force as this list.
-- **A pattern in a test file** — never a finding; test files are out of scope, not exempt (see Test-code scope).
+  inputs, rejects the same inputs, and produces the same or a narrower result. If any use needs the power, no finding.
 
 ## What to Hunt
 
-Categories are named, not numbered. Cross-references use category names (e.g. "→ Enum Construct Mechanics").
+Each category's **Not a finding:** line, and the per-category not-findings in each language reference, list what does
+**not** justify a finding on those grounds alone and, where one exists, what would.
 
 ### Duplicated Type Declarations
 
@@ -236,6 +137,10 @@ consolidation path (derive or delete-and-use) at equal precision, with every for
 show neither copy is a generated or external type. For a repeated inline expression: the independent sites, and that
 naming it once reduces concepts.
 
+**Not a finding:** separate request and response types at an API boundary that differ by validation, serialization
+tags, or consumer — *is* a finding when both are hand-written, live in one layer serving one boundary, and a
+consolidation path at equal precision exists. Two types sharing some members, each with its own members.
+
 **Action:** derive from the source with the named mechanism — the utility type, `(typeof arr)[number]`, the schema
 library's inference type in the right role, inheritance, `Required` / `NotRequired` — or delete the copy and use the
 survivor. For repeated inline expressions: name it once — an alias; a callable `Protocol` only when keyword arguments
@@ -243,15 +148,16 @@ or overloads need it. In Go: embed only where the outer type should carry the me
 wire or storage shape allows it, delete-and-use where one struct stands in for the other at every site; when none
 fits, drop.
 
+**Severity:** High when the copies have already diverged for the same concept with both live (a member present in
+one, absent or differently typed in the other, both consumed); the divergence is named in Evidence.
+
 **Ownership:** the declaration-vs-value test (see Terms). simplicity-hunter keeps repeated logic and repeated runtime
 values, and its own rule "duplication derivable from an existing source of truth" for values; two declared types of
 one shape, a declared union beside a runtime array, and a manual type beside a schema are here. Values travelling
-together with no type are smell-hunter's Data Clumps. Any cross-layer mirror is out of scope here;
-boundary-hunter's External Type Leaks judges the crossing beside it (see Terms). `as const` recommended to make a
-value the *derivation source* of a declared union is this category's Action; `as const` for a value with no parallel
-declaration stays invariant-hunter's Runtime Checks Promotable to Types, and `satisfies` in place of an `as T` its
-Unguarded Type Assertions. A `Literal` beside an `Enum` is reported here and cross-referenced from Enum Construct
-Mechanics.
+together with no type are smell-hunter's Data Clumps. Any cross-layer mirror is out of scope here (see Terms). `as
+const` recommended to make a value the *derivation source* of a declared union is this category's Action; `as const`
+for a value with no parallel declaration stays invariant-hunter's Runtime Checks Promotable to Types, and `satisfies`
+in place of an `as T` its Unguarded Type Assertions.
 
 ### Generics That Never Vary
 
@@ -272,9 +178,7 @@ marked `(test)`; show one concrete production type; the consumer set is closed i
 instantiates a fake, the Action says how the test survives (a fake of the production type).
 
 **Ownership:** a value-level abstraction — wrapper, manager, factory, interface with no live seam — is
-simplicity-hunter's Unnecessary Abstractions; a *type parameter* with one instantiation is here. On one parameter this
-category takes precedence over Loose Type Parameter Constraints: removing the parameter retires the constraint
-question.
+simplicity-hunter's Unnecessary Abstractions; a *type parameter* with one instantiation is here.
 
 ### Loose Type Parameter Constraints
 
@@ -289,20 +193,26 @@ A constraint that does not express what the body does with `T`.
 - TypeScript only: a parameter receiving array or object literals whose tuple or literal types a downstream consumer
   re-narrows, and no `const` modifier
 
-**Evidence bar:** name the operation the body performs on `T` that the constraint does not permit, or the bridge that
-makes it compile (`any(v).(fmt.Stringer)`, `(x as any)[k]`, `cast`); state the tightest constraint every existing
-instantiation satisfies. Go form: a generic body that type-switches on `T` — the constraint is `any` and the body
-enumerates types. TypeScript `const` form: the re-narrowing consumer, and that the parameter type is an array or object
-(a scalar `T extends string` already preserves the literal).
+**Evidence bar:** name the operation the body performs on `T` that the constraint does not permit — it compares,
+indexes, calls methods, type-switches, or bridges with an assertion (`any(v).(fmt.Stringer)`, `(x as any)[k]`,
+`cast`); state the tightest constraint every existing instantiation satisfies. Go form: a generic body that
+type-switches on `T` — the constraint is `any` and the body enumerates types. TypeScript `const` form: the
+re-narrowing consumer, and that the parameter type is an array or object (a scalar `T extends string` already
+preserves the literal).
+
+**Not a finding:** `[T any]` / `<T>` / an unbounded `TypeVar` where the body treats `T` as *opaque* — stores, returns,
+passes it through, ranges over `[]T` without touching elements. The constraint matches the use, however many callers
+pass one shape; that question is Generics That Never Vary.
 
 **Action:** tighten to the stated constraint. Go type switch: concrete functions, an interface, or a union constraint.
 TypeScript: add `const` to the parameter (TS 5.0+, read from the lockfile).
 
+**Severity:** Low on a generic with a single caller.
+
 **Ownership:** `any` / `Any` as a *constraint* is here; `any` / `Any` as a *value type* is invariant-hunter's
-Type-System Bypasses (Go `any` / `interface{}` as a value type is nobody's, as invariant-hunter recorded). Precedence
-for the overlap: a bypass inside a generic body (`(o as any)[k]`, `cast(T, x)`, `any(v).(X)`) that a tightened
-constraint removes is **one** Loose Type Parameter Constraints finding here; invariant-hunter does not score the same
-cast. An opaque body is never Loose (see Not-a-finding).
+Type-System Bypasses (Go `any` / `interface{}` as a value type is nobody's). A bypass inside a generic body
+(`(o as any)[k]`, `cast(T, x)`, `any(v).(X)`) that a tightened constraint removes is **one** Loose Type Parameter
+Constraints finding here; invariant-hunter does not score the same cast.
 
 ### Over-Powered Type Constructs *(Python, TypeScript)*
 
@@ -316,21 +226,21 @@ A type-level construct more powerful than any existing use needs.
   `@overload` towers with one input→output mapping
 - Many type parameters (nomination only)
 
-**Evidence bar:** name the simpler construct and show it types every enumerated instantiation at equal precision; if
-any use needs the power, no finding. Parameter count nominates only.
+**Evidence bar:** name the simpler construct and show it types every enumerated instantiation at equal precision.
 
-**Action:** replace with the simpler construct. Where the power is needed (library types, framework constraints,
-serialization boundaries), no finding.
+**Not a finding:** a construct some enumerated use needs — library types, framework constraints, and serialization
+boundaries often do.
+
+**Action:** replace with the simpler construct.
 
 **Ownership:** type-level only; simplicity-hunter's Complex Control Flow and Reinvented Primitives are runtime code.
 Template literal *overuse* is here; a template literal type *missing* for a structured string domain is
-smell-hunter's Primitive Obsession. On one type parameter, Generics That Never Vary wins first; otherwise this category
-beats Loose Type Parameter Constraints. Not applicable to Go, which has no type-level constructs beyond constraints —
-the Go type-switch form is Loose Type Parameter Constraints.
+smell-hunter's Primitive Obsession.
 
 ### Enum Construct Mechanics
 
-An existing constant group or enum built with the wrong construct, with a consumer that pays for it.
+An existing constant group or enum built with the wrong construct, with a consumer that pays for it. Style alone is
+not a defect.
 
 **Signals:**
 
@@ -339,8 +249,7 @@ An existing constant group or enum built with the wrong construct, with a consum
 - TypeScript: an `enum` whose members are only ever compared or serialized (a union suffices; supporting evidence:
   value imports of the enum across modules that a type-only union would erase); a numeric `enum` for unordered
   non-flag values that is serialized; `enum` members compared to raw literals with `===`; a single-member `enum`
-- Python: members compared by `.value` against raw strings; a single-member `Enum`; a `Literal[...]` parallel to an
-  `Enum` (reported as Duplicated Type Declarations, cross-referenced)
+- Python: members compared by `.value` against raw strings; a single-member `Enum`
 
 **Evidence bar:** anchor at the group; name the defect and the consumer that pays for it — the site that accepts the
 untyped constant, the formatting site with no `String()`, the comparison, the serialization.
@@ -349,6 +258,8 @@ untyped constant, the formatting site with no `String()`, the comparison, the se
 union, or an `as const` object with the union derived from it, with the serialization / non-TS-consumer risk named
 where the value crosses a boundary and `erasableSyntaxOnly` named where the project sets it. Python: member
 comparison (`StrEnum` as vocabulary at 3.11+); drop the single member.
+
+**Severity:** Low for a missing `String()` on a formatted constant type, and for a single-member enum.
 
 **Ownership:** the existence-vs-construct test (see Terms). smell-hunter owns raw values compared with no constant
 group and names the remedy per language; this category owns the construct of an existing group and states no
@@ -372,100 +283,50 @@ aliases and the mixing site.
 
 **Action:** Go: a named type for distinction, or delete the alias. Python: `NewType`.
 
-**Ownership:** identity types with no alias at all are smell-hunter's Primitive Obsession — this category needs an
-existing alias. Not applicable to TypeScript: structural typing makes plain aliases interchangeable, and
-smell-typescript's brand-or-withdraw rule keeps the alias question there.
+**Severity:** Low for an alias cleanup.
+
+**Ownership:** identity types with no alias at all (a bare `str` / `string` parameter) are smell-hunter's Primitive
+Obsession — this category needs an existing alias. TypeScript aliases stay with smell-typescript's brand-or-withdraw
+rule.
 
 ### Embedding Antipatterns *(Go)*
 
-An embedding that promotes API surface the outer type's consumers should not have. Defined in full in
-`references/type-go.md`; summarized here so the category set is complete in one place.
-
-**Evidence bar:** (1) `sync.Mutex` / `sync.RWMutex` embedded (not a field) in an exported struct — `Lock` / `Unlock`
-callable by every importer; (2) an embedded type whose promoted methods conflict with the outer type's own or exceed
-what any consumer in the repository calls — enumerate the promoted set and the used subset; consumer set closed, else
-withdrawn. A promoted method counts as used when the outer value is passed, assigned, or returned as an interface
-that declares it (a `loggingWriter` embedding `http.ResponseWriter`, handed to `net/http` as one).
-
-**Action:** an unexported field; delegate the used methods explicitly.
-
-**Ownership:** a struct embedding an interface it implements only partly, leaving the embed nil, is solid-hunter's
-Broken Substitution however the panic is reached. Interface *width* is solid-hunter's Fat Interfaces; this category
-judges a *struct's* promoted method set.
+An embedding that promotes API surface the outer type's consumers should not have. Forms, evidence bar, Action,
+Severity, and Ownership: `references/type-go.md`.
 
 ### Reinvented Utility Types *(TypeScript)*
 
-A hand-rolled type equal to a built-in utility. Defined in full in `references/type-typescript.md`; summarized here.
-
-**Evidence bar:** the built-in named; the project's TypeScript version (lockfile) supports it (gate 1); exact semantic
-parity including homomorphic modifier preservation (gate 3) — `DeepPartial` is not `Partial`, a distributive variant
-is not `Exclude` unless the built-in is also distributive there; net concept reduction (gate 6). simplicity-hunter's
-gates 2, 4, 5 are moot at type level.
-
-**Action:** replace with the built-in.
-
-**Ownership:** simplicity-typescript's primitive list has no utility types; unclaimed, kept here.
+A hand-rolled type equal to a built-in utility. Forms, gates, Action, Severity, and Ownership:
+`references/type-typescript.md`.
 
 ### Within-skill precedence
 
 One finding per site. On one type parameter: Generics That Never Vary first — removing the parameter
 retires every constraint question; otherwise Over-Powered Type Constructs beats Loose Type Parameter Constraints. A
-`Literal` beside an `Enum` is Duplicated Type Declarations, cross-referenced from Enum Construct Mechanics. The
-Evidence cell of whichever is reported names the other reading in one clause.
-
-## Applicability
-
-Six categories are universal in definition; each language reference declares them applicable or not, with the reason.
-**A language with no reference is not supported** — its files are excluded, never implicitly audited.
-
-| Category | Go | Python | TypeScript |
-| -------- | -- | ------ | ---------- |
-| Duplicated Type Declarations | yes — sibling type (embed / field / delete-and-use); no runtime-value derivation exists | yes — sibling type (inheritance, `Required` / `NotRequired`, delete-and-use for `Literal` beside `Enum` and duplicate aliases); schema only where the model can replace the copy; no runtime-value derivation exists, so a `Literal` beside a tuple is Not a finding | yes — sibling type, runtime value, schema |
-| Generics That Never Vary | yes | yes — `TypeVar` / `Generic`, PEP 695 | yes |
-| Loose Type Parameter Constraints | yes — `any` / over-wide interface constraint; type switch on `T` | yes — unbounded `TypeVar`, missing `bound=` / constraints | yes — plus the missing `const` type parameter signal |
-| Over-Powered Type Constructs | **n/a** — no conditional, mapped, or overload constructs; the type-switch form is Loose Type Parameter Constraints | yes — `ParamSpec` / `Concatenate` where a `Protocol` suffices, overload towers | yes |
-| Enum Construct Mechanics | yes — `iota` with no named type, `String()` on a formatted type | yes — `.value` comparison, single member | yes — `enum` vs union, numeric non-flag serialized, `===` to raw literals, single member |
-| Alias vs Named Type Mechanics | yes — `type X = Y` only | yes — two aliases of one primitive mixed | **n/a** — structural typing; brand-or-withdraw is smell-typescript's rule |
-
-Language-only categories: Embedding Antipatterns (Go), Reinvented Utility Types (TypeScript). Python has none.
+`Literal` beside an `Enum` is Duplicated Type Declarations, cross-referenced from Enum Construct Mechanics.
 
 ## Test-code scope
 
-**Test files are excluded from findings** — the deviation invariant-hunter and solid-hunter record. Test paths per
-language: Go `*_test.go`; Python `test_*.py`, `*_test.py`, `tests/`, `conftest.py`; TypeScript `*.test.*`,
-`*.spec.*`, `*.e2e.*`, `__tests__/`. The exclusion is **by path**: a production helper under `tests/` is not audited.
+**Test files are excluded from findings.** Test paths are listed in each language reference. The exclusion is **by
+path**: a production helper under `tests/` is not audited.
 
-**Recorded gap:** the design of a fixture type, a mock's generic helper, or a test-local duplicate of a production
-shape has no owner. test-hunter owns setup duplication, over-mocking, and coverage, not type structure inside tests;
-recorded here the way invariant-hunter recorded test-file suppressions, resolved at test-hunter's unification.
-
-Test files are **read as context**:
-
-- A test instantiation of a generic is listed in the Instantiations cell and marked `(test)`; it never counts as
-  variation and never drops a finding, and the Action says how the test survives the specialization.
-
-Test evidence never raises Severity. Cite the test file in the Evidence cell; anchor the finding at the production
-declaration.
+Test files are **read as context**: a test instantiation of a generic is listed in the Instantiations cell and marked
+`(test)`; it never counts as variation and never drops a finding, and the Action says how the test survives the
+specialization. Test evidence never raises Severity. Cite the test file in the Evidence cell; anchor the finding at
+the production declaration.
 
 ## Severity and Impact
 
-Every finding carries **both**, per the sibling definitions. They answer different questions and routinely diverge.
+Every finding carries **both**.
 
 **Severity — behavioral risk if left as-is:**
 
 - **Critical** — never available. Type structure debt is not itself a production defect. A drifted duplicate that is
   already producing wrong behavior names the divergence in Evidence and reports at High; the runtime defect is not
   scored here and this skill does not route it.
-- **High** — a Duplicated Type Declarations finding whose copies have already diverged for the same concept with both
-  copies live (a member present in one, absent or differently typed in the other, both consumed); an exported struct
-  promoting `Lock` / `Unlock` to importers.
+- **High** — a live defect a category's **Severity:** line names.
 - **Medium** — the default for a finding that clears its bar.
-- **Low** — a missing `String()` on a formatted constant type; an alias cleanup; a loose constraint on a generic with
-  a single caller; a reinvented utility; a single-member enum.
-
-A candidate that fails its evidence bar or matches a Not-a-finding conditional produces **no finding at any severity**.
-Severity is never a confidence scale: an uncertain finding — an instantiation set that could not be closed, a
-consolidation path not verified at every site — is withdrawn with a `Limitation` line, never downgraded.
+- **Low** — a small mechanical cleanup a category's **Severity:** line names.
 
 **Impact — how much the change is worth:** contextual, never derived from occurrence count. A duplicated entity type
 every handler imports is High impact at Medium severity; a phantom parameter on an internal helper is Low.
@@ -473,8 +334,6 @@ every handler imports is High impact at Medium severity; a phantom parameter on 
 - **High** — substantial reduction on a type read or changed often
 - **Medium** — clear improvement on a moderately reached surface
 - **Low** — clears the evidence bar but touches a small, rarely hit surface
-
-Recommendations group by Severity (High → Medium → Low), then by Impact within each group.
 
 ## Audit Workflow
 
@@ -489,8 +348,8 @@ Recommendations group by Severity (High → Medium → Low), then by Impact with
 
    **Party mode:** when the orchestrator supplies a scope snapshot, treat `scope.txt` as a **file manifest only**
    (one path per line): `SCOPE=$(cat <snapshot>/scope.txt)`. Read run metadata (base SHA — `$MB` in diff mode —
-   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; do not re-resolve. The
-   resolution above is for standalone runs only.
+   surface kind, counts) from `scope-meta.txt` when present. Use the manifest verbatim; the resolution
+   above is for standalone runs only.
 
    **Persist run state.** Shell variables do not survive between tool calls, and `rg … --` with an empty variable
    searches the whole working directory. Create one run directory (`RUN=$(mktemp -d) && echo "$RUN"`) and use the
@@ -503,8 +362,8 @@ Recommendations group by Severity (High → Medium → Low), then by Impact with
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
    commit — state that findings must be re-located by symbol name.
 
-   The raw manifest is **immutable** and language-independent. Do not redefine it on a mixed scope — silently
-   narrowing breaks the party guarantee that all hunters audit the same surface.
+   The raw manifest is **immutable** and language-independent: on a mixed scope it stays whole, so every hunter in a
+   party audits the same surface.
 
    **Whitespace in paths is unsupported.** The newline-delimited manifest plus `-- $SCOPE` shell expansion
    word-splits on spaces; whitespace paths are a declared limitation.
@@ -521,7 +380,7 @@ Recommendations group by Severity (High → Medium → Low), then by Impact with
 
 3. **Load language references.** For every detected language, read `references/type-<lang>.md` from the directory
    this SKILL.md was read from (e.g. `references/type-go.md`). **Fail closed:** if a required reference cannot be
-   read, **stop and report**; do not continue with the universal categories only.
+   read, **stop and report**.
 
 4. **Derive per-language eligible subsets** by applying each reference's generated-code and vendoring rules **plus the
    test-path exclusion** to that language's files. These subsets are then immutable. Record in Scope: raw manifest
@@ -556,10 +415,7 @@ Recommendations group by Severity (High → Medium → Low), then by Impact with
 6. **Read the version gates** each loaded reference names. A gate the project does not meet removes the Action that
    needs it; the reference says what replaces it.
 
-**No toolchain step.** `tsc`, `mypy`, `pyright`, and `go vet` report none of these categories. Linters that nominate
-related patterns exist (`@typescript-eslint/no-unnecessary-type-parameters`, golangci-lint
-`embeddedstructfieldcheck`) and are neither run nor required; `stringer` is remedy vocabulary, never run. The report
-carries no Toolchain lines.
+**No toolchain step.** Run no type checker or linter: none reports these categories.
 
 ### Phase 2: Scan for Candidates
 
@@ -569,15 +425,15 @@ from `typescript.txt`) in the same call, and skip the block when the list is emp
 from the working tree over the manifest files, not from added lines: type structure is a property of the current
 code.
 
+Done when every scan in each loaded reference's Phase 2 block has run and every hit is listed as a candidate.
+
 ### Phase 3: Enumerate Declarations, Instantiations, and Consumers
 
-Project-wide, regardless of scope — the canonical declaration, the instantiations, and the consumers of a promoted
-method live outside any diff. For each nominated candidate:
+For each nominated candidate, project-wide (see Two surfaces):
 
 - **Duplicates**: the canonical declaration and every other hand-written declaration of the concept; the source kind;
   each member mapped; for delete-and-use, every site of the copy to be deleted and whether it accepts the survivor;
-  whether either copy is generated or external (then not this category — only the crossing beside it is
-  boundary-hunter's External Type Leaks; stop).
+  whether either copy is generated or external (then stop: Cross-layer mirror).
 - **Generics**: every instantiation — explicit type arguments by scan, inferred ones by reading call sites and
   declarations — with test files marked `(test)`; the operations the body performs on `T`; for an exported symbol,
   whether the package publishes it to consumers outside the tree.
@@ -597,14 +453,18 @@ withdraws the finding with a `Limitation` line. Findings claim the enumerated se
 
 ### Phase 4: Evaluate Each Finding
 
-For each candidate: apply **Not-a-finding** first; confirm the category applies in that file's language (see
-Applicability); apply the four ownership tests — declaration vs value, existence vs construct, cross-layer mirror,
-closed consumer set — and within-skill precedence; then clear the category's evidence bar from What to Hunt, the
-consolidation-path requirement and equal-precision bar included. Check repository policy: a `Policy:` line withdraws
-what it names. Run each loaded reference's Phase 4 block for its language-specific judgment.
+For each candidate: apply the category's **Not a finding:** line and the reference's per-category not-findings first;
+confirm the category applies in that file's language (the reference's Applicability table); apply the three ownership
+tests — declaration vs value, existence vs construct, cross-layer mirror — the closed-consumer-set check, and
+within-skill precedence; then clear the category's evidence bar from What to Hunt, the consolidation-path requirement
+and equal-precision bar included. Check repository policy: a `Policy:` line withdraws what it names. Run each loaded
+reference's Phase 4 block for its language-specific judgment.
 
-Assign **Severity and Impact** to every finding (both required; they diverge). One finding per site. Nothing is held
-back; `Audit completed: N findings` counts every reported finding.
+Assign **Severity and Impact** to every finding. Nothing is held back; `Audit completed: N findings` counts every
+reported finding.
+
+Done when every candidate is a reported finding, a drop, a withdrawal with its `Limitation` line, or a hand-off to its
+owning hunter.
 
 ### Phase 5: Produce Report
 
@@ -614,52 +474,9 @@ mode (e.g. the party-hunter orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-## Red Flags — stop and re-check
-
-| Thought | Reality |
-| ------- | ------- |
-| "Eight of ten fields match — duplication" | Name the concept, map every member, and name the consolidation path at equal precision. No path in this language, no finding. |
-| "The domain type mirrors the Prisma model" | Never a source kind here, whatever the mapper does. boundary-hunter judges only the crossing beside it — the external type used inward, or a mapper output still carrying it. |
-| "Embed the shared struct to fix the duplicate" | Does the outer type want the method set? Otherwise a field; otherwise delete-and-use; otherwise drop. An embed that leaks surface is a new finding. |
-| "Keep them in sync — report it Low" | A duplicate with no consolidation path is Not a finding at any severity. |
-| "Every caller passes `User`, so `T` is too loose" | That is Generics That Never Vary, not Loose. An opaque body's constraint matches its use. |
-| "`T any` with one call site — loose constraint" | What does the body *do* with `T`? Compare, index, call, switch, bridge? Name the operation or there is no Loose finding. |
-| "The generic has a second instantiation in a test" | Tests never count as variation. Cite the test; the Action says how it survives. |
-| "The package is a library, so generics are exempt" | Per symbol, not per repository. Is *this* symbol published to consumers outside the tree? Then withdraw with a `Limitation`; otherwise judge it. |
-| "`(o as any)[k]` — invariant-hunter's bypass" | Inside a generic body that a tighter constraint fixes, it is one Loose Type Parameter Constraints finding here. Do not score it twice. |
-| "`DeepMerge` is four levels deep — replace with `A & B`" | Equal precision on every use: a key in both with different types makes `A & B` yield `never`. Then no finding. |
-| "The overload tower is a union" | `int → int`, `str → str` is a mapping a union loses. Only a form that keeps every mapping on every use is simpler. |
-| "`class Color(str, Enum)` — should be `StrEnum`" | Availability is not a defect. `StrEnum` is vocabulary inside a `.value` comparison finding. |
-| "`iota` with a gap — fragile enum" | The specification shows gaps and manual values as intended. Which consumer pays? None, no finding. |
-| "No `String()` on the constant type" | Is the type formatted, logged, or serialized anywhere? No consumer pays, no finding. |
-| "`if s == \"active\"` — enum mechanics" | Is there a constant group? No → smell-hunter's Primitive Obsession. This skill needs an existing construct. |
-| "`type UserId = string` in TypeScript — alias mechanics" | Not applicable: structural typing, and smell-typescript's brand-or-withdraw rule owns it. |
-| "`type UserID string` has no methods — adds nothing" | A method-less named type is Not a finding, over a primitive or a composite. |
-| "The struct embeds `sync.Mutex`" | Exported, and embedded rather than a field? Then High. Unexported or a field: no finding, by a stated choice. |
-| "The embed leaves `Store` nil and `Delete` panics" | solid-hunter's Broken Substitution. Cross-reference, do not score. |
-| "The 400-line `types.ts` mixes everything" | smell-hunter's God Module. Type organization is not a category here. |
-| "I'm not sure the instantiation set is closed, so I'll report it at Low" | Severity is not confidence. Withdraw it with a `Limitation` line. |
-| "The report looks thin — I'll note what I checked and found clean" | Zero-finding sections are omitted. A thin report is a valid result. |
-| "I'll just fix it while I'm here" | No code edits. The report is the deliverable. |
-| "The language reference won't load — I'll do the universal categories only" | Fail closed. Stop and report. |
-
 ## Operating Constraints
 
-- **No code edits.** Audit report only. Implementation is a separate step.
-- **The report is the template.** `references/report-format.md` fixes the shape: Scope, then one section per
-  category with at least one finding, then Recommendations. A category with no findings gets no heading, table,
-  or "none found" line.
-- **Scope: type structure only.** A finding that doesn't answer "is this type declared once, no more generic than its
-  uses, and built with the right construct?" belongs to another hunter. Contested boundaries are resolved at the
-  category that owns them: each **Ownership:** note in What to Hunt states what is kept here and what routes away.
-- **Evidence required.** Every finding cites `file:line` (path form per the language reference) with the exact
-  declaration, and the category's evidence cells — Overlap and Path, Instantiations, Body requires, Simpler form,
-  Defect, Mixing site, Promoted surface, Built-in — are filled, never inferred.
-- **One finding per site.** When two categories describe the same code, the within-skill precedence rule picks the
-  primary one and the Evidence cell names the other reading.
-- **Handoff, not duplication.** When a candidate belongs to another hunter — a mirror of a generated type, a raw
-  string with no constant group, a partly implemented embed, an `as const` with no parallel type — cross-reference it
-  and do not score it here.
-- **Respect the language.** Calibrate to the audited language's constructs — the reference carries the calibration.
-  Never recommend a derivation or type-level construct the language cannot express, and never recommend a construct
-  a version gate the project does not meet requires.
+- **Report only.** The audit report is the deliverable; source files stay untouched.
+- **Evidence required.** Every finding cites `file:line` with the exact declaration and fills every evidence cell
+  `references/report-format.md` defines from code read, never inferred.
+- **Hand off.** A candidate another hunter owns is cross-referenced, never scored.

@@ -1,29 +1,22 @@
 # Type Hunter — report format
 
-Read at Phase 5. Severity and Impact *definitions* live in SKILL.md; this file is the template and the per-category
-table schemas.
-
 The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
 `## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
 line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else.
-
-**Column ceiling.** No table carries more than eight columns beyond the `#` index, and Severity and Impact are two of
-them. When a category needs more detail, trim an existing column rather than appending.
+lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
+table, or "none found" line; a thin report is a valid result.
 
 **No Toolchain lines.** No checker reports these categories; the Scope block carries none, and no type-checker
 configuration is recorded (that is invariant-hunter's toolchain concern).
 
-**Enumeration line.** Present when any instantiation or duplicate was found by reading rather than by scan —
-inference (TypeScript, Python, Go call sites) hides type arguments from regex; structural shapes hide duplicates.
-States what was searched (explicit type arguments, call sites read, declaration census) and how the set was closed.
-Findings claim the enumerated set only.
+**Enumeration line.** Present when any instantiation or duplicate was found by reading rather than by scan. States
+what was searched (explicit type arguments, call sites read, declaration census) and how the set was closed.
 
 **Limitation lines.** One per withdrawn exported symbol whose consumer set could not be closed inside the tree, and
 one per candidate withdrawn because a consolidation path or instantiation set could not be verified (see Drop vs
 withdraw in SKILL.md Terms; a dropped candidate gets no line):
 `Limitation: {symbol} published from {entry point}; consumer set not closed` or `Limitation: {symbol} — {what could
-not be verified}`. A withdrawal is never a Low finding.
+not be verified}`.
 
 **Policy line.** Present only when repository instructions withdrew a pattern; quotes the instruction and names the
 category and sites it withdrew.
