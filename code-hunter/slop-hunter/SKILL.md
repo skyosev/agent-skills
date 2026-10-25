@@ -22,7 +22,7 @@ returns (→ invariant-hunter); narration that leaks secrets (→ security-hunte
 Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -160,8 +160,8 @@ Text and declarations that compile or parse but do nothing, and can be judged in
 - `TODO` / `FIXME` / `HACK` / `XXX` with no owner, ticket, or concrete condition
 - Leftover `pass` in a non-empty Python body
 - Unused imports and unused function-local bindings where the language lets them compile
-- Linter suppression with no stated reason: bare `//nolint`; `# noqa`, `# pylint: disable`, `# pragma: no cover`;
-  `// eslint-disable*`, `// biome-ignore` — each without a trailing reason. Type-checker suppressions
+- Linter suppression with no stated reason: bare `//nolint`; `# noqa`, `# pylint: disable`; `// eslint-disable*`,
+  `// biome-ignore` — each without a trailing reason. Type-checker suppressions
   (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are invariant-hunter's Type-System
   Bypasses, with or without a reason
 - Go only: `_ = x` silencing a non-error binding the author meant to use; unused parameters; unused struct fields.
@@ -179,7 +179,9 @@ simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported d
 Dead Exports.
 Type-checker suppressions, reason or not, are invariant-hunter's Type-System Bypasses — "should this bypass exist?"
 subsumes "does it have a reason?"; one line, one hunter. `_ = f()` where `f` returns an `error` is
-invariant-hunter's Unchecked Errors.
+invariant-hunter's Unchecked Errors. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
+`/* c8 ignore … */`, `/* v8 ignore … */`) and skipped or focused tests (`t.Skip()`, `@pytest.mark.skip`, `it.skip`,
+`.only`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter.
 
 ### Hedging and Narration
 
@@ -215,7 +217,9 @@ Code. One finding per site.
 
 ## Test-code scope
 
-Test files are **fully in scope** for every category. Noise inside a test is slop; test *quality* is test-hunter's.
+Test files are **fully in scope** for every category. Noise inside a test — comments, docs, style, commented-out test
+code — is slop; whether a test can fail — its assertions, skips, focused tests, and coverage pragmas — is
+test-hunter's.
 Test paths are listed in each language reference.
 
 ## Severity and Impact

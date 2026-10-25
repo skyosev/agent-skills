@@ -23,7 +23,7 @@ unit types with no validation boundary (→ smell-hunter); linter suppressions a
 What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -240,8 +240,8 @@ the code the way any comment is.
 **Action:** fix the underlying type. If the bypass is necessary, justify it, scope it to a boundary layer, track it.
 
 **Ownership:** owned **wholly** here, including "does it have a reason?" — one line, one hunter.
-slop-hunter keeps *linter* suppressions: `# noqa`, `# pylint: disable`, `# pragma: no cover`, `// eslint-disable*`,
-`// biome-ignore`, `//nolint`. Silent fallbacks on invalid input (`return []`, `return null`) are error-hunter's. A
+slop-hunter keeps *linter* suppressions: `# noqa`, `# pylint: disable`, `// eslint-disable*`, `// biome-ignore`,
+`//nolint`. Silent fallbacks on invalid input (`return []`, `return null`) are error-hunter's. A
 bypass inside a generic body that a tighter type parameter constraint removes (`(o as any)[k]`, `cast(Any, x)`) is
 type-hunter's Loose Type Parameter Constraints — one finding there, not scored here.
 
@@ -264,8 +264,9 @@ reason. *(conditional)* on a What to Hunt heading marks a category that is n/a f
 
 ## Test-code scope
 
-**Test files are excluded from every category.** Invariants are production guarantees; a panicking assertion,
-`as any` on a mock, or an ignored error in a test is the intended failure mode or test-hunter's hygiene. Test paths
+**Test files are excluded from every category.** Invariants are production guarantees; a panicking assertion in a
+test is the intended failure mode, `as any` on a mock is test-hunter's Test Double Misuse, and an ignored error in a
+test is test-hunter's Inert and Weak Tests. Test paths
 are listed in each language reference. The exclusion is by path: a helper imported by production code from a non-test
 path is audited; a production helper under `tests/` is not.
 

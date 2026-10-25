@@ -19,7 +19,7 @@ SOLID violations (→ solid-hunter); module boundary and dependency direction (�
 style (→ slop-hunter).
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`test-hunter-go`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -351,20 +351,18 @@ reference: `init()` Abuse, Stuttering Names and Pointer Out-Parameters (Go); Mut
 
 ## Test-code scope
 
-Test files are **in scope** for every category except the two test-hunter explicitly claims — its test-duplication
-and setup section, titled "Test Setup Duplication and Shared State" in Go and "Test Duplication and Setup Bloat" in
-Python and TypeScript:
+Test files are **in scope** for every category except the two test-hunter claims:
 
-- **Data Clumps in test setup** → test-hunter
-- **Shared mutable state between tests** → test-hunter
+- **Data Clumps in test setup** → test-hunter's Test Setup Duplication
+- **Shared mutable state between tests** → test-hunter's Flaky Test Indicators
 
 Everything else applies: a temporal-coupling trap in a test helper, feature envy in a fixture builder, and a
 temporary field on a test harness type are all reportable here. Test paths are listed in each language reference,
 whose scan profile enforces this split.
 
-**One overlap to route deliberately.** test-hunter nominates oversized test-utility files under setup bloat.
-*Duplication or bulk* is test-hunter's; *unrelated responsibilities collected in one test-support module* is God
-Module here. Cross-reference; one site, one finding.
+**One overlap to route deliberately.** Setup repeated across test files is test-hunter's Test Setup Duplication;
+*unrelated responsibilities collected in one test-support module* is God Module here. Cross-reference; one site, one
+finding.
 
 ## Severity and Impact
 

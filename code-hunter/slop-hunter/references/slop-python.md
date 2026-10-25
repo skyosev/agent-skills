@@ -55,7 +55,7 @@ Sphinx). Markers:
   imported by other files: an unused one is simplicity-hunter's Dead Code Paths
 - Leftover `pass` in a non-empty body
 - Commented-out code (`# old_result = …`); `TODO` / `FIXME` without owner, ticket, or condition
-- Bare `# noqa`, `# pylint: disable=…`, `# pragma: no cover` with no trailing reason
+- Bare `# noqa`, `# pylint: disable=…` with no trailing reason
 
 Not a finding: an import in `__init__.py` (a re-export); `# noqa: F401` on such a re-export with a stated reason or
 an `__all__` entry.
@@ -100,7 +100,7 @@ D() { git diff -U0 "$MB" -- $PY_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 D '\s*#'                                                       # comments (classify manually)
 D '.*("""|:param |:returns?:|Args:|Returns:)'                    # docstrings and tags
 D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
-D '.*#\s*(noqa|pylint:\s*disable|pragma:\s*no cover)'   # linter suppressions (check for a reason)
+D '.*#\s*(noqa|pylint:\s*disable)'                           # linter suppressions (check for a reason)
 D '\s*pass\s*$'                                                # leftover pass (then read the body)
 D '\s*(import |from \S+ import )'                              # added imports (check uses in the file)
 D '.*(print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here))'   # narration
@@ -116,7 +116,7 @@ W '^\s*#'                                                      # comments (class
 W '"""'                                                        # docstring blocks
 W -B1 '^\s*def\s+_'                                            # docstrings on private helpers
 W '\b(TODO|FIXME|HACK|XXX)\b'
-W '#\s*(noqa|pylint:\s*disable|pragma:\s*no cover)'
+W '#\s*(noqa|pylint:\s*disable)'
 W '^\s*pass\s*$'
 W 'print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)'
 W -i 'workaround|might need|for safety|new, improved|improved version'
