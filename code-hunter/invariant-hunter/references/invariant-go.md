@@ -13,9 +13,8 @@ Contents: Applicability of universal categories · Generated-code and test-path 
 | Runtime Checks Promotable to Types | **yes, narrowed** | validated-state named types only — see Per-category Go content |
 | Type-System Bypasses | **no** | no source evidence; `any` overuse is not claimed by any Go hunter and is not invented here |
 
-**Language-only categories added below:** Unchecked Errors, Nil Pointer Risks, Zero-Value Traps, Error Chain
-Correctness, Context Misuse, Panic/Recover Misuse, Race Conditions. They are Go-only because Go has no error-hunter;
-Python and TypeScript route error handling there.
+**Language-only categories added below:** Nil Pointer Risks, Zero-Value Traps, Context Misuse, Race Conditions.
+Failure handling — discarded errors, error chains, panic and recover — is exception-hunter's in every language.
 
 ## Generated-code and test-path eligibility
 
@@ -29,58 +28,20 @@ Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are
 
 ## Go principles
 
-- **Errors are values.** Every returned error is checked, propagated, or discarded with a justification the code
-  confirms. An unchecked error is a silent failure.
 - **Nil is a runtime panic.** Validate where nil can enter; return early; document nil semantics in the contract.
 - **Zero values must be safe or documented.** Go initializes everything to its zero value. A struct whose zero value
   is invalid needs a constructor that is the only non-zero producer, and a stated zero-value contract.
-- **Panic is for programmer errors.** Never on user input, network errors, or recoverable conditions. `recover` is
-  not error handling; it hides bugs.
 - **Context is ownership.** A function that accepts a `context.Context` consults it and propagates it. Replacing it
   severs the caller's cancellation.
 
 ## Not a finding on these grounds alone — Go
 
 - **A zero-value type designed and documented for zero-value use.** *Is* a finding when a method panics on it.
-- **`_ = f()` with a justifying comment that the code confirms** — `Close` on a file opened read-only, a logger
-  flush. The comment is evidence to verify, not an exemption: *is* a finding on a write path whatever the comment
-  says, and with no comment.
-- **`recover` at the top of a goroutine or in request middleware** that turns a panic into an error response.
-- **`panic` in `init()` or in constructors when the project's instructions endorse it.** Cite the policy in Scope.
-  *Is* a finding when reachable from a trust boundary regardless of policy.
 - **A type switch with no `default`** over a sealed interface (the finite set is known), or over an open interface
   where the code after the switch returns an error, a sentinel, or a deliberate fallback. *Is* a finding when
   unmatched values silently produce a zero value the contract does not permit.
 
 ## Language-only categories
-
-### Unchecked Errors
-
-Error returns discarded or ignored.
-
-**Signals:**
-
-- `_ = f()` where `f` returns an `error`, with no justifying comment, or with a comment the code contradicts
-- An error return ignored by arity — `f()` as a statement where `f` returns `error`; `errcheck` is the detector,
-  regex sees only the explicit `_ =` form
-- `defer x.Close()` on a write path — the close error carries the flush result
-- `fmt.Fprintf(w, …)` / `w.Write(…)` in handlers with the error dropped
-- `if err != nil` checked but the non-error path does not use the result
-
-**Evidence bar:** for `_ = f()`, name the callee's error semantics and, when a comment justifies the discard, the
-code that confirms or contradicts it (accepted cases: Not a finding — Go).
-
-**Action:** return it, wrap it with `%w`, or discard it with a comment the code confirms. For `defer Close` on a
-write path, capture the error in a named return.
-
-**Ownership:** `_ = f()` where `f` returns an `error` is here. `_ = x` silencing a non-error binding, unused
-parameters, and unused struct fields are slop-hunter's Trivially Dead Code.
-
-**Report table:**
-
-| # | Location | Call | Severity | Impact | Action |
-| - | -------- | ---- | -------- | ------ | ------ |
-| 1 | store/save.go:40 | `_ = f.Close()` on a file opened `O_WRONLY` | High | Medium | Named return; report the close error |
 
 ### Nil Pointer Risks
 
@@ -101,7 +62,7 @@ path that returns `nil, err`, the map miss.
 contract.
 
 **Ownership:** a nil guard the preceding logic already guarantees is simplicity-hunter's Dead Code Paths. `if err !=
-nil` is Go working as designed and never a finding of any kind.
+nil` is Go working as designed, not a nil guard; what its branch does with the error is exception-hunter's.
 
 **Report table:**
 
@@ -147,30 +108,6 @@ called in order (`Init` before `Run`) is smell-hunter's Temporal Coupling. The c
 | - | -------- | ---- | ----- | -------- | ------ | ------ |
 | 1 | cfg/config.go:14 | `Config` | nil `overrides` map written by `Set`; no constructor | High | Medium | `NewConfig()`; document zero value |
 
-### Error Chain Correctness
-
-Error handling that loses the chain or prevents `errors.Is` / `errors.As` matching.
-
-**Signals:**
-
-- `fmt.Errorf` with `%v` (or no verb) where a caller matches the chain with `errors.Is` / `errors.As`
-- A custom error type with no `Unwrap()` that wraps another error
-- `err.Error() == "…"` or `strings.Contains(err.Error(), …)` instead of `errors.Is` / `errors.As`
-- Malformed sentinels: `var ErrX = "…"` (a string), `var ErrX error` (nil, never initialized)
-
-**Evidence bar:** for `%v`, name the caller that matches the chain; `%v` with no matching caller is Low.
-
-**Action:** `%w`; implement `Unwrap`; `errors.Is` / `errors.As`; `var ErrX = errors.New("…")`.
-
-**Ownership:** chain *correctness* is here. Wrapping-message *redundancy* (`fmt.Errorf("error: %w", err)`, double
-wrapping) is slop-hunter's Unnecessary Error Wrapping. The two compose: wrap correctly, and wrap once.
-
-**Report table:**
-
-| # | Location | Pattern | Severity | Impact | Action |
-| - | -------- | ------- | -------- | ------ | ------ |
-| 1 | repo/load.go:31 | `fmt.Errorf("load %s: %v", p, err)`; `cmd/run.go:80` uses `errors.Is(err, fs.ErrNotExist)` | High | Medium | `%w` |
-
 ### Context Misuse
 
 Propagation and cancellation ownership — not the spelling of `context.Background()`.
@@ -195,36 +132,6 @@ as dependency injection. Both are design smells, not unenforced invariants, and 
 | # | Location | Pattern | Severity | Impact | Action |
 | - | -------- | ------- | -------- | ------ | ------ |
 | 1 | svc/sync.go:44 | `ctx := context.Background()` replaces the parameter before `db.QueryContext` | High | Medium | Pass the incoming `ctx` |
-
-### Panic/Recover Misuse
-
-Panics used for control flow or error handling.
-
-**Signals:**
-
-- `panic` on input validation failure
-- `panic` in library code reachable by callers
-- `recover` used to continue normal execution
-- `log.Fatal` / `os.Exit` outside `main` and `init`
-- `must*` helpers in non-init paths
-
-**Evidence bar:** the Reachable From cell names the entry point — a handler, an exported function, `init` — or
-`internal only`. Severity: Critical only when the panic is reachable from a trust boundary *and* nothing recovers it,
-so one request kills the process; High when a `recover` contains it. `net/http` recovers handler panics on the
-serving goroutine (it logs `http: panic serving` and drops the connection), so Critical needs a panic on a goroutine
-the handler spawns, or a server with no built-in recovery (gRPC without a recovery interceptor, a custom listener).
-
-**Action:** return an error for anything reachable by external callers; keep `panic` for unreachable code and violated
-internal invariants; limit `recover` to goroutine tops and request middleware.
-
-**Policy:** repository instructions that endorse panic in constructors or `init()` withdraw those sites (Not a
-finding — Go; SKILL.md Phase 1 step 5).
-
-**Report table:**
-
-| # | Location | Pattern | Reachable From | Severity | Impact | Action |
-| - | -------- | ------- | -------------- | -------- | ------ | ------ |
-| 1 | api/handler.go:52 | `panic("bad body")` in `go process(body)` | `POST /orders`; no `recover` in `process` | Critical | High | Return an error; `400` |
 
 ### Race Conditions
 
@@ -286,20 +193,16 @@ smell-hunter's Primitive Obsession.
 
 **Adoption evidence:** the repository's own vet/lint entry point — a Makefile target, a CI step, a `.golangci.yml`.
 When none exists, `go vet ./...` is still run when a Go toolchain is on `PATH` and packages load: vet is part of the
-standard toolchain, and its default analyzers include `copylocks`, `lostcancel`, and `waitgroup`. `errcheck`, and
-`golangci-lint` with `errcheck` or `forcetypeassert` enabled, run only when the project has them configured, at the
-project's pinned version.
+standard toolchain, and its default analyzers include `copylocks`, `lostcancel`, and `waitgroup`. `golangci-lint`
+with `forcetypeassert` enabled runs only when the project has it configured, at the project's pinned version.
 
-**Execution:** read-only. `GOPROXY=off go vet ./...` or the project's command; `errcheck ./...` with the project's
-flags. `GOPROXY=off` stops the go command from downloading missing modules; a load failure (packages fail to load,
-module download needed) is then `errored`, never a fetch. Options that change what a tool sees are part of the
-record: `errcheck -blank` (off by default — blank assignments are then *not* checked), `-asserts`, `-exclude` lists, `golangci-lint` exclusion rules (`issues.exclude-rules` in v1,
-`linters.exclusions` in v2).
+**Execution:** read-only. `GOPROXY=off go vet ./...` or the project's command. `GOPROXY=off` stops the go command
+from downloading missing modules; a load failure (packages fail to load, module download needed) is then `errored`,
+never a fetch. Options that change what a tool sees are part of the record: `golangci-lint` exclusion rules
+(`issues.exclude-rules` in v1, `linters.exclusions` in v2).
 
 **Outcome rules:**
 
-- `errcheck` not configured → one Low recommendation to adopt it; regex cannot see implicitly ignored returns.
-- `errcheck` configured but not installed, or ran with `-blank` off → state the coverage limitation; recommend nothing.
 - `go vet` ran → `copylocks`, `lostcancel`, `waitgroup` nominations are triaged.
 
 Vet's checks are heuristic — low-false-positive, not zero; triage rather than transcribe.
@@ -319,12 +222,6 @@ globs in `$EXCLUDE` approximate the authoritative marker.
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
-# Unchecked Errors: explicitly discarded returns — regex cannot see implicitly ignored returns (errcheck's job)
-rg -H -n '\b_\s*=\s*\w+[\w.]*\(' --type go $EXCLUDE -- $GO_FILES
-
-# Unchecked Errors: deferred Close (then read the open mode)
-rg -H -n 'defer\s+\w+(\.\w+)*\.Close\(\)' --type go $EXCLUDE -- $GO_FILES
-
 # Unguarded Type Assertions: census minus .(type) — regex cannot separate bare from two-value forms; triage each
 rg -H -n '\.\(\*?[\w.]+\)' --type go $EXCLUDE -- $GO_FILES | rg -v '\.\(type\)'
 
@@ -337,23 +234,10 @@ rg -H -n -U --pcre2 'type\s+[A-Z]\w*\s+struct\s*\{[^}]*\b(map\[|chan\s|func\()' 
 # Zero-Value Traps: typed iota zero members (then check whether any consumer rejects the zero sentinel)
 rg -H -n --pcre2 '^\s*\w+\s+[A-Z]\w*\s*=\s*iota\b' --type go $EXCLUDE -- $GO_FILES
 
-# Error Chain Correctness: fmt.Errorf census (then check %w vs %v against matching callers)
-rg -H -n 'fmt\.Errorf\(' --type go $EXCLUDE -- $GO_FILES
-
-# Error Chain Correctness: error string comparison; malformed sentinels
-rg -H -n 'err\.Error\(\)\s*==|strings\.Contains\(err' --type go $EXCLUDE -- $GO_FILES
-rg -H -n --pcre2 '^\s*(var\s+)?Err\w+\s*(=\s*"|error\s*$)' --type go $EXCLUDE -- $GO_FILES
-
 # Context Misuse: cancel funcs (then read every return path), and Background/TODO as a nomination for
 # *severed propagation* only — a hit in a function with no incoming context is discarded in Phase 5
 rg -H -n 'context\.With(Cancel|Timeout|Deadline)(Cause)?\(' --type go $EXCLUDE -- $GO_FILES
 rg -H -n 'context\.(Background|TODO)\(\)' --type go $EXCLUDE -- $GO_FILES
-
-# Panic/Recover Misuse
-rg -H -n '\bpanic\(' --type go $EXCLUDE -- $GO_FILES
-rg -H -n '\brecover\(\)' --type go $EXCLUDE -- $GO_FILES
-rg -H -n 'log\.Fatal|os\.Exit' --type go $EXCLUDE -- $GO_FILES
-rg -H -n --pcre2 '\bfunc\s+[mM]ust\w*\(' --type go $EXCLUDE -- $GO_FILES
 
 # Race Conditions: goroutine launches and sync primitives (then map shared state to its accessors)
 rg -H -n '^\s*go\s+(func|\w+)' --type go $EXCLUDE -- $GO_FILES
@@ -361,12 +245,6 @@ rg -H -n 'sync\.(Mutex|RWMutex|WaitGroup)|atomic\.' --type go $EXCLUDE -- $GO_FI
 ```
 
 ## Phase 5 — Go-specific evaluation
-
-For each `_ = f()`:
-
-- Does `f` return an `error`? No → slop-hunter's `_ = x`; cross-reference, do not score.
-- Is there a comment, and does the code confirm it (open mode, callee semantics)? A write-path `Close` is a finding
-  whatever the comment says.
 
 For each type assertion candidate:
 
@@ -377,11 +255,6 @@ For each type assertion candidate:
 - Type switch with no `default`: is the interface sealed? If open, does the code after the switch reject or
   deliberately fall back? Silent zero value → finding.
 
-For each `fmt.Errorf` with `%v` or no verb:
-
-- Does any caller match the chain with `errors.Is` / `errors.As`? Name it. None → Low.
-- Is the message redundant rather than the verb wrong? That is slop-hunter's; cross-reference.
-
 For each `context.Background()` / `TODO()`:
 
 - Does the enclosing function receive a `ctx`? No → not a finding. Yes → is the new context passed downstream in
@@ -391,12 +264,6 @@ For each `WithCancel` / `WithTimeout` / `WithDeadline` (and `*Cause`):
 
 - Is `cancel` called on every return path — deferred, explicit, or handed to an owner that calls it? Read before
   flagging; `lostcancel` nominations are triaged the same way.
-
-For each `panic`:
-
-- Is it reachable from a trust boundary? Does repository policy endorse this site (constructor, `init`)?
-- Is there a `recover` between the panic and the process boundary — including `net/http`'s own, on the handler's
-  goroutine? Critical only when there is none.
 
 For each exported struct without a constructor:
 

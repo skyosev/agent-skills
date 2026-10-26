@@ -6,8 +6,8 @@ line appears only when its condition holds. A run that stops early (empty scope,
 lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
 table, or "none found" line; a thin report is a valid result.
 
-Go-only categories (Unchecked Errors, Nil Pointer Risks, Zero-Value Traps, Error Chain Correctness, Context Misuse,
-Panic/Recover Misuse, Race Conditions) use the table schemas supplied in `invariant-go.md`.
+Go-only categories (Nil Pointer Risks, Zero-Value Traps, Context Misuse, Race Conditions) use the table schemas
+supplied in `invariant-go.md`.
 
 **Toolchain lines.** One per tool per language, in the form `<tool>: ran — <command>, <version>, <coverage>,
 <options that change what it sees>` / `skipped — not configured` / `skipped — configured, not installed` /
@@ -34,7 +34,7 @@ Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as
 - References loaded: {go, python, typescript as present}
 - {excluded — no reference for .<ext>: {count} files — when applicable, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
-- Toolchain: {per language — `go vet ./...: ran — go1.26, ./..., default analyzers` / `errcheck: skipped — not configured` / `tsc --noEmit: ran — 5.9, tsconfig.json; strict on, exactOptionalPropertyTypes off` / `mypy: errored — <message>`}
+- Toolchain: {per language — `go vet ./...: ran — go1.26, ./..., default analyzers` / `golangci-lint (forcetypeassert): skipped — not configured` / `tsc --noEmit: ran — 5.9, tsconfig.json; strict on, exactOptionalPropertyTypes off` / `mypy: errored — <message>`}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
 - {Limitation: {type} in open unit {unit} permits omission of {field}; Loose Optionality withdrawn}
 - Audit completed: {N} findings

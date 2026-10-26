@@ -21,7 +21,7 @@ fixtures (→ security-hunter). Where ownership is *contested*, the category's *
 authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -267,7 +267,7 @@ checks it.
 the test and name the test that replaces it.
 
 **Ownership:** skipped and focused tests are here, with or without a reason; slop-hunter does not report them.
-invariant-hunter routes an ignored error in a test here.
+exception-hunter routes an ignored error in a test here.
 
 ### Brittle Tests
 

@@ -14,13 +14,13 @@ here); invariant enforcement (→ invariant-hunter); type structure (→ type-hu
 (→ boundary-hunter); documentation (→ doc-hunter); security (→ security-hunter); test quality and test-code
 duplication (→ test-hunter); cosmetic style and commented-out code, in every mode (→ slop-hunter); broader
 non-idiomatic patterns (→ smell-hunter); performance — over-engineered code is here, under-optimized code is
-perf-hunter's; error-handling policy — what to catch, how to convert and propagate (→ error-hunter; duplicated
+perf-hunter's; error-handling policy — what to catch, how to convert and propagate (→ exception-hunter; duplicated
 error-handling code stays here). A finding that doesn't answer "is this simpler than it could be?" belongs
 elsewhere. Where ownership is *contested* rather than simply elsewhere, that category's **Ownership:** note in What to
 Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 

@@ -76,7 +76,7 @@ source-level complexity, and carries a do-not-copy-a-non-zero-Builder constraint
 ## Dead code — ownership and liveness hooks
 
 **Ownership:** `_ = x` on a non-error binding, unused parameters, and unused struct fields are slop-hunter's;
-`_ = f()` on an error is invariant-hunter's Unchecked Errors. A nil guard the preceding logic already guarantees is
+`_ = f()` on an error is exception-hunter's Swallowed Errors. A nil guard the preceding logic already guarantees is
 here: Go has no non-optional pointer type, so invariant-hunter's Defensive Access does not apply.
 
 **Liveness hooks** beyond the shared channels (SKILL.md Terms): build tags (`//go:build`, `// +build`); `init`;

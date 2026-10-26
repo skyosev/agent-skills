@@ -35,8 +35,9 @@ Error wrapping that adds words, not context.
 **Action:** Wrap once, where the context is meaningful — the operation or resource the caller cannot infer. Let
 `errors.Is` / `errors.As` handle the chain.
 
-**Ownership:** slop-hunter owns *redundancy* of the wrapping messages; invariant-hunter's Error Chain Correctness
-owns *correctness* of the chain (`%w` vs `%v`, `Unwrap`, `errors.Is` / `errors.As`). The two compose: wrap correctly, and wrap once.
+**Ownership:** slop-hunter owns *redundancy* of the wrapping messages; exception-hunter owns a dropped cause (Broken
+Error Chains), matching (Unmatchable Failures), and a message that names no input (Poor Error Context). They compose:
+wrap with the cause, wrap once, match by identity.
 
 **Report table:**
 
@@ -153,18 +154,18 @@ For each `fmt.Errorf` candidate:
 - Does the message add something the caller cannot infer — the operation, the resource, an identifier? If it only
   says "error" or "failed", it is redundant.
 - Is the inner error already wrapped with the same context one frame down? Report the outer wrap.
-- Is `%v` used where the chain needs `%w`? That is invariant-hunter's Error Chain Correctness — cross-reference, do
-  not score.
+- Is `%v` used where a caller matches the chain? That is exception-hunter's Broken Error Chains — cross-reference,
+  do not score.
 
 For each `//nolint`:
 
 - Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real
   (`errcheck` on a dropped error)? Then the noise hides a finding (SKILL.md Severity). Score only the bare
-  suppression; cross-reference the dropped error to invariant-hunter's Unchecked Errors.
+  suppression; cross-reference the dropped error to exception-hunter's Swallowed Errors.
 
 For each `_ = x`:
 
-- Does the right-hand side return an `error`? Then it is invariant-hunter's Unchecked Errors — cross-reference, do
+- Does the right-hand side return an `error`? Then it is exception-hunter's Swallowed Errors — cross-reference, do
   not score. Otherwise: is `x` a result the author meant to use, or an intentional discard the lint config demands?
 
 For each doc comment on an unexported symbol:

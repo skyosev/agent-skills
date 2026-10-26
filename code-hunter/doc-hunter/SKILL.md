@@ -16,10 +16,10 @@ true.**
 `TODO` / `FIXME` / `XXX` work items, hedging, and task history in comments (→ slop-hunter); "what" comments over
 non-trivial code (Comments as Deodorant), call order of the project's own API (Temporal Coupling), duration integers,
 floating-point money, and raw status strings, also when a comment states the allowed values (Primitive Obsession),
-stuttering names (→ smell-hunter); comments that justify a discarded error, a type-system bypass, or a nil or
-zero-value contract, Go reachable panics and discarded errors, an invariant that a runtime check already enforces
-(→ invariant-hunter); empty catches, `None` / `undefined` returned for an error, justifying comments on discarded
-promises (→ error-hunter, Python and TypeScript); code that needs a "what" comment, intentional complexity whose
+stuttering names (→ smell-hunter); comments that justify a type-system bypass or a nil or zero-value contract, an
+invariant that a runtime check already enforces (→ invariant-hunter); comments that justify a discarded error, Go
+reachable panics and discarded errors, empty catches, `None` / `undefined` returned for an error, justifying comments
+on discarded promises (→ exception-hunter); code that needs a "what" comment, intentional complexity whose
 stated reason is stale, unused code under `// IMPORTANT: do not remove` (→ simplicity-hunter; boundary-hunter for an
 export); an implementation that breaks a *documented* interface contract (→ solid-hunter); Go aliases without a
 migration comment (→ type-hunter); generic package names (→ boundary-hunter); doctests and Go `Example` functions
@@ -27,7 +27,7 @@ migration comment (→ type-hunter); generic package names (→ boundary-hunter)
 **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -332,10 +332,9 @@ the code could).
   `enforceable` comment that a status-string, duration, or money type would enforce.
 - An invariant that a runtime check already enforces, when a type could carry it → invariant-hunter's Runtime Checks
   Promotable to Types.
-- Go nil semantics, zero-value contracts, and reachable panics → invariant-hunter (Nil Pointer Risks, Zero-Value
-  Traps, Panic/Recover Misuse).
-- Error design: `None` / `undefined` returned for an error, a missing hierarchy, an empty catch → error-hunter
-  (Python, TypeScript); Go discarded errors → invariant-hunter's Unchecked Errors.
+- Go nil semantics and zero-value contracts → invariant-hunter (Nil Pointer Risks, Zero-Value Traps).
+- Error design: a failure returned as `None`, `undefined`, or a zero value, an empty catch, a discarded Go error, a
+  reachable panic → exception-hunter.
 - An implementation that breaks an interface contract a doc *does* state → solid-hunter's LSP finding.
 
 **Evidence bar:**
@@ -402,7 +401,7 @@ A comment, doc, or name claims what a cited line contradicts.
   and its owner reports it:
   - `// IMPORTANT: do not remove` over code that nothing uses → the unused code's owner (simplicity-hunter,
     boundary-hunter).
-  - a discarded error, a type-system bypass, or a zero-value contract → invariant-hunter.
+  - a type-system bypass or a zero-value contract → invariant-hunter; a discarded error → exception-hunter.
   - an alias's migration comment → type-hunter.
   - intentional complexity → simplicity-hunter.
 - A vague or generic name → boundary-hunter's Generic Boundary Names (packages), or not a finding.

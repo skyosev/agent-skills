@@ -1,21 +1,20 @@
 ---
 name: invariant-hunter
-description: Audit Go, Python, or TypeScript code for invariants assumed rather than enforced — unguarded type assertions, loose optionality, defensive access, leaky unions, promotable runtime checks, type-system bypasses, and Go error, nil, zero-value, context, panic, and race discipline. Defaults to the codebase.
+description: Audit Go, Python, or TypeScript code for invariants assumed rather than enforced — unguarded type assertions, loose optionality, defensive access, leaky unions, promotable runtime checks, type-system bypasses, and Go nil, zero-value, context, and race discipline. Defaults to the codebase.
 disable-model-invocation: true
 ---
 
 # Invariant Hunter
 
 Audit code for **invariants that are assumed rather than enforced** — a property that must hold ("this field is
-present after construction", "this error is handled", "this map is only touched under the lock", "this value was
-validated") that the code hopes for instead of guaranteeing. Goal: **guarantees established at construction boundaries
+present after construction", "this map is only touched under the lock", "this value was validated") that the code
+hopes for instead of guaranteeing. Goal: **guarantees established at construction boundaries
 hold throughout downstream code, consumers narrow without casts, and invalid states are caught where data is created.**
 
 **Not covered (owned by other hunters):** type *structure* — Duplicated Type Declarations (a sibling type, a runtime
 value, or a schema as source), Generics That Never Vary, Loose Type Parameter Constraints, Over-Powered Type
-Constructs, Enum Construct Mechanics, Alias vs Named Type Mechanics (→ type-hunter); how errors are structured,
-caught, and converted — empty catches, catch-and-log, catch-and-return-default, `raise from` / `Error.cause`
-(→ error-hunter);
+Constructs, Enum Construct Mechanics, Alias vs Named Type Mechanics (→ type-hunter); how failures are handled,
+matched, wrapped, and converted — Go discarded errors, error chains, and panics included (→ exception-hunter);
 trust-boundary *content* validation and exploitability (→ security-hunter); a guard the type already rules out
 (→ simplicity-hunter, Dead Code Paths); optional fields with no discriminant yet, method call order, identity and
 unit types with no validation boundary (→ smell-hunter); linter suppressions and wrapping-message redundancy
@@ -23,7 +22,7 @@ unit types with no validation boundary (→ smell-hunter); linter suppressions a
 What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -38,12 +37,9 @@ are defined in `references/invariant-go.md`.
 | Leaky Discriminated Unions | Parallel flag, no exhaustiveness arm, leaking field, cast past the discriminant | One discriminant; compile-time exhaustiveness; variant-scoped fields |
 | Runtime Checks Promotable to Types | A guard or validation a type could carry | Promote, or keep runtime with a stated reason |
 | Type-System Bypasses | `any` / `Any`, double cast, checker suppression | Fix the type; else justify, scope, track |
-| Unchecked Errors *(Go only)* | Error return discarded or ignored | Handle, propagate, or discard with a verified comment |
 | Nil Pointer Risks *(Go only)* | Dereference with no guard on a path that can carry nil | Check the error or the `ok` first; document nil semantics |
 | Zero-Value Traps *(Go only)* | Exported type usable at zero value yet invalid there; an unchecked zero sentinel; external input converted to a named constant type with no range check | Constructor, unexported type, or a documented zero-value contract |
-| Error Chain Correctness *(Go only)* | `%v` where the chain is matched; no `Unwrap`; string comparison of errors | `%w`, `Unwrap`, `errors.Is` / `errors.As` |
 | Context Misuse *(Go only)* | Propagation severed, cancellation never consulted, cancel func not called on every path | Propagate the incoming context; consult it; cancel on every path |
-| Panic/Recover Misuse *(Go only)* | `panic` reachable by callers; `recover` to continue | Return an error; limit `recover` to goroutine and request tops |
 | Race Conditions *(Go only)* | Shared state touched from several goroutines without synchronization | Mutex, atomic, or channel ownership |
 
 ## Terms
@@ -241,7 +237,7 @@ the code the way any comment is.
 
 **Ownership:** owned **wholly** here, including "does it have a reason?" — one line, one hunter.
 slop-hunter keeps *linter* suppressions: `# noqa`, `# pylint: disable`, `// eslint-disable*`, `// biome-ignore`,
-`//nolint`. Silent fallbacks on invalid input (`return []`, `return null`) are error-hunter's. A
+`//nolint`. Silent fallbacks on invalid input (`return []`, `return null`) are exception-hunter's. A
 bypass inside a generic body that a tighter type parameter constraint removes (`(o as any)[k]`, `cast(Any, x)`) is
 type-hunter's Loose Type Parameter Constraints — one finding there, not scored here.
 
@@ -254,8 +250,8 @@ A *single* type claim (`as T`, `cast(T, x)`, `x!`, `x.(T)`) is an Unguarded Type
 
 ### Go-only categories
 
-Unchecked Errors, Nil Pointer Risks, Zero-Value Traps, Error Chain Correctness, Context Misuse, Panic/Recover Misuse,
-Race Conditions — defined entirely in `references/invariant-go.md`.
+Nil Pointer Risks, Zero-Value Traps, Context Misuse, Race Conditions — defined entirely in
+`references/invariant-go.md`.
 
 ## Applicability
 
@@ -265,8 +261,7 @@ reason. *(conditional)* on a What to Hunt heading marks a category that is n/a f
 ## Test-code scope
 
 **Test files are excluded from every category.** Invariants are production guarantees; a panicking assertion in a
-test is the intended failure mode, `as any` on a mock is test-hunter's Test Double Misuse, and an ignored error in a
-test is test-hunter's Inert and Weak Tests. Test paths
+test is the intended failure mode, and `as any` on a mock is test-hunter's Test Double Misuse. Test paths
 are listed in each language reference. The exclusion is by path: a helper imported by production code from a non-test
 path is audited; a production helper under `tests/` is not.
 
@@ -277,17 +272,16 @@ Every finding carries **both**. They answer different questions and routinely di
 **Severity — behavioral risk if left as-is.** It measures consequence, not confidence.
 
 - **Critical** — the finding names all four: the triggering input, the violated contract, the downstream consequence
-  (data loss, crash, corrupted state), and why nothing contains it. An unchecked error on a write path whose caller
-  reports success; `json() as T` on a public route where the wrong shape reaches a write; a data race on state the
-  server mutates per request. A cast or panic being *reachable* is not Critical by itself; the finding takes the
-  severity its shown consequence supports, and an unknown consequence is stated as such.
+  (data loss, crash, corrupted state), and why nothing contains it. `json() as T` on a public route where the wrong
+  shape reaches a write; a data race on state the server mutates per request. A cast being *reachable* is not
+  Critical by itself; the finding takes the severity its shown consequence supports, and an unknown consequence is
+  stated as such.
 - **High** — a crash or silent wrong result awaiting the first unexpected value: nil dereference after an unchecked
-  error; an open-interface type switch that silently yields a zero value; `%v` where a caller matches with
-  `errors.Is`.
+  error; an open-interface type switch that silently yields a zero value.
 - **Medium** — the invariant holds today by convention only: optional field always set; defensive access in
   non-boundary code; a bypass without justification; a missing exhaustiveness arm with no runtime rejection.
 - **Low** — hygiene and adoption: `satisfies` over object-literal `as`; `as const` on fixed tables; strictness flags
-  off; adopting `errcheck`; documenting a zero-value contract.
+  off; documenting a zero-value contract.
 
 **Impact — how much the change is worth:** defect exposure reduced, cognitive burden reduced, surface affected.
 Contextual; never derived from occurrence count. Forty `?.` on one hot type read in every handler are High impact at
@@ -371,9 +365,9 @@ Medium severity.
    the context reading.
 
 5. **Read repository instructions** (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`) for stated policies:
-   panic-on-invariant conventions, boundary layers, sanctioned escape hatches, and how the project runs its own
-   checks. A stated policy is respected, acknowledged in the report's `Policy:` line, and overridden only where the
-   pattern is reachable from untrusted input.
+   boundary layers, sanctioned escape hatches, and how the project runs its own checks. A stated policy is respected,
+   acknowledged in the report's `Policy:` line, and overridden only where the pattern is reachable from untrusted
+   input.
 
 6. **Run the toolchain — the project's own invocation, never installed or reconfigured.** Each loaded reference's
    Toolchain section names the adoption evidence, the exact read-only command, and the strictness flags to read.
@@ -442,8 +436,8 @@ Read `references/report-format.md` for the report template and per-category tabl
 - **Report only.** The audit report is the deliverable; source files stay untouched.
 - **Evidence required.** Every finding cites `file:line` with the exact code, and the category's evidence column —
   named in report-format.md or the language reference's table schema — is filled, never inferred.
-- **Comments are claims; the code is evidence.** A justifying comment (`// read-only; close error carries nothing`)
-  is checked against the code — here, the open mode — never trusted.
+- **Comments are claims; the code is evidence.** A justifying comment (`// never nil: set in NewServer`)
+  is checked against the code — here, the constructors — never trusted.
 - **One site, one finding.** When two categories describe the same code, pick the primary one and cross-reference.
   The within-skill routing rule is the worked example.
 - **Never install.** Run only tools the project already has; a tool that is configured but absent is `skipped`,

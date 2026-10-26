@@ -24,7 +24,7 @@ Antipatterns); type-system bypasses at a boundary layer (→ invariant-hunter); 
 category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -299,8 +299,8 @@ cross-layer type-only edges route to Dependency Direction Violations.
 **Action:** extract the shared concept into a third module, or invert the edge. A provable cycle's Action names the
 entry and the statement that fails.
 
-**Ownership:** unshared. A provable or observed `ImportError` is reported here at Critical with the failing site; no
-error hunter scores it.
+**Ownership:** unshared. A provable or observed `ImportError` is reported here at Critical with the failing site;
+exception-hunter does not score it.
 
 ### External Type Leaks
 

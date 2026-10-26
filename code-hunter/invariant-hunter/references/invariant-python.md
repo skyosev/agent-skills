@@ -14,7 +14,7 @@ Contents: Applicability of universal categories · Generated-code and test-path 
 | Type-System Bypasses | **yes** | `Any`, `# type: ignore`, `# pyright: ignore`, `# mypy: ignore-errors` |
 
 **No language-only categories.** Exception handling — bare `except`, catch-and-log, silent fallbacks, `raise from`
-chaining — is error-hunter's; route, do not evaluate here.
+chaining — is exception-hunter's; route, do not evaluate here.
 
 ## Generated-code and test-path eligibility
 

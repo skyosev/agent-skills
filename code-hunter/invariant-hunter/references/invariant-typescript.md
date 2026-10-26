@@ -14,7 +14,7 @@ Contents: Applicability of universal categories · Generated-code and test-path 
 | Type-System Bypasses | **yes** | `any`, `as any`, `as unknown as T`, `@ts-ignore`, `@ts-expect-error` |
 
 **No language-only categories.** Catch-block handling — empty catches, catch-and-log, `return null` on error,
-`Error.cause` — is error-hunter's; only a bypass *inside* a catch (`catch (e) { throw e as any }`) stays here.
+`Error.cause` — is exception-hunter's; only a bypass *inside* a catch (`catch (e) { throw e as any }`) stays here.
 
 ## Generated-code and test-path eligibility
 
@@ -95,7 +95,7 @@ cited as evidence.
 - `as any`, `<any>`, `as unknown as T`
 - `// @ts-ignore`, `// @ts-expect-error` — with no trailing reason, or in domain code with one. `@ts-expect-error`
   with a reason in a boundary layer, tracked, is not a finding
-- A bypass inside a catch block stays here; the catch block's handling is error-hunter's
+- A bypass inside a catch block stays here; the catch block's handling is exception-hunter's
 
 ## Toolchain
 

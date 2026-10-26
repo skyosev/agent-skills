@@ -19,13 +19,14 @@ names that the code contradicts (→ doc-hunter, Misleading Comments and Names);
 (→ smell-hunter, Comments as Deodorant); live but unreachable logic, unused functions and constants
 (→ simplicity-hunter, Dead Code Paths); exported dead symbols
 (→ boundary-hunter, Dead Exports); generic package / module names (→ boundary-hunter, Generic Boundary Names);
-stuttering names as package design (→ smell-hunter); error-chain
-correctness, type-checker suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`), and discarded error
-returns (→ invariant-hunter); narration that leaks secrets (→ security-hunter); test quality (→ test-hunter).
+stuttering names as package design (→ smell-hunter); type-checker
+suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (→ invariant-hunter); error-chain correctness and
+discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality
+(→ test-hunter).
 Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -193,7 +194,7 @@ simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported d
 Dead Exports.
 Type-checker suppressions, reason or not, are invariant-hunter's Type-System Bypasses — "should this bypass exist?"
 subsumes "does it have a reason?"; one line, one hunter. `_ = f()` where `f` returns an `error` is
-invariant-hunter's Unchecked Errors. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
+exception-hunter's Swallowed Errors. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
 `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped or focused tests (`t.Skip()`, `@pytest.mark.skip`, `it.skip`,
 `.only`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter.
 

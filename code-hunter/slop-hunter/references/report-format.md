@@ -60,7 +60,7 @@ guide. For a formatter finding in diff mode it also carries the touched-line rul
 | # | Location | Code | Severity | Impact | Action |
 | - | -------- | ---- | -------- | ------ | ------ |
 | 1 | util/parse.py:3 | `import re` — last use removed in this change (used at merge base `a1b2c3d`) | Low | Low | Delete |
-| 2 | handler.go:55 | `//nolint:errcheck` with no reason | Medium | Medium | State the reason; dropped error → invariant-hunter Unchecked Errors |
+| 2 | handler.go:55 | `//nolint:errcheck` with no reason | Medium | Medium | State the reason; dropped error → exception-hunter Swallowed Errors |
 
 ### Hedging and Narration
 

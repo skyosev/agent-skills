@@ -10,7 +10,7 @@ Contents: Applicability · Generated-code and test-path eligibility · Doc-comme
 | Magic Numbers | **yes** | No scan: a configured `no-magic-numbers` rule and reading nominate |
 | Non-Obvious Algorithms | **yes** | `RegExp` constructors and regex literals; bit operations are found by reading |
 | Unexplained Workarounds | **yes** | `setTimeout`, `requestAnimationFrame`, `queueMicrotask`; `navigator.userAgent` and `process.platform` branches |
-| Undocumented Contracts | **yes** | A `throw` that callers catch (`@throws`); `process.env` reads outside entry files. `undefined` returned for an error is error-hunter's |
+| Undocumented Contracts | **yes** | A `throw` that callers catch (`@throws`); `process.env` reads outside entry files. `undefined` returned for an error is exception-hunter's (Swallowed Errors) |
 | Misleading Comments and Names | **yes** | `@param` names the signature lacks; `{@link}` and `@see` to removed symbols; mapping objects as mapping sites; expiry against the lockfile |
 | Missing Public Docs | **yes** | Gate: a Library unit (the exports of its entry source files), or a configured `jsdoc/require-jsdoc` or TypeDoc `notDocumented` |
 

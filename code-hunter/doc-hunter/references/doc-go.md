@@ -10,7 +10,7 @@ Contents: Applicability · Generated-code and test-path eligibility · Doc-comme
 | Magic Numbers | **yes** | Typed constants carry the role and the unit (`200 * time.Millisecond`); `mnd` nominates when configured, never as coverage |
 | Non-Obvious Algorithms | **yes** | `regexp` patterns and bit operations (`<<`, `>>`, `&^`, `^`) |
 | Unexplained Workarounds | **yes** | `time.Sleep` and timers, `runtime.GOOS` branches; build-constraint files that are the normal per-platform split (`file_linux.go`) are not findings |
-| Undocumented Contracts | **yes** | Sentinel and typed errors that callers match; exported types whose methods lock a mutex or use atomics; `ctx.Value` and environment reads outside `package main`. Nil semantics, zero-value contracts, and reachable panics are invariant-hunter's |
+| Undocumented Contracts | **yes** | Sentinel and typed errors that callers match; exported types whose methods lock a mutex or use atomics; `ctx.Value` and environment reads outside `package main`. Nil semantics and zero-value contracts are invariant-hunter's; reachable panics are exception-hunter's |
 | Misleading Comments and Names | **yes** | A godoc that names another symbol; doc links `[Name]`; struct tags as mapping sites (`IsDisabled` with `db:"is_hidden" json:"archived"`); expiry against `go.mod` |
 | Missing Public Docs | **yes** | Gate: a Library unit (SKILL.md Terms), or a configured godoclint, revive, or staticcheck rule |
 

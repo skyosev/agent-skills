@@ -10,7 +10,7 @@ Contents: Applicability · Generated-code and test-path eligibility · Doc-comme
 | Magic Numbers | **yes** | Module constants with `typing.Final` carry the role; PLR2004 nominates comparisons only |
 | Non-Obvious Algorithms | **yes** | `re` patterns and bit operations (`<<`, `>>`, `^`, `~`) |
 | Unexplained Workarounds | **yes** | `time.sleep`, `asyncio.sleep`, `timeout=`; `sys.version_info` and `sys.platform` branches |
-| Undocumented Contracts | **yes** | Exceptions that callers catch (`Raises:`); a class used from threads; `os.environ` and `contextvars` reads. `None` returned for an error is error-hunter's |
+| Undocumented Contracts | **yes** | Exceptions that callers catch (`Raises:`); a class used from threads; `os.environ` and `contextvars` reads. `None` returned for an error is exception-hunter's (Swallowed Errors) |
 | Misleading Comments and Names | **yes** | `Args:` entries the signature lacks; Sphinx roles to removed symbols; pydantic `alias=` and SQLAlchemy `Column("…")` as mapping sites; expiry against the lockfile |
 | Missing Public Docs | **yes** | No Library unit: only a configured rule opens the gate (ruff D100–D107, pylint C0114–C0116) |
 

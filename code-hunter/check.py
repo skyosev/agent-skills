@@ -1,4 +1,4 @@
-"""Keep the nine code-hunter skills consistent.
+"""Keep the ten code-hunter skills consistent.
 
     python3 code-hunter/check.py                         # report drift and lint problems; exit 1 if any
     python3 code-hunter/check.py --sync-from smell-hunter
