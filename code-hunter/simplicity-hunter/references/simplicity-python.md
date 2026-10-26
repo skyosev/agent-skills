@@ -1,6 +1,6 @@
 # Simplicity Hunter — Python reference
 
-Contents: Generated-code eligibility · Reinvented Primitives · Dead-code liveness channels · Unnecessary Abstractions — Python signals · Complex Control Flow — Python signals · Coexisting Generations — false positives and Phase 4 · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
+Contents: Generated-code eligibility · Reinvented Primitives · Dead code — ownership and liveness hooks · Unnecessary Abstractions — Python signals · Complex Control Flow — Python signals · Coexisting Generations — false positives and Phase 4 · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
 
 ## Generated-code eligibility
 
@@ -15,7 +15,10 @@ Contents: Generated-code eligibility · Reinvented Primitives · Dead-code liven
 | --------- | -------------- |
 | `functools.cache` | Python 3.9+ |
 | `functools.lru_cache` | stdlib |
-| `itertools`, `collections.Counter`, `collections.defaultdict`, `pathlib` | stdlib |
+| `itertools.pairwise` | Python 3.10+ |
+| `itertools.batched` | Python 3.12+ |
+| other `itertools` functions | the "Added in version" line of each function in the Python docs; stdlib when it has none |
+| `collections.Counter`, `collections.defaultdict`, `pathlib` | stdlib |
 | `contextlib` helpers (`contextmanager`, `ExitStack`, `closing`, `suppress`, `nullcontext`) | stdlib |
 
 **Signals:** loops replicating `itertools` / `Counter` / `defaultdict` / `pathlib`; manual context management that
@@ -25,10 +28,14 @@ Contents: Generated-code eligibility · Reinvented Primitives · Dead-code liven
 Exact semantic parity includes designed-in differences: `functools.lru_cache` imposes hashability and carries
 concurrency, eviction, and repeated-concurrent-call semantics.
 
-## Dead-code liveness channels
+## Dead code — ownership and liveness hooks
 
-Beyond the shared channels (SKILL.md Terms): `getattr`, `__all__`, and packaging entry points (`pyproject.toml` /
-`setup.cfg` `console_scripts` / `entry_points`).
+**Ownership:** a public name with no importers anywhere is here, not boundary-hunter's Dead Exports. Unused parameters
+are a recorded gap no hunter audits.
+
+**Liveness hooks** beyond the shared channels (SKILL.md Terms): `getattr`; `__all__`; packaging entry points
+(`pyproject.toml` / `setup.cfg` `console_scripts` / `entry_points`); dunder methods (`__enter__`, `__eq__`);
+dotted-path strings in settings (Django `INSTALLED_APPS`, Celery task names); `importlib.import_module`.
 
 ## Unnecessary Abstractions — Python signals
 
@@ -61,9 +68,9 @@ config-selected parallel implementations where both branches are reachable.
 # 1. Read pyproject.toml and requirements*.txt; list overlapping-concern dependencies.
 
 # 2. Generation-named symbols and paths
-rg -l --type py 'Legacy|Deprecated|V1|V2|_v1|_v2' \
+rg -l --type py --pcre2 'Legacy|Deprecated|(?<![A-Z0-9])V[12]\b|_v[12]\b' \
   --glob '!**/venv/**' --glob '!**/.venv/**' --glob '!**/dist/**' .
-find . -type d \( -name 'v[0-9]*' -o -name legacy -o -name old -o -name new \) \
+find . -type d \( -name legacy -o -name old -o -name new \) \
   -not -path '*/venv/*' -not -path '*/.venv/*' -not -path '*/dist/*' -not -path '*/.git/*'
 
 # 3. Deprecation markers
@@ -73,34 +80,37 @@ rg -n --type py 'DeprecationWarning|@deprecated|warnings\.warn' \
 
 ## Phase 2 — complexity scans
 
-Restore the eligible list first: `PY_FILES=$(cat <run>/python.txt); [ -n "$PY_FILES" ] || exit 1`.
+**Linter rules** (Ruff): `C901`, `PLR0912` → Complex Control Flow; `PLR0913` → Over-Parameterized APIs; `PLR0915` →
+Mixed Concerns; `SIM110` → Reinvented Primitives.
+
+**Regex scans.** Restore the eligible list first: `PY_FILES=$(cat <run>/python.txt); [ -n "$PY_FILES" ] || exit 1`.
 
 ```bash
 EXCLUDE='--glob !**/venv/** --glob !**/.venv/** --glob !**/dist/** --glob !**/__pycache__/** --glob !**/*.egg-info/** --glob !**/*_pb2.py --glob !**/*_pb2_grpc.py'
 
-# Deep nesting (4+ indentation levels, 4-space indent)
-rg -H '^\s{16,}\S' --type py $EXCLUDE -- $PY_FILES
+# Deep nesting (16+ spaces: 3 levels inside a function, 2 inside a method)
+rg -Hn '^\s{16,}\S' --type py $EXCLUDE -- $PY_FILES
 
 # Boolean parameters
-rg -H --pcre2 '\w+\s*:\s*bool\b' --type py $EXCLUDE -- $PY_FILES
+rg -Hn --pcre2 '\w+\s*:\s*bool\b' --type py $EXCLUDE -- $PY_FILES
 
-# Functions with many parameters
-rg -H --pcre2 'def\s+\w+\s*\([^)]{80,}\)' --type py $EXCLUDE -- $PY_FILES
+# Functions with 4+ parameters besides self / cls (counts commas; one-line or split signatures)
+rg -Hn -U --pcre2 'def\s+\w+\s*\((?>(?:\s*(?:self|cls)\s*,)?)(?:(?:[^()\[\],]|\([^()]*\)|\[[^\[\]]*\])*,){3,}\s*[^\s)]' --type py $EXCLUDE -- $PY_FILES
 
 # **kwargs catch-all
-rg -H '\*\*kwargs' --type py $EXCLUDE -- $PY_FILES
+rg -Hn '\*\*kwargs' --type py $EXCLUDE -- $PY_FILES
 
 # Nested conditional expressions
-rg -H --pcre2 'if\s+.*\s+else\s+.*\s+if\s+' --type py $EXCLUDE -- $PY_FILES
+rg -Hn --pcre2 'if\s+.*\s+else\s+.*\s+if\s+' --type py $EXCLUDE -- $PY_FILES
 
-# Long functions (files with significant line spans between def statements)
-rg -H 'def\s+\w+' --type py $EXCLUDE -n -- $PY_FILES
+# Long functions: a def whose next def starts 50+ lines later (Mixed Concerns candidates)
+rg -Hn '^\s*(async\s+)?def\s' --type py $EXCLUDE -- $PY_FILES | awk -F: '$1 == f && $2 - l >= 50 {print f ":" l} {f = $1; l = $2}'
 
 # Reinvented-primitive candidates: hand-rolled forms, not existing uses
-rg -H -U --pcre2 'for \w+ in [^:\n]+:\s*\n\s+if [^\n]+:\s*\n\s+return True' --type py $EXCLUDE -- $PY_FILES  # any() / in
-rg -H --pcre2 '\[(\w+)\]\s*=\s*\w+\.get\(\1,\s*0\)\s*\+\s*1' --type py $EXCLUDE -- $PY_FILES               # Counter
-rg -H -U --pcre2 'if (\w+) not in (\w+):\s*\n\s+\2\[\1\]\s*=\s*(\[\]|\{\}|set\(\)|0)\s*$' --type py $EXCLUDE -- $PY_FILES  # defaultdict
-rg -H -U --pcre2 'if (\w+) in (\w+):\s*\n\s+return \2\[\1\]' --type py $EXCLUDE -- $PY_FILES               # functools.cache
+rg -Hn -U --pcre2 'for \w+ in [^:\n]+:\s*\n\s+if [^\n]+:\s*\n\s+return True' --type py $EXCLUDE -- $PY_FILES  # any() / in
+rg -Hn --pcre2 '\[(\w+)\]\s*=\s*\w+\.get\(\1,\s*0\)\s*\+\s*1' --type py $EXCLUDE -- $PY_FILES               # Counter
+rg -Hn -U --pcre2 'if ([\w.]+) not in ([\w.]+):\s*\n\s+\2\[\1\]\s*=\s*(\[\]|\{\}|set\(\)|0)\s*$' --type py $EXCLUDE -- $PY_FILES  # defaultdict
+rg -Hn -U --pcre2 'if (\w+) in (\w+):\s*\n\s+return \2\[\1\]' --type py $EXCLUDE -- $PY_FILES               # functools.cache
 ```
 
 ## Phase 3 — Duplication list and exclude

@@ -30,7 +30,7 @@ SHARED = [
 
 # Copied mid-paragraph with different wrapping, so compared as normalized text: check only, never synced.
 PUBLISHED_UNIT = ("boundary-hunter", "**Any evidence of documented import use opens the set**",
-                  "No release workflows or tags are read.", ["invariant-hunter", "type-hunter"])
+                  "No release workflows or tags are read.", ["invariant-hunter", "simplicity-hunter", "type-hunter"])
 
 problems = []
 
@@ -168,6 +168,8 @@ def check():
                     opts = cmd.group(1).split()
                     if not any(o == "-H" or re.fullmatch(r"-[A-Za-z]*[Hl][A-Za-z]*", o) for o in opts):
                         problems.append(f"{rel}: scan without -H (one-file list prints no file name): {line[:60]}")
+                    if not any(re.fullmatch(r"-[A-Za-z]*[nlc][A-Za-z]*", o) for o in opts):
+                        problems.append(f"{rel}: scan without -n (piped output prints no line number): {line[:60]}")
                 if re.search(r"(^|[;&|(]\s*)rg [^\n|;>]*?-- [^\n|;>]*? -[A-Za-z]\b", line):
                     problems.append(f"{rel}: rg option after --: {line.strip()[:60]}")
             want, have = toc(text), re.search(r"^Contents: .*$", text, re.M)

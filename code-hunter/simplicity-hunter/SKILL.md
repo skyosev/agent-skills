@@ -13,7 +13,9 @@ deeper than needed, mixed concerns. Goal: **the simplest code that preserves int
 here); invariant enforcement (→ invariant-hunter); type structure (→ type-hunter); module boundaries and exports
 (→ boundary-hunter); documentation (→ doc-hunter); security (→ security-hunter); test quality and test-code
 duplication (→ test-hunter); cosmetic style and commented-out code, in every mode (→ slop-hunter); broader
-non-idiomatic patterns (→ smell-hunter). A finding that doesn't answer "is this simpler than it could be?" belongs
+non-idiomatic patterns (→ smell-hunter); performance — over-engineered code is here, under-optimized code is
+perf-hunter's; error-handling policy — what to catch, how to convert and propagate (→ error-hunter; duplicated
+error-handling code stays here). A finding that doesn't answer "is this simpler than it could be?" belongs
 elsewhere. Where ownership is *contested* rather than simply elsewhere, that category's **Ownership:** note in What to
 Hunt is authoritative.
 
@@ -28,9 +30,9 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline |
 | Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence |
-| Over-Parameterized APIs | 4+ params, boolean flags, mostly-unused config objects | Split by use case |
+| Over-Parameterized APIs | 4+ params, boolean flags, constant arguments, mostly-unused config objects | Split by use case |
 | Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator |
-| Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries | Guard clauses, early returns, lookup tables |
+| Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries, dense expressions | Guard clauses, early returns, lookup tables, named steps |
 | Coexisting Generations | Two or more **live**, structurally different solutions to one concern | Name the survivor, give a retirement plan |
 
 ## Terms
@@ -38,12 +40,31 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 - **Live seam** — an abstraction a production consumer receives from outside (handwritten wiring or a container, the
   mechanism is irrelevant), or that a second implementation or a test double uses. An interface only ever constructed
   or returned by the code that implements it, never held as another unit's parameter or field, has **no live seam**.
-- **Nomination** — scan output, a name, a count, or dependency coexistence. It selects code to open; it is never
-  evidence. A finding cites what the opened code shows.
+- **Nomination** — scan or linter output, a name, a count, or dependency coexistence. It selects code to open; it is
+  never evidence. A finding cites what the opened code shows.
 - **Stratum** — one generation of a solution to a concern (Coexisting Generations). Live when at least one production
   site uses it.
 - **Liveness channels** — ways code is reached besides a direct call: reflection, DI registration, registries,
-  entrypoint configuration, plus the channels each language reference adds.
+  entrypoint configuration, plus the hooks each language reference lists. A method that any interface in the
+  repository names is live. A finding on code that a listed hook could reach is withdrawn unless that hook was checked.
+- **Essential complexity** — branches that map one-to-one to the cases of a named external rule: one per charter-party
+  clause type, tax regime, or protocol state. The code is exactly as complex as the rule. What the code adds on top —
+  the same mapping written twice, or an ad-hoc encoding of it — is accidental and stays reportable.
+- **Published unit** — boundary-hunter's definition, copied here: **any evidence of documented import use opens the
+  set** (mixed → open → withdrawn). **Closed** (judged in tree): Go — a `main` package; an `internal/` path; a package
+  of a module that contains a `main` package **and** whose repository documents no import use (no `go get <module
+  path>` line or quoted `"<module path>…"` import path in a README or doc, no `doc.go` on a non-main package, no
+  `examples/` directory). TypeScript — a workspace package with `private: true`, or a unit not reachable from any
+  `package.json` `exports` / `main`. Python — a `_`-prefixed or `internal` package; a distribution with a
+  `Private :: Do Not Upload` classifier; a repository whose entry is a web or framework application (`manage.py`,
+  `wsgi.py`, `asgi.py`). **Open** (withdrawn): Go — a module with no `main` package and a public module path, or any
+  documented import use; TypeScript — reachable from `exports` / `main` without `private: true`; Python — a package a
+  `[project]` / `[tool.poetry]` distribution declares with a public import path and none of the closing signals.
+  `__main__.py` and `[project.scripts]` are **not** application signals — libraries ship CLIs that way. No release
+  workflows or tags are read. The question is asked per exported symbol, from the unit that exports it. On an open
+  unit, the claims that need every consumer are **withdrawn**, with one Scope `Limitation` line per unit: a dead public
+  name (Dead Code Paths), an interface with no live seam (Unnecessary Abstractions, Interface Pollution), and a
+  parameter every caller passes the same value (Over-Parameterized APIs).
 
 ## Not a finding on these grounds alone
 
@@ -58,6 +79,7 @@ Distinguish a duplicated **mechanism** (often a finding) from required duplicate
 - **Complexity documented as intentional** — in repository instructions or comments (e.g. duplication for
   performance): not a finding while the rationale holds; reportable only if the documented reason is demonstrably
   stale.
+- **Essential complexity** (Terms) — keep it, documented or not; only its accidental part is a finding.
 - **Accessibility affordances** — never a removal target.
 - **Clarity over brevity** — denser, cleverer, more compressed code that is harder to read is not a simplification.
   Prefer the clearer shape even at more lines.
@@ -114,12 +136,13 @@ toolchain already supports it. Primitive lists and gates live in the language re
 5. **Mutability and ownership parity** — must not change who may mutate what.
 6. **Demonstrable net reduction in concepts**, not merely in lines.
 
-A version differing on any gate is not a simplification, and not a finding in any hunter. **Action:** replace with the
-primitive and call it directly.
+A version differing on any gate is not a Reinvented Primitives finding. **Action:** replace with the primitive and call
+it directly.
 
 ### Unnecessary Abstractions
 
-Wrappers, managers, registries, factories serving a single call site or adding no logic.
+Wrappers, managers, registries, factories serving a single call site or adding no logic, and speculative generality:
+layers built for callers that do not exist.
 
 **Signals:** pass-through delegates; single-resource "managers"; one-type factories; single-implementation abstractions
 with no live seam (see Terms). Measure a wrapper's value by what it adds, not by what it hides.
@@ -129,7 +152,9 @@ question, not a finding here. This category owns the interface with **no live se
 one implementation, no double: should it exist at all? A *type parameter* that never varies is type-hunter's Generics
 That Never Vary; this category owns value-level abstractions. An owned type or interface that keeps an external type
 out of an inward unit's signature is boundary-hunter's External Type Leaks remedy; once injected it is a live seam.
-What stays here is a wrapper the unit constructs itself, with no external type kept out.
+What stays here is a wrapper the unit constructs itself, with no external type kept out. smell-hunter's Class Abuse
+asks whether a class should be a function; this category asks whether the layer should exist at all. When the layer
+should go, the finding is here; when only its form changes, it is Class Abuse.
 
 **Action:** Inline.
 
@@ -139,22 +164,18 @@ Unreachable branches, unused internal helpers, stale feature flags, guards alrea
 by the type.
 
 **Signals:** impossible branches given types/call sites; internal helpers with zero call sites after liveness checks;
-flags always on/off; `nil` / `None` / `undefined` checks already guaranteed (see Guard ownership); default/`else` arms
-already ruled out.
+flags always on/off, shown by evidence in the repository — a constant, a config file, or a default nothing overrides
+(a flag whose value lives outside the repository, such as in a remote flag service, is withdrawn); `nil` / `None` /
+`undefined` checks already guaranteed (see Guard ownership); default/`else` arms already ruled out.
 
 **Ownership:** commented-out code is slop-hunter's Trivially Dead Code, unconditionally — text is not a code path and
-has no liveness question. This category owns *live* code that cannot execute or is never called. Unused functions
-and constants stay here; in Go, `_ = x` on a non-error binding, unused parameters, and unused struct fields are
-slop-hunter's (Python and TypeScript unused parameters are a recorded gap no hunter audits); `_ = f()` on an error is
-invariant-hunter's Unchecked Errors. Exported dead symbols → boundary-hunter's Dead Exports; a Python public name with
-no importers anywhere stays here. A TypeScript `export` in a non-entry file that its unit's entry does not re-export,
-with zero importers anywhere, is here — the Python rule's analogue.
+has no liveness question. This category owns *live* code that cannot execute or is never called: unused functions and
+constants. Exported dead symbols → boundary-hunter's Dead Exports. The language reference's Dead code section splits
+unused bindings, parameters, and fields, and names the exported dead symbols that stay here.
 
 **Guard ownership with invariant-hunter.** A null / nil / None check the *type already rules out* is here — delete the
 guard. A check compensating for an optional type whose value is always present is invariant-hunter's Defensive Access
-in Non-Boundary Code — tighten the type; the guard falls away afterwards. Go has no non-optional pointer type and
-invariant-hunter's Defensive Access does not apply to Go: a Go nil guard the preceding logic already guarantees is
-here.
+in Non-Boundary Code — tighten the type; the guard falls away afterwards.
 
 **Not a finding:** exhaustiveness arms — `default: assertNever(x)`, `case _: assert_never(x)`,
 `default: panic("unreachable")` never execute by design. They are compile-time or convention guards; keep them.
@@ -166,7 +187,7 @@ Chesterton's Fence applies where there is a fence; history can be shallow, absen
 
 **Evidence:** cite channels *relevant to this symbol* and what they showed — not a recited checklist.
 
-**Action:** Delete. If uncertain, flag with evidence of zero usage via the channels checked.
+**Action:** Delete. An uncertain dead-code finding is withdrawn, with one Scope `Limitation` line.
 
 ### Over-Parameterized APIs
 
@@ -177,11 +198,13 @@ boolean dispatched at one site is here however likely it looks to grow.
 
 **Signals:**
 
-- **4+ parameters** — nomination only. A finding requires judgment on cohesion, call-site readability, and actual
-  branching — not the count alone.
+- **4+ parameters** (Go's `ctx context.Context` does not count) — nomination only. A finding requires judgment on
+  cohesion, call-site readability, and actual branching — not the count alone.
 - Booleans creating branching burden, ambiguous call sites, or reachable combinations readers must reason about.
   Caller count is not a complexity measure.
 - Option/config objects with mostly unused fields; catch-all kwargs / options pass-throughs.
+- **Constant arguments** — a parameter every caller passes with the same value (nil, zero, or one constant). The
+  finding cites every call site.
 
 **Action:** Split by use case, or reduce to parameters callers actually use. A flag that must stay needs sharp naming
 and, when transitional, a removal plan.
@@ -196,7 +219,7 @@ methods or module bodies spanning abstraction levels.
 
 **Not a finding:** a dispatcher/coordinator function whose sole job is to route on a discriminant and delegate each
 case — that is its single responsibility. It is a finding only when case arms also contain substantial inline business
-logic.
+logic. A long function with one concern: length only nominates.
 
 **Action:** Extract each concern into a named helper; the parent becomes a coordinator.
 
@@ -205,11 +228,12 @@ logic.
 Deep nesting, nested conditionals/ternaries, long branch chains, convoluted loops. Async/promise signals → TypeScript
 reference.
 
-**Signals:** 3+ nesting levels; `if`/`else if`/`elif` chains with 4+ branches; loop bodies with embedded conditionals;
-nested ternaries or conditional expressions.
+**Signals:** 3+ nesting levels; `if`/`else if`/`elif` chains with 4+ branches; loop bodies with two or more
+conditionals; nested ternaries or conditional expressions; dense expressions — a `reduce` with a spread accumulator, a
+long chain of inline lambdas, plus the forms the language reference adds.
 
 **Action:** Flatten with guard clauses and early returns; prefer switch/map lookups or explicit branches; extract
-complex loop bodies.
+complex loop bodies; split dense expressions into named intermediate steps.
 
 ### Coexisting Generations
 
@@ -232,11 +256,13 @@ once empty). The survivor is already written: the remedy moves call sites onto i
 
 ### Within-skill precedence
 
-One finding per site. The Evidence cell of the reported finding names the other reading in one clause.
+One finding per site. The reported finding's row note (report format) names the other reading in one clause.
 
 - **Go interface with no live seam** → Interface Pollution (simplicity-go.md), never also Unnecessary Abstractions.
-- **A function that mixes concerns and nests 3+ levels** → Mixed Concerns; name the nesting in its Description.
+- **A function that mixes concerns and nests 3+ levels** → Mixed Concerns; name the nesting in its row note.
   Extracting the concerns usually flattens it.
+- **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
+  Concerns, not an Unnecessary Abstraction.
 - **Strata:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
   Generations.
 - **Flags:** always on or always off → Dead Code Paths; both branches live with no removal plan → Coexisting
@@ -300,7 +326,8 @@ and frequently-read file, is High impact.
    **Whitespace in paths is unsupported.** The newline-delimited manifest plus `-- $SCOPE` shell expansion
    word-splits on spaces; whitespace paths are a declared limitation.
 
-2. **Detect languages** from manifest extensions alone:
+2. **Detect languages** from file extensions alone: the manifest's, or in codebase mode those of
+   `git ls-files --cached --others --exclude-standard` (Scope records only their counts; the scans still search `.`):
    - `.go` → go
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
@@ -316,11 +343,12 @@ and frequently-read file, is High impact.
 
 4. **Derive per-language eligible subsets** by applying each reference's generated-code and vendoring rules to that
    language's files. These subsets are then immutable. Record in Scope: raw manifest count, each per-language eligible
-   subset, exclusions, and `References loaded: {go, python, typescript as present}`.
+   count, exclusions, and `References loaded: {go, python, typescript as present}`.
 
-   Drop from eligibility only: vendored trees, lockfiles, documentation / Markdown-only inputs, and generated files
-   identified by each reference's authoritative in-file marker — **never** by filename guessing. Scan globs in
-   references are approximations for scanning convenience; eligibility for reporting uses the marker rule.
+   Drop from eligibility only: vendored trees, lockfiles, documentation / Markdown-only inputs, and generated files —
+   identified by each reference's in-file marker and by its generated-file globs. A handwritten file named like a
+   generated one is dropped too, a declared limitation. TypeScript has no standard marker, so there the globs are the
+   only rule. Codebase mode runs no marker filter before scanning; Phase 5 checks the marker on every anchor file.
 
    Write each subset to `<run>/<lang>.txt` (`go.txt`, `python.txt`, `typescript.txt`). Codebase mode: the single line
    `.`. Diff and path mode: the eligible files, one per line — `comm -12 <(rg --files --type <t> $EXCLUDE | sort)
@@ -344,9 +372,20 @@ and frequently-read file, is High impact.
 
 ### Phase 2: Scan for Complexity Signals
 
-For each loaded language reference, run its Phase 2 scan block on that language's eligible list (Phase 1 step 4).
-Judge each finding under the rules of its own file's language — including language-only categories the reference
-appends. Done when every scan in each loaded reference's Phase 2 block has run and every hit is listed as a candidate.
+For each loaded language reference, nominate candidates on that language's eligible list (Phase 1 step 4) from the
+three sources its Phase 2 block names:
+
+1. **Project linter.** When the project invokes a linter itself — package scripts, `Makefile`, pre-commit, CI; a config
+   file alone is not adoption — run that same command without its fix option. Keep the findings that anchor in the
+   eligible list, for the rules the reference maps to categories. Use only the rules the project enables; never install
+   a tool. Record one Scope outcome per linter: **ran**, **skipped** (not adopted, or not installed), **errored**.
+2. **Toolchain modernizer**, where the reference names one.
+3. **Regex scans.** Approximate: they miss and over-match, so they only nominate.
+
+A scan with many hits runs first with `-c` (hits per file); open the files with the most hits first. Group hits by
+enclosing function: one function is one candidate. Judge each finding under the rules of its own file's language —
+including language-only categories the reference appends. Done when every source has run or has its Scope outcome, and
+every hit belongs to a candidate.
 
 ### Phase 3: Scan for Duplication
 
@@ -359,7 +398,10 @@ appends. Done when every scan in each loaded reference's Phase 2 block has run a
 3. **Compare.** Open every hit's enclosing body and compare after normalizing names and values. Cite only the region
    that matches (see Duplication: Scope the claim to the shared region).
 
-Done when every seed function has been searched and every hit's body compared.
+A clone check in the project's lint run (Phase 2) nominates too. Record
+`Duplication coverage: {searched} of {total} seed functions searched` in Scope; Duplication findings claim only the
+searched seeds. Done when every seed function has been searched and every hit's body compared, or the coverage line
+records where the search stopped.
 
 ### Phase 4: Scan for Coexisting Generations — codebase and path scope only
 
@@ -383,13 +425,21 @@ For each candidate: apply the general Not a finding list and the category's own 
 category's evidence bar in What to Hunt and the reporting gate; choose the simplest elimination. Re-open every
 signature a remedy cites: each parameter, arity, and adjacency it relies on must exist as written.
 
+**Generated anchors.** A candidate whose anchor file carries the reference's generated-code marker is reported once, at
+the generator input (config, template, or schema) when that input is in the target scope, and dropped otherwise.
+
+**Behavior parity (every remedy).** The remedy keeps every output, every error, every side effect and its order, and
+the blocking and concurrency behavior. When the finding cannot show this, its Action says what changes, or the finding
+is dropped.
+
 **Platform-guarantee rule (flag only with evidence).** When recommending removal because "the platform / framework /
-middleware already guarantees it," name the owning layer, show removal preserves every output, error, side effect and
-ordering, and cite the proof. Without that evidence, drop the finding — this class over-fires.
+middleware already guarantees it," name the owning layer and cite the proof that it keeps that parity. Without that
+evidence, drop the finding — this class over-fires.
 
 Assign **Severity and Impact** to every finding. `Audit completed: N findings` counts every reported finding.
 
-Done when every candidate is a reported finding, dropped, or handed off to its owning hunter.
+Done when every candidate is a reported finding, dropped, withdrawn with its `Limitation` line, or handed off to its
+owning hunter.
 
 ### Phase 6: Produce Report
 
@@ -402,6 +452,6 @@ Read `references/report-format.md` for the report template and per-category tabl
 ## Operating Constraints
 
 - **Report only.** The audit report is the deliverable; source files stay untouched.
-- **Evidence required.** Every finding cites `file:line` with the exact code.
+- **Evidence required.** Every finding cites `file:line`, and its row note holds the exact code.
 - **Public API shape may change.** Report a simplification that changes an exported API like any other finding,
   whatever its backward-compatibility cost.

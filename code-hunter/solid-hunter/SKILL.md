@@ -357,7 +357,8 @@ every handler touches is High impact at Medium severity.
    **Whitespace in paths is unsupported.** The newline-delimited manifest plus `-- $SCOPE` shell expansion
    word-splits on spaces; whitespace paths are a declared limitation.
 
-2. **Detect languages** from manifest extensions alone:
+2. **Detect languages** from file extensions alone: the manifest's, or in codebase mode those of
+   `git ls-files --cached --others --exclude-standard` (Scope records only their counts; the scans still search `.`):
    - `.go` → go
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
