@@ -7,8 +7,8 @@ names the toolchain default command, the coverage flag, and the update flags.
 
 Run the project's own test command (a CI step, a Makefile target, the package `test` script); with none, the
 toolchain default the language reference names; with neither, `skipped — no test command`. Before the run, read the
-effective command, including the config it loads. An update flag in it (the language reference lists each runner's)
-→ `skipped — command updates snapshots`.
+effective command, including the config it loads. An update flag or setting in it (the language reference lists each
+runner's) → `skipped — command updates snapshots`.
 
 ## Run it unchanged, with two additions
 
@@ -49,5 +49,9 @@ Scope lists every path whose status or content changed; the hunter restores noth
   show which test hit a line. A line that coverage shows executed is not a "no test drives it" gap; when Phase 3
   found no test for it, record `unresolved coverage`. A gap that rests on blind tests, or on a test that does not pin
   a change, stands: coverage shows execution, not detection.
+- A zero count describes the recorded command, not the suite. It supports "no test executes this line" only when the
+  command's coverage includes that file and the command runs every test Phase 3 counted: no filter, every tag (the
+  language reference names its forms). Otherwise Phase 3's mapping stands alone, and Scope records
+  `coverage profile not used: <reason>`.
 
 Done when Scope has the Test execution line and, after a run, the paths it changed and the failed tests.

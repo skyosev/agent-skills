@@ -22,9 +22,9 @@ command` / `skipped — command updates snapshots` / `errored — timed out` / `
 every path whose status or content changed is listed.
 
 **Evidence cells** follow each category's evidence bar in SKILL.md. Location is `file:line`; a deleted test is
-`<path> (deleted)`. Test names the test in the language reference's evidence path form; a per-file row (unbound
-doubles, a missing `-race`) gives the file path. Test Search is `none` or the tests found. Oracle Trace ends with the
-kind in parentheses. Kind is `Absent`, `Never executes`, `Weak`, or `Weakened in diff`.
+`<path> (deleted)`. Test names the test in the language reference's evidence path form; the missing `-race` row gives
+the file path, and a collection row (Never executes) the excluded files. Test Search is `none` or the tests found.
+Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never executes`, `Weak`, or `Weakened in diff`.
 
 ```md
 # Test Hunter Audit — {date}
@@ -40,8 +40,9 @@ kind in parentheses. Kind is `Absent`, `Never executes`, `Weak`, or `Weakened in
 - References loaded: {go, python, typescript as present}
 - {excluded — no reference for .<ext>: {count} files — naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
-- Test framework: {per language — `go: testing + testify v1.9.0 (go.mod), go 1.25` / `python: pytest 8.4.1 (uv.lock), pytest-asyncio 0.24 strict` / `typescript: vitest 2.1.8 (pnpm-lock.yaml)`}
+- Test framework: {per language — `go: testing + testify v1.9.0 (go.mod), go 1.25` / `python: pytest 8.4.1 (uv.lock), pytest-asyncio 0.24 strict` / `typescript: vitest 4.1.12 (pnpm-lock.yaml)`}
 - Doubles: {per language — `go: hand-written fakes, gomock` / `python: unittest.mock` / `typescript: vi.fn`}
+- {Type-check of tests: {typescript, per group of test files — `src/**/*.test.ts: yes — tsc --noEmit -p tsconfig.test.json (package.json "typecheck")` / `e2e/**: no`}}
 - {<framework> version: unknown — skipped: {gated signals}}
 - Detectors: {per language — `go vet -testinggoroutine: ran — GOPROXY=off go vet -testinggoroutine ./...` / `golangci-lint testifylint: skipped — not configured` / `ruff: errored — <message>`}
 - Critical units: {count} — {names}
@@ -50,7 +51,13 @@ kind in parentheses. Kind is `Absent`, `Never executes`, `Weak`, or `Weakened in
 - {Failed tests: {list} — when the run had failures}
 - {no tests found: <lang>}
 - {unresolved coverage: {unit} — {reason}}
+- {collection not resolved: {pattern or files}}
+- {type-check of tests not resolved: {files}}
+- {coverage profile not used: {reason}}
+- {unbound doubles without drift: {n} files — {dir} ({n}), … — per language}
+- {suite-wide retry: {setting} at {file:line}}
 - {focused test under {runner}: {file:line} — runner not covered; no finding}
+- {not assessed: {n} tests, {m} units — context budget}
 - Audit completed: {N} findings
 
 ## Findings
@@ -59,35 +66,35 @@ kind in parentheses. Kind is `Absent`, `Never executes`, `Weak`, or `Weakened in
 
 | # | Location | Unit | Untested Behavior | Test Search | Severity | Impact | Action |
 | - | -------- | ---- | ----------------- | ----------- | -------- | ------ | ------ |
-| 1 | auth/policy.go:58 | `Authorize` — authorization decision | deny path when the role lacks `refund:write` | `rg -w Authorize`: policy_test.go:12 (allow path only); route `"/v1/refunds"`: none | High | High | Add `TestAuthorizeDeniesRefundWithoutScope`: role `viewer` → `ErrForbidden` |
-| 2 | billing/refund.py:41 | `compute_refund` — money calculation | partial refund after tax | `rg -w compute_refund`: tests/test_refund.py:9, blind (expected value from `compute_refund` itself) | High | Medium | Add a case with a hand-worked value: 40.00 net returned + 20% tax → 48.00; suspected: rounds before tax at refund.py:52 |
+| 1 | auth/policy.go:58 | `Authorize` — authorization decision: a wrong allow lets a viewer issue refunds | deny path when the role lacks `refund:write` | `rg -w Authorize`: policy_test.go:12 (allow path only); route `"/v1/refunds"`: none | High | High | Add `TestAuthorizeDeniesRefundWithoutScope`: role `viewer` → `ErrForbidden` |
+| 2 | billing/refund.py:41 | `compute_refund` — money calculation: a wrong amount is refunded to the customer | partial refund after tax | `rg -w compute_refund`: tests/test_refund.py:9, blind (expected value from `compute_refund` itself) | High | High | Add a case with a hand-worked value: 40.00 net returned + 20% tax → 48.00; suspected: rounds before tax at refund.py:52 |
 
 ### Tautological Tests
 
 | # | Location | Test | Oracle Trace | Hidden Defect | Severity | Impact | Action |
 | - | -------- | ---- | ------------ | ------------- | -------- | ------ | ------ |
-| 1 | order_test.go:41 | `TestTotal` | want ← Total(order) (subject on both sides) | any change to Total, e.g. dropping the discount, stays green | High | Medium | Replace want with 1750 from the worked example 2 × 1000 − 250 |
-| 2 | price.test.ts:18 | `price › applies VAT` | expected ← `net * (1 + VAT_RATE)`, the formula at price.ts:9 (mirror computation) | a wrong VAT rule shared by both copies stays green | Medium | Medium | Assert 120.00 for a net of 100.00 at 20% |
+| 1 | order_test.go:41 | `TestTotal` | want ← Total(order) (subject on both sides) | any change to Total, e.g. dropping the discount, stays green | High | High | Replace want with 1750 from the worked example 2 × 1000 − 250 |
+| 2 | price.test.ts:18 | `price › applies VAT` | expected ← `net * (1 + VAT_RATE)`, the formula at price.ts:9 (mirror computation) | a wrong VAT rule shared by both copies stays green | Medium | High | Assert 120.00 for a net of 100.00 at 20% |
 
 ### Inert and Weak Tests
 
 | # | Location | Test | Kind | Accepted Defect | Severity | Impact | Action |
 | - | -------- | ---- | ---- | --------------- | -------- | ------ | ------ |
-| 1 | user.test.ts:30 | `user › loads profile` | Never executes | `expect(load()).resolves` without `await` under Jest: the test ends before the assertion runs | Medium | Medium | `await expect(load()).resolves.toEqual(profile)` |
+| 1 | user.test.ts:30 | `user › loads profile` | Never executes | `expect(load()).resolves` without `await` under Jest: the test ends before the assertion runs | Medium | Low | `await expect(load()).resolves.toEqual(profile)` |
 | 2 | auth_test.go (deleted) | `TestRefundRequiresScope` | Weakened in diff | `ErrorIs(err, ErrForbidden)` at merge base auth_test.go:31; the deny path is still at auth/policy.go:58; `rg -w Authorize`: policy_test.go:12, allow path only | High | High | Restore the test, or name the test that replaces it |
 
 ### Brittle Tests
 
 | # | Location | Test | Coupling | Breaking Refactor | Severity | Impact | Action |
 | - | -------- | ---- | -------- | ----------------- | -------- | ------ | ------ |
-| 1 | tests/test_order.py:77 | `tests/test_order.py::test_total` | `apply_discount` call count | inline `apply_discount` into `total`: the count assertion fails | Medium | Medium | Assert the returned total |
+| 1 | tests/test_order.py:77 | `tests/test_order.py::test_total` | `apply_discount` call count | inline `apply_discount` into `total`: the count assertion fails | Medium | High | Assert the returned total |
 
 ### Test Double Misuse
 
 | # | Location | Test | Double | Divergence | Severity | Impact | Action |
 | - | -------- | ---- | ------ | ---------- | -------- | ------ | ------ |
-| 1 | store/order_test.go:22 | `TestLoadOrder` | `fakeRepo.Find` | store/repo.go:52 returns `ErrNotFound`; the fake returns `nil, nil`, so the not-found path never runs | High | Medium | Return `ErrNotFound` from the fake for unknown IDs |
-| 2 | tests/test_mailer.py:8 | `tests/test_mailer.py` | `MagicMock()` for `Mailer` | unbound: no `spec` at lines 8, 31, 47 | Low | Low | `create_autospec(Mailer)` |
+| 1 | store/order_test.go:22 | `TestLoadOrder` | `fakeRepo.Find` | store/repo.go:52 returns `ErrNotFound`; the fake returns `nil, nil`, so the not-found path never runs | High | High | Return `ErrNotFound` from the fake for unknown IDs |
+| 2 | tests/test_refund.py:14 | `tests/test_refund.py::test_refund_marks_order` | `patch("pkg.billing.charge")` | unreached: pkg/orders.py:3 does `from pkg.billing import charge`, so the real `charge` runs and nothing asserts a call on the patch | Medium | High | `patch("pkg.orders.charge")`; the real `charge` calls the payment provider |
 
 ### Test Setup Duplication
 
@@ -99,7 +106,9 @@ kind in parentheses. Kind is `Absent`, `Never executes`, `Weak`, or `Weakened in
 
 | # | Location | Test | Pattern | Nondeterminism Source | Severity | Impact | Action |
 | - | -------- | ---- | ------- | --------------------- | -------- | ------ | ------ |
-| 1 | worker_test.go:33 | `TestWorkerDrains` | `time.Sleep(100 * time.Millisecond)` | scheduling of the goroutine started at worker.go:40 | Medium | Medium | Wait on the `done` channel `Start` returns |
+| 1 | billing_test.go:31 | `TestInvoiceDueTomorrow` | `time.Now()` in the test and in `NewInvoice` | `due` vs the test's own `time.Now()`, both cut to the day (billing_test.go:31) ← `now.Add(24h)` ← `time.Now()` at billing.go:40; the two reads fall on different days when the run crosses midnight | Medium | High | Inject the clock into `NewInvoice`; fix it in the test |
+| 2 | worker_test.go:33 | `TestWorkerDrains` | `time.Sleep(100 * time.Millisecond)` | `assert.Zero(t, q.Len())` (worker_test.go:35) ← drained by the goroutine started at worker.go:40; fails when that goroutine has not run within 100 ms | Medium | Low | Wait on the `done` channel `Start` returns |
+| 3 | worker_test.go | `worker_test.go` | policy: no -race | no -race in Makefile:14 (`go test ./...`); worker.go:40 starts a goroutine | Medium | Low | Add `-race` to the `test` target |
 
 ## Recommendations (Priority Order)
 

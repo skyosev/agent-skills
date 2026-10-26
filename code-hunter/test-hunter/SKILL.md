@@ -57,6 +57,9 @@ applies in every supported language; each language reference holds its scans, ga
   list splits into a **test list** (`$GO_TESTS`, `$PY_TESTS`, `$TS_TESTS`) and a **production list** (`$GO_PROD`,
   `$PY_PROD`, `$TS_PROD`).
 - **Subject** — the code under test.
+- **Assertion** — any call that fails the test on a wrong result: a framework assertion, a query or request
+  expectation that throws (Testing Library `getBy*` / `findBy*`, a Playwright locator action, supertest
+  `.expect(201)`), or a helper that reaches one (`t.Fatal`, `pytest.fail`, a helper's `assert`).
 - **Unit** — the function, method, or handler that owns a branch, limit, error path, or state transition.
 - **Target scope** — the files a finding may anchor at; every other file is read as context (Phase 1 step 4, Two
   surfaces).
@@ -64,9 +67,10 @@ applies in every supported language; each language reference holds its scans, ga
   test framework, and test doubles are not owned code.
 - **Critical code** — code whose wrong result is silent and costly: calculations (money, quantities, time),
   validation and authorization decisions together with the wiring that applies them (the middleware attached to a
-  route), state transitions, persistence mappings, parsers of external input. Thin wrappers, logging, and
-  configuration values are not critical unless the auditor names the silent, costly result of a wrong one (a lowered
-  minimum TLS version, a session cookie without `Secure`). Generated code is never critical.
+  route), state transitions, persistence mappings, parsers of external input, idempotency and deduplication (a
+  duplicate charge), destructive operations (delete, retention). Every critical-code claim names the wrong result and
+  who pays for it; that is also how a thin wrapper, logging, or a configuration value qualifies (a lowered minimum
+  TLS version, a session cookie without `Secure`). Generated code is never critical.
 - **Test oracle** — where a test's expected result comes from. An **independent oracle** derives it without running
   or copying the code under test: a specification, a hand-worked example, an invariant, a protocol, a separately
   designed reference.
@@ -80,9 +84,11 @@ applies in every supported language; each language reference holds its scans, ga
   `expect(r).toBeDefined()` followed by `expect(r.total).toBe(1750)` is not blind for the total.
 - **Breaking refactor** — a behavior-preserving change that turns the test red.
 - **Double** — any test stand-in: mock, stub, fake, spy. A **bound double** is one the type system or a spec ties to
-  the real type's members and signatures: Go interface satisfaction, a TypeScript double typed as the real interface,
-  Python `create_autospec` / `autospec=True`. Python `spec` / `spec_set` bind attribute names only; call signatures
-  stay unchecked. A **divergent double** is a double of owned code that does something the real code cannot: returns
+  the real type's members and signatures: Go interface satisfaction, a TypeScript double typed as the real interface
+  (`satisfies Repo`, `mock<Repo>()`) in a file that a command type-checks (Phase 1 step 5), Python `create_autospec` /
+  `autospec=True`. Python `spec` / `spec_set` bind attribute names only; call signatures stay unchecked. A TypeScript
+  type assertion (`as Repo`, `as Partial<Repo>`) binds nothing: it compiles on an object that lacks members. A
+  **divergent double** is a double of owned code that does something the real code cannot: returns
   a value or shape the real code never returns, omits an error or validation the real code has, or accepts a call the
   real code rejects.
 
@@ -108,17 +114,21 @@ A branch, limit, error path, or state transition in critical code that no test d
 - A boundary that the code itself defines: a `len == 0` branch, a maximum constant, a rounding rule, the last and the
   empty page, a cancelled context that the code checks.
 - A coverage pragma on critical code (`# pragma: no cover`; `/* istanbul ignore … */`, `/* c8 ignore … */`,
-  `/* v8 ignore … */`) nominates its lines. The pragma hides lines from the coverage report, not from the tests.
+  `/* v8 ignore … */`) nominates its lines. The pragma hides lines from the coverage report, not from the tests. A
+  coverage exclusion in config (each language reference lists its settings) nominates the critical code its patterns
+  match, under the same rules.
 - Diff mode: changed production behavior (Phase 4) that no test would detect if the change were reverted, including a
   test added with a fix that does not pin the fix.
 - Critical code whose only tests are blind and lie outside the target scope (Within-skill routing).
 
-**Evidence bar:** the Unit cell names why the unit is critical. The Test Search cell lists the searches run (Phase 3)
-and their result; when blind tests are the only coverage, it names them and why each is blind. An edge case is a
-finding only when the code has the branch, limit, or contract clause that the input exercises. A line under a coverage
-pragma is a finding only when the mapping finds no test that drives it. A language with no test files anywhere in the
-repository (Phase 3 finds none) gets `no tests found: <lang>` in Scope and one row per critical unit, not one per
-branch.
+**Evidence bar:** the Unit cell names why the unit is critical: the wrong result and who pays for it. The Test Search
+cell lists the searches run (Phase 3) and their result; when blind tests are the only coverage, it names them and why
+each is blind; for a diff-mode fix, it names the test the change added, if any, and why it does not pin the fix. An
+edge case is a finding only when the code has the branch, limit, or contract clause that the input exercises. A line
+under a coverage pragma or a config exclusion is a finding only when the mapping finds no test that drives it. A
+critical unit that no test drives gets one row that lists its untested branches; a unit that some test drives gets one
+row per untested branch. A language with no test files anywhere in the repository (Phase 3 finds none) gets
+`no tests found: <lang>` in Scope.
 
 **Not a finding:** a generic edge-case checklist (nil, empty, Unicode, maximum, timeout for every function); thin
 wrappers, logging, and configuration values with no named consequence; generated code; dependency internals; a
@@ -150,10 +160,11 @@ defects.
 4. **Double echo** — asserts the value a double was configured to return, when the test calls the double directly, or
    when the double is a partial mock that replaces the subject's own member that computes the asserted value.
 5. **Self-written oracle** — the code under test rewrites the expected file on every run: the project's test command
-   passes an update flag (each language reference lists its runners' flags), a Go golden `-update` flag defaults to
-   true, a script that runs the production code regenerates a fixture before the tests. A helper that writes a missing
-   golden file is the normal bootstrap: it is a finding only when git ignores the expected file, so every fresh
-   checkout writes it again.
+   or runner config turns on an update (each language reference lists its runners' flags and settings), a Go golden
+   update flag defaults to true, a script that runs the production code regenerates a fixture before the tests. A
+   helper that writes a missing golden file is the normal bootstrap: it is a finding only when git ignores the
+   expected file, so every fresh checkout writes it again. Check each snapshot and golden file the scans found with
+   `git check-ignore -- <path>`; it takes paths, not globs.
 
 **Evidence bar:** an **Oracle Trace** — the expected value followed back from the assertion to its source
 (`want ← Total(order)`) — and a **Hidden Defect** that follows from it. When no owned code runs between arrangement and
@@ -177,10 +188,12 @@ name the test that replaces it.
 ### Inert and Weak Tests
 
 A test that cannot fail on a wrong result: it has no assertion, it never runs, its assertion never executes, or its
-assertion accepts the result a plausible defect produces. The Kind cell takes one of four values:
+assertion accepts the result a plausible defect produces. The Kind cell takes one of four values; each language
+reference maps its own forms and detector rules to them:
 
-- **Absent** — no assertion call. A bare comparison statement (`x == 1` without `assert`). A Python test whose only
-  check is a `return`ed value (`return result == 1`), which pytest only warns about.
+- **Absent** — no assertion (Terms). A bare comparison statement (`x == 1` without `assert`). An assertion that
+  checks nothing (Python `assert (x == 1, "msg")`, a tuple that is always true). A Python test whose only check is a
+  `return`ed value (`return result == 1`), which pytest only warns about.
 - **Never executes**:
   - An assertion inside a `try` whose handler swallows the assertion error (`except Exception`,
     `except AssertionError`, a bare `catch`).
@@ -194,8 +207,16 @@ assertion accepts the result a plausible defect produces. The Kind cell takes on
   - An assertion in a loop that is the test's only check, when the test never asserts the collection's length or
     non-emptiness.
   - A test that never runs: an unconditional skip (`t.Skip()`, `@pytest.mark.skip`, `it.skip` / `xit` /
-    `describe.skip`), or a version-gated form in the language reference (Go loop-variable capture, a Python async test
-    that no plugin handles).
+    `describe.skip`), or a form the language reference lists (Go loop-variable capture, a Ginkgo pending spec, a
+    Python async test that no plugin handles).
+  - A test file that no command in the repository runs, when the repository shows the exclusion: a runner config
+    pattern excludes the file (`testPathIgnorePatterns`, Vitest `exclude`, pytest `norecursedirs`), or a command
+    deselects its build tag or marker and no command selects it. The commands are those the repository holds: build
+    files, package scripts, CI workflows. One row per exclusion, listing its files. A job outside the repository may
+    still run them, so the Accepted Defect cell states that boundary: `no command in the repository runs it — read:
+    <files>`. Collection that depends on anything else (a config computed in code, a workspace or project file, a
+    command the repository does not show) fails closed: the tests count as live, and Scope records `collection not
+    resolved: <pattern or files>`. Runner configs are read, never simulated.
   - A focused test (`.only`) that leaves the rest of the file unrun, under a runner that lets it through (TypeScript
     reference, Config-gated signals). The finding anchors at the `.only`. A runner the reference does not name is
     recorded in Scope and gets no finding.
@@ -204,9 +225,14 @@ assertion accepts the result a plausible defect produces. The Kind cell takes on
     determined.
   - A check of `err == nil` that ignores the result.
   - An error path that checks only that some error happened (`err != nil`, `pytest.raises(Exception)`, a bare
-    `toThrow()`, a `wantErr` row that only calls `require.Error`) when the error kind is the contract.
+    `toThrow()`, a `wantErr` row that only calls `require.Error`) when the error kind is the contract. In testify, an
+    argument after `err` is a message, not an error kind: `assert.Error(t, err, ErrNotFound)` checks only `err != nil`.
   - An interaction assertion without arguments (`toHaveBeenCalled()`, `assert_called()`, `mock.Anything`) when the
     arguments are the contract.
+  - An absence check on an effect that the subject produces asynchronously, with no wait, flush, or timer advance
+    before it (`expect(sendEmail).not.toHaveBeenCalled()` right after a click whose handler awaits first): the check
+    runs before the effect can happen. The Accepted Defect is the effect happening after the check, and it cites the
+    line where the subject defers the effect.
   - A non-discriminating double: one fake serves both the success and the failure path, or answers any input, so the
     wrong branch or a wrongly forwarded argument also satisfies the assertion.
   - A table or parametrize row that branches into no assertion.
@@ -231,8 +257,10 @@ checks it.
 - `require.Error(t, err); return` when rejection is the whole contract.
 - `t.Fatal` in a table loop without `t.Run`: a failing row still turns the test red. Only the later rows' diagnostics
   are lost.
-- A loose check next to a specific check on the same value (`toBeDefined()`, then `toBe(1750)` on its total). The
-  test still counts as coverage of that value.
+- A loose check next to a specific check on the same value (`toBeDefined()`, then `toBe(1750)` on its total), in the
+  same test or in a sibling test that shares its action. Tests that share one action (a Ginkgo `JustBeforeEach`, a
+  `beforeEach` or fixture that calls the subject) are judged together: `It("succeeds")` that checks only the error is
+  not Weak when a sibling `It` checks the result. The test still counts as coverage of that value.
 - Weakened in diff, when the change also removed the behavior the assertion checked.
 
 **Action:** assert the specific outcome; await or return the async assertion; remove the `.only`; un-skip, or delete
@@ -262,7 +290,8 @@ A test that a behavior-preserving change turns red, because it asserts on implem
 
 **Evidence bar:** a **Breaking Refactor** — `inline applyDiscount into Total: the call-count assertion fails`.
 
-**Not a finding:** call counts at a boundary that the business cares about (one email, one charge); a same-package Go
+**Not a finding:** call counts at a boundary that the business cares about (one email, one charge, the number of
+attempts a retry policy makes); a same-package Go
 test that reads unexported state that no exported behavior shows; a call to a private function whose result is checked
 against an independent oracle; a message that users see, which is a contract; a log that is the contract (an audit
 log); SQL text when producing it is the unit's job (a query builder); a test's imports, whatever they reach.
@@ -271,31 +300,48 @@ log); SQL text when producing it is the unit's job (a query builder); a test's i
 
 ### Test Double Misuse
 
-A double of owned code that misrepresents the code it replaces: it diverges from the real implementation, or nothing
-binds it to the real type.
+A double of owned code that misrepresents the code it replaces: it diverges from the real implementation, nothing
+binds it to the real type, or the subject never reaches it.
 
 **Signals:**
 
 - A divergent double. Example: a fake repository returns `nil, nil` where the real one returns `ErrNotFound`, so the
   subject's not-found path is never exercised.
-- A double not bound to the real type: TypeScript `as any` / `as unknown as T` on a double; Python `Mock()` /
-  `MagicMock()`, or `patch()` without `autospec=True`, with no `spec` standing in for a project type. Go needs nothing
-  here: the compiler checks interface satisfaction.
-- A signature drift that exists now behind a `spec`-only double, which is a divergence.
+- A double not bound to the real type: TypeScript `as any`, `as unknown as T`, `as Repo`, or `as Partial<Repo>` on a
+  double, an `@ts-expect-error` or `@ts-ignore` above one, an untyped `vi.fn()`, and a typed double in a file that no
+  command type-checks (Phase 1 step 5); Python `Mock()` / `MagicMock()`, or `patch()` without `autospec=True`, with no
+  `spec` standing in for a project type. Go needs nothing here: the compiler checks interface satisfaction.
+- A signature drift that exists now behind a `spec`-only or unbound double, which is a divergence.
+- An unreached double: the patch or spy replaces a name the subject never looks up, so the real collaborator runs.
+  Python `patch("pkg.billing.charge")` when the subject did `from pkg.billing import charge`; TypeScript
+  `vi.spyOn(mod, "fn")` on an ESM export that the subject calls inside its own module.
 
 **Evidence bar:** the Divergence cell cites the real implementation's lines (`repo.go:52 returns ErrNotFound; the fake
 returns nil, nil`). The auditor resolves the implementation behind the replaced interface or module; when it cannot,
-there is no row. An unbound double with no current drift: the unbound construct, one row per test file, with the
-lines listed.
+there is no row. Unreached: the subject's import or call line, and the patch or spy target. An unbound double is a row
+only with a drift that exists now; unbound doubles with no drift go to Scope as one line per language
+(`unbound doubles without drift: <n> files — <dir> (<n>), …`).
+
+**Which category judges a double:**
+
+- The test calls the double directly, or the double is a partial mock that replaces the subject's own member that
+  computes the asserted value → Tautological Tests (double echo).
+- The subject forwards the double's value, and the test asserts it → no finding (pass-through); Inert and Weak Tests
+  (Weak) only when the double answers any input, so a wrongly forwarded argument also passes.
+- One fake serves both the success and the failure path → Inert and Weak Tests (Weak).
+- It does what the real code cannot → divergent, here.
+- Nothing ties it to the real type → unbound, here.
+- The subject never calls it, and nothing asserts a call on it → unreached, here.
 
 **Not a finding:** a faithful double of owned code, whether or not the real code touches I/O; a double of code that is
 not owned (an HTTP API, a cloud SDK), whose real behavior cannot be read; a double that returns an error the real code
-can return but a test cannot easily provoke. Mocking style is not judged. Mock counts nominate; they are never the
-criterion.
+can return but a test cannot easily provoke; an unreached double that the test asserts a call on, because that
+assertion fails. Mocking style is not judged. Mock counts nominate; they are never the criterion.
 
-**Action:** match the double to the implementation, bind it to the real type, or use the real collaborator. When a
-removed double leaves an interface with no second implementation, the Action names simplicity-hunter's Unnecessary
-Abstractions check.
+**Action:** match the double to the implementation, bind it to the real type, point the patch or mock at the name the
+subject looks up, or use the real collaborator. When an unreached double lets an external service run, the Action
+says so; the same defect is not filed again under Flaky Test Indicators. When a removed double leaves an interface
+with no second implementation, the Action names simplicity-hunter's Unnecessary Abstractions check.
 
 **Ownership:** whether a production interface that only a double implements should exist is simplicity-hunter's and
 solid-hunter's question; both count the double as a second implementation. A production unit with too many
@@ -304,7 +350,9 @@ cross-reference by unit name. invariant-hunter routes `as any` on a mock here.
 
 ### Test Setup Duplication
 
-The same setup repeated across tests or files.
+The same setup repeated across tests or files. It is judged here because test code has its own rule: values that each
+case depends on are repeated on purpose (Not a finding). Copies have **diverged** when they differ in a value or a
+step that the code under test reads.
 
 **Signals:**
 
@@ -333,26 +381,54 @@ A test whose result depends on time, order, shared state, a real service, or a l
 **Signals:**
 
 - Fixed sleeps used to synchronize.
-- Wall-clock, timezone, or locale dependence; unseeded randomness.
+- Wall-clock, timezone, or locale dependence; unseeded randomness; an ambient environment read (`os.Getenv`,
+  `os.environ.get`, `process.env`) that the test does not set. The source may sit in production code that the test
+  drives: the trace (evidence bar) reaches it there.
+- Generated test data (Faker-style factories) when the asserted result depends on the generated value: a unique
+  constraint, or a relative date (`faker.date.past()`) that moves with the wall clock.
 - Iteration-order dependence: Go map iteration; Python set iteration (string hashing is randomized per process).
 - Shared mutable state between tests: package-level variables, module globals, environment variables set without
   restore (`os.Setenv` instead of `t.Setenv`, `os.environ[...]` instead of `monkeypatch.setenv`, `process.env` without
-  restore), singletons, session-wide fixtures that tests mutate.
+  restore), singletons, session-wide fixtures that tests mutate. Also double state that outlives a test (a
+  module-level `vi.fn()` that a test configures, a global assigned directly, a Python patcher started without
+  `stop()`), and suite or container state that tests change (testify suite fields, objects built in `beforeAll` or
+  `setUpClass`, a Ginkgo variable initialized in a container node). A cleanup setting clears a candidate only for the
+  constructs it covers (language reference).
+- Parallel execution combined with shared state: Go `t.Parallel()`, Jest and Vitest `concurrent`, pytest-xdist,
+  Ginkgo `--procs` (each language reference lists its forms). In Go, also `t.Parallel()` with a `defer` teardown in
+  the parent test, which runs before the parallel subtests do.
 - Calls to real services from tests that the project marks as unit tests (build tags, markers, file naming).
 - Resources that are never released: temp files outside `t.TempDir()` / `tmp_path`, servers and clients that are not
   closed, async sessions in fixtures without teardown, goroutine leaks.
-- Go: `t.Parallel()` combined with shared state, or with a `defer` teardown in the parent test, which runs before the
-  parallel subtests do. In-scope code starts goroutines, but the project's test command never passes `-race`: one row
-  per in-scope test file that drives that code, because the command file is outside the target scope. The Test cell
-  is the file path; the Nondeterminism Source is `no -race in <command file:line>`, or `no -race: no test command
-  found`.
-- Retry annotations (`@pytest.mark.flaky`, `jest.retryTimes`, `retry` in the Vitest config; each language reference
-  lists its runners' forms). A retry turns an intermittent failure green, a real intermittent regression included. It
-  is not a Nondeterminism Source by itself: it makes the Flaky finding of each test it covers High when that test
-  drives critical code, and that row's Nondeterminism Source cell names it.
+- Go: in-scope code starts goroutines, but the project's test command never passes `-race`: one row per in-scope test
+  file that drives that code, because the command file is outside the target scope. The Test cell is the file path;
+  the Nondeterminism Source is `no -race in <command file:line>`, or `no -race: no test command found`.
+- Retries aimed at a test or its file (`@pytest.mark.flaky`, `jest.retryTimes`, a per-test `retry` option; each
+  language reference lists its runners' forms). A retry turns an intermittent failure green, a real intermittent
+  regression included. It is not a Nondeterminism Source by itself: it makes the Flaky finding of each test it covers
+  High when that test drives critical code, and that row's Nondeterminism Source cell names it. A suite-wide retry
+  (`retries` in `playwright.config.*`, `retry` in the Vitest config, a rerun option in the test command) changes no
+  severity; Scope records it as `suite-wide retry: <setting> at <file:line>`.
 
-**Evidence bar:** the Nondeterminism Source cell names the clock, the order, the shared state, the real service, or
-the leaked resource, at `file:line`.
+**Evidence bar:** the Nondeterminism Source cell holds two things, as an Oracle Trace does for a tautology:
+
+- **The trace** — the source at `file:line`, followed to what the test checks.
+- **The values that change the outcome** — the values of the source that change the check's result, or cause an
+  exception or a timeout, read from the check and the source.
+
+Example: `due vs the test's own time.Now(), both cut to the day (billing_test.go:31) ← now.Add(24h) ← time.Now() at
+billing.go:40; the two reads fall on different days when the run crosses midnight`. A real service: the call, and the
+test errors or times out when the service is down or slow. A leaked resource: what else meets it (a fixed port or
+path, a later test, a leak check). A guess about the environment ("CI runs at night") may go in the Action; it is not
+evidence.
+
+The missing `-race` row is a policy row: a missing flag fails no run and shows no nondeterminism. It keeps its
+evidence (the command line and the code that starts goroutines), and its Pattern cell is `policy: no -race`.
+
+**Not a finding:** a source that reaches no check (a log line, a test deadline, a label nobody asserts); a check that
+every value of the source passes (a generated UUID checked with `toMatch(UUID_PATTERN)`); a leak that nothing meets (a
+temp file under a unique name); property-based generators (Hypothesis, fast-check, rapid, `testing/quick`, Go
+fuzzing), which are random on purpose and report the failing input.
 
 **Action:** inject, isolate, or synchronize, with the remedy the language reference names. A sleep that waits for a
 goroutine or a callback → wait on the completion signal the code exposes.
@@ -369,11 +445,13 @@ under the first category in this order that describes it:
 1. Does the test run, and does its assertion execute? No → Inert and Weak Tests (Absent, Never executes).
 2. Is the expected value fixed by the subject, a mirror, the arrangement, a double's configuration, or a self-written
    file? Yes → Tautological Tests.
-3. Do the test's checks of the behavior, taken together, accept the result that a plausible defect in the subject
-   produces? Yes → Inert and Weak Tests (Weak). A double that answers any input and an ignored setup error count
-   here, because they widen what the checks accept; a double that does what the real code cannot is step 5.
+3. Do the test's checks of the behavior, taken together with those of sibling tests that share its action, accept
+   the result that a plausible defect in the subject produces? Yes → Inert and Weak Tests (Weak). A double that
+   answers any input and an ignored setup error count here, because they widen what the checks accept; a double that
+   does what the real code cannot is step 5.
 4. Would a behavior-preserving change break it? Yes → Brittle Tests.
-5. Does a double of owned code diverge from it, or stand unbound to the real type? Yes → Test Double Misuse.
+5. Does a double of owned code diverge from it, stand unbound to the real type, or go unreached? Yes → Test Double
+   Misuse.
 6. Does the result depend on a nondeterminism source? Yes → Flaky Test Indicators.
 7. Repeated setup → Test Setup Duplication.
 
@@ -381,6 +459,8 @@ Production side: critical behavior that no test drives → Coverage Gaps. Critic
 → at those tests, under their category, when they are in the target scope; otherwise a Coverage Gap at the unit that
 names them. Never both. The same holds for a critical path that no test drives because a double diverges: Test
 Double Misuse at the double when its test is in the target scope, otherwise a Coverage Gap that names the double.
+One exception: in diff mode, a fix that no test pins stays a Coverage Gap at the production change, even when the
+change added a test; that test gets its own row only when it is blind or weak for what it does check.
 
 ## Test-code scope
 
@@ -400,27 +480,38 @@ impact; Medium is correctness or maintainability risk without imminent impact; L
 High:** a missing or blind test breaks nothing by itself, so no finding here is Critical. Applied to tests:
 
 - **High** — the finding leaves a behavior of critical code effectively unprotected: no test drives the behavior, or
-  every test that drives it is blind; or a flaky test on critical code carries a retry annotation.
+  every test that drives it is blind; or a flaky test on critical code carries a retry aimed at that test or its file.
 - **Medium** — the default for a finding that is neither High nor Low. Protection is weakened, but something still
   catches regressions: a blind test whose behavior other tests also cover; a mirror computation, even as the only
-  coverage; a flaky test without retries; a divergent double whose path another test drives; brittle tests on code
-  that changes often.
-- **Low** — hygiene with no effect on what gets detected: setup duplication that has not diverged; unbound doubles with
-  no current drift.
+  coverage; a flaky test without a targeted retry; a divergent double whose path another test drives.
+- **Low** — hygiene with no effect on what gets detected: setup duplication whose copies have not diverged.
 
-**Impact — how much the change is worth:** how critical the code is, how often the test or the code is edited
-(`git log`), and how many tests share the state, the double, or the setup.
+**Impact — how much the change is worth:** how critical the code is; for code that is not critical, how many tests
+share the state, the double, or the setup.
 
-- **High** — critical code that is edited often, or a double, state, or setup that many tests share
-- **Medium** — critical code that is edited rarely, or other code that is edited often
-- **Low** — clears the evidence bar, but the code is not critical, is rarely edited, and one or two tests reach it
+- **High** — critical code
+- **Medium** — code that is not critical, with a double, state, or setup that many tests share
+- **Low** — clears the evidence bar, but the code is not critical and one or two tests reach it
 
 ## Audit Workflow
 
 ### Phase 1: Gain Context
 
-Diff mode: read **Deleted test files** and **Deletions-only run** in step 2 before you run step 1; they override the
-empty-scope stop in `references/diff-scope.md`.
+**Deleted test files (diff mode).** The call that resolves the scope (step 1) also writes `$DELETED` to
+`<run>/deleted.txt`; in party mode, write the deleted-in-diff list from `scope-meta.txt` there. With no deletions the
+file is empty: an empty list, not a STOP. Step 2 detects languages from it as well as from the manifest, so a deleted
+Python test is seen in a Go-only diff. Deleted paths never enter `scope.txt` or a `<lang>.txt`, so no scan runs
+against them; Phase 4 reads the test paths among them at the merge base. A language detected only from `deleted.txt`
+loads its reference, for the Test cell's evidence path form, and gets no `<lang>.txt` and no split: steps 4 to 6 and
+Phases 2, 3, and 5 skip it.
+
+**Deletions-only run** — no eligible file in scope and at least one deleted test path. It is an exception to both
+shared empty-scope stops. When `$SCOPE` is empty, the stop in `references/diff-scope.md` does not apply yet: drop the
+deleted paths that are not test paths. If none remain, that stop applies unchanged ("Audit completed: 0 findings —
+empty diff scope"). Otherwise the run continues: later calls restore `<run>/deleted.txt` instead of
+`<run>/scope.txt`, and an empty restore of it is the STOP. Steps 4 to 6 and Phases 2, 3, and 5 do not run; Phase 4
+reads each deleted test, and Phase 6 judges it against the working tree. The only possible finding is Inert and Weak
+Tests (Weakened in diff), at `<path> (deleted)`.
 
 1. **Resolve the raw manifest.** Scope may be:
    - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
@@ -455,22 +546,6 @@ empty-scope stop in `references/diff-scope.md`.
    - `.go` → go
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
-
-   **Deleted test files (diff mode).** The call that resolves the scope also writes `$DELETED` to
-   `<run>/deleted.txt`; in party mode, write the deleted-in-diff list from `scope-meta.txt` there. With no deletions
-   the file is empty: an empty list, not a STOP. Languages are detected from it as well as from the manifest, so a
-   deleted Python test is seen in a Go-only diff. Deleted paths never enter `scope.txt` or a `<lang>.txt`, so no scan
-   runs against them; Phase 4 reads the test paths among them at the merge base. A language detected only from
-   `deleted.txt` loads its reference, for the Test cell's evidence path form, and gets no `<lang>.txt` and no split:
-   steps 4 to 6 and Phases 2, 3, and 5 skip it.
-
-   **Deletions-only run** — no eligible file in scope and at least one deleted test path. It is an exception to both
-   shared empty-scope stops. When `$SCOPE` is empty, the stop in `references/diff-scope.md` does not apply yet: drop
-   the deleted paths that are not test paths. If none remain, that stop applies unchanged ("Audit completed: 0
-   findings — empty diff scope"). Otherwise the run continues: later calls restore `<run>/deleted.txt` instead of
-   `<run>/scope.txt`, and an empty restore of it is the STOP. Steps 4 to 6 and Phases 2, 3, and 5 do not run; Phase 4
-   reads each deleted test, and Phase 6 judges it against the working tree. The only possible finding is Inert and
-   Weak Tests (Weakened in diff), at `<path> (deleted)`.
 
    **Supported languages are Go, Python, and TypeScript.** Every other extension — `.js`, `.jsx`, `.mjs`, `.cjs`
    included — is **excluded, not audited**. Record `excluded — no reference for .<ext>: {count} files` in Scope,
@@ -517,6 +592,12 @@ empty-scope stop in `references/diff-scope.md`.
    every version it admits falls on the same side of it. Go reads the `go` line of the module that contains the test.
    An unknown version is recorded (`pytest version: unknown`), and the signals gated on it are skipped.
 
+   TypeScript also records, for each group of test files, whether a checked-in command type-checks them: the command
+   runs the compiler on a TypeScript project that includes the files, and the compiler's errors fail the command (the
+   TypeScript reference lists the forms). Record `yes` only with that evidence. With `no`, typed doubles of owned code
+   in those files are unbound. When the answer cannot be determined, Scope records `type-check of tests not resolved:
+   <files>`, and no unbound finding rests on the type check.
+
 6. **Identify the critical code** in scope (Terms). Name each critical unit and why it is critical; Coverage Gaps
    candidates come from reading these units: their branches, limits, error paths, and state transitions. In diff and
    path mode, that is every critical unit in the in-scope production files, not only the changed lines. When the
@@ -544,13 +625,20 @@ Map both directions, project-wide:
 - For each in-scope critical production unit: the tests that drive it — symbol references, route paths, command
   names, the distinguishing input of each branch. The search runs over the whole repository, not only the test list,
   so a test outside the shared test paths (Django `tests.py`, Cypress `*.cy.ts`) still counts as coverage. Also
-  search every entry point in the language reference's Coverage mapping blind spots list. Each search and its result
-  go in the Test Search cell.
+  search every entry point in the language reference's Coverage mapping blind spots list. A unit with no test
+  reference of its own is mapped through its callers, up to an entry point that tests drive; the branch's
+  distinguishing input then decides whether a test reaches the branch. Each search and its result go in the Test
+  Search cell.
 - For each in-scope test: the production code it drives, and the real implementation behind each double of owned
   code.
 
 A unit whose tests cannot be traced (reached only through an entry point the search cannot resolve: DI, reflection, a
-generated client) is recorded in Scope as `unresolved coverage: <unit> — <reason>`. It is not a finding.
+generated client) is recorded in Scope as `unresolved coverage: <unit> — <reason>`. It is not a finding. A call chain
+up to a tested entry point resolves, so it is mapped, not recorded.
+
+A test counts as coverage only when it runs and can fail. A file that no command runs (Never executes) is no
+coverage, nor is a form the language reference lists as not coverage (an expected-failure test, a Go `Example` without
+an output comment, a fuzz target with no seed).
 
 Done when every Coverage Gaps candidate has a Test Search result (the tests that drive that branch, or none) or its
 unit has an `unresolved coverage` line, and every in-scope test has the production code it drives and, for each double
@@ -591,11 +679,15 @@ For each candidate, in the working tree: apply the general Not-a-finding list an
 line first; apply the within-skill routing, and if it moved the candidate, the routed category's Not-a-finding line
 too; clear the category's evidence bar; then apply the loaded reference's version-gated and config-gated signals.
 
+Work in this order, so that a run the context budget cuts short has judged what matters most: candidates at critical
+units first, then tests with a targeted-scan hit, then tests that only the census nominates. When the budget ends
+first, Scope records `not assessed: <n> tests, <m> units — context budget`, so the report says that it is partial.
+
 Assign **Severity and Impact** to every finding. Nothing is held back; `Audit completed: N findings` counts every
 reported finding.
 
 Done when every candidate is a reported finding, dropped under a named Not-a-finding case or a failed evidence bar,
-skipped on an unknown version, or handed off to its owning hunter.
+skipped on an unknown version, handed off to its owning hunter, or counted in the `not assessed` line.
 
 ### Phase 7: Produce Report
 

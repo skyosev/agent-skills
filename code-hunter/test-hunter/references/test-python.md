@@ -1,6 +1,6 @@
 # Test Hunter — Python reference
 
-Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated detectors · Version-gated signals · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
+Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated detectors · Version-gated signals · Language-specific signals · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
 
 ## Generated-code eligibility
 
@@ -39,20 +39,31 @@ printf '%s\n' $PY_FILES | grep -Ev "$TEST_RE" > <run>/python-prod.txt || echo /d
 
 ## Delegated detectors
 
-**ruff** runs only when the project configures it (`[tool.ruff]` in `pyproject.toml`, `ruff.toml`, `.ruff.toml`) and
-selects at least one of these rules. ruff's default selection holds none of them.
+**ruff** runs whenever the project configures it (`[tool.ruff]` in `pyproject.toml`, `ruff.toml`, `.ruff.toml`). Its
+output decides which rules are on: a hit shows that its rule is selected, whatever the installed version's defaults.
 
 ```bash
 cd "$(git rev-parse --show-toplevel)" || exit 1
 PY_TESTS=$(cat <run>/python-tests.txt); [ -n "$PY_TESTS" ] || exit 1   # STOP: empty restore
-[ "$PY_TESTS" = /dev/null ] || ruff check --no-fix --no-cache --output-format concise -- $PY_TESTS | rg -w 'PLR0124|B015|PT011|PT017'
+[ "$PY_TESTS" = /dev/null ] || ruff check --no-fix --no-cache --output-format concise -- $PY_TESTS | rg -w 'PLR0124|PLR0133|B015|B017|F631|F811|PGH005|PLW0129|PT011|PT012|PT017'
 ```
 
-- `PLR0124` (comparison with itself) → Tautological Tests (subject on both sides).
+- `PLR0124` (comparison with itself), `PLR0133` (comparison of two constants) → Tautological Tests (subject on both
+  sides).
 - `B015` (comparison statement without `assert`) → Inert and Weak Tests (Absent).
-- `PT011` (`pytest.raises` on a broad exception without `match`; the default list includes `Exception` and
-  `BaseException`) → Inert and Weak Tests (Weak) when the error kind is the contract.
+- `F631` (`assert` on a non-empty tuple: `assert (x == 1, "msg")`) → Absent: the tuple is always true.
+- `PLW0129` (`assert` on a literal) → Absent, for a non-empty literal only: `assert ""` always fails.
+- `PGH005` (`mock.assert_called` without `()`, an attribute access) → Absent.
+- `B017` (`assertRaises` / `pytest.raises` on `Exception` or `BaseException`) → Inert and Weak Tests (Weak) when the
+  error kind is the contract.
+- `PT011` (`pytest.raises` without `match` on an exception in its broad list, which also holds `ValueError` and
+  `OSError`) → Weak only when the code raises a narrower type than the one checked, or tells cases apart by message.
+  `pytest.raises(ValueError)` already checks a kind.
+- `PT012` (a `pytest.raises` block with more than one statement) → Never executes only when a check comes after the
+  call that raises. Setup before that call is fine.
 - `PT017` (`assert` inside an `except` block) → Inert and Weak Tests (Never executes).
+- `F811` (redefinition) → Never executes when a test function or method is defined twice under one name: pytest
+  collects only the last. A redefined helper is not this hunter's.
 
 ## Version-gated signals
 
@@ -62,6 +73,28 @@ PY_TESTS=$(cat <run>/python-tests.txt); [ -n "$PY_TESTS" ] || exit 1   # STOP: e
   marker. `asyncio_mode = auto` handles every async test.
 - **A `return`ed check** (Absent) is not gated, although pytest 8.4.0 alone fails it.
 
+## Language-specific signals
+
+- **Non-strict `xfail`** (Weak): an unconditional `@pytest.mark.xfail` with no `strict=True` and no `raises=`, when
+  the config sets neither `strict_xfail` (named `xfail_strict` before pytest 9) nor `strict`, and no command passes
+  `--runxfail`. XFAIL and XPASS both leave the run green, so once the bug is fixed the test guards nothing. Accepted
+  Defect: any result. A strict `xfail` is not a finding. Phase 3 counts no `xfail` test as coverage, strict or not:
+  until it passes, any failure counts as expected.
+- **`pytest.xfail()` called unconditionally in a test body** (Never executes): the rest of the body never runs.
+- **A `Test*` class that defines `__init__`** (Never executes): pytest does not collect it and only warns.
+- **Collection:** a marker that `addopts` deselects (`-m "not integration"`) with no command that selects it; a test
+  directory under `norecursedirs` or `--ignore`.
+- **Shared state:** a patcher started with `.start()` and no `stop()` or `addCleanup`; pytest-mock's `mocker` undoes
+  its own patches. Attributes set in unittest `setUpClass` that tests change.
+- **Parallel execution:** pytest-xdist (`-n` in `addopts` or the command) shares files, ports, and databases between
+  workers; a `session`-scoped fixture runs once per worker, not once per run.
+- **Generated data:** `Faker` and factory_boy values, under the SKILL.md condition. Hypothesis is a property-based
+  generator.
+- **Retries:** `@pytest.mark.flaky` / `@flaky` is aimed at the test; pytest-rerunfailures `--reruns` in `addopts` or
+  the command is suite-wide.
+- **Coverage exclusions in config:** coverage.py `exclude_lines`, `exclude_also`, `omit` (`.coveragerc`,
+  `[tool.coverage.*]`, `setup.cfg`).
+
 ## Remedies
 
 - `freezegun` or `time-machine` when installed, else an injected clock, for `datetime.now()` / `time.time()`.
@@ -70,6 +103,10 @@ PY_TESTS=$(cat <run>/python-tests.txt); [ -n "$PY_TESTS" ] || exit 1   # STOP: e
 - `sorted(...)` or a set comparison for a set compared in iteration order.
 - `create_autospec(Real)` or `autospec=True` for an unbound `Mock()` / `patch()`.
 - `pytest.raises(SpecificError)` for a broad `pytest.raises(Exception)`.
+- `strict=True` on an `xfail`, or the test fixed and un-marked.
+- `mocker.patch`, or `addCleanup(patcher.stop)`, for a started patcher; `patch` on the module where the subject looks
+  the name up (`pkg.orders.charge`) for an unreached patch.
+- `Faker.seed(n)`, or the value the case depends on stated in the test, for generated data.
 
 ## Coverage mapping blind spots
 
@@ -106,14 +143,20 @@ PY_TESTS=$(cat <run>/python-tests.txt); PY_PROD=$(cat <run>/python-prod.txt)
 # Coverage Gaps: coverage pragmas (then read whether the code is critical and whether a test drives it)
 rg -H -n '#\s*pragma:\s*no\s*cover' -- $PY_PROD
 
-# Tautological Tests: expected values computed by a call; configured return values (double echo)
+# Tautological Tests: expected values computed by a call, as an assignment, the expected side of a comparison, or a
+# parametrize row; configured return values (double echo)
 rg -H -n --pcre2 '\b(expected|want|exp)\w*\s*=\s*[\w.]+\(' -- $PY_TESTS
+rg -H -n --pcre2 'assert\s+[\w.]+(\(.*\))?\s*==\s*[\w.]+\(' -- $PY_TESTS
+rg -H -n --pcre2 '(pytest\.param\(|\[\(|^\s*\()\s*\w+,\s*[\w.]+\(' -- $PY_TESTS
 rg -H -n 'return_value\s*=|\.return_value\b' -- $PY_TESTS
 
-# Inert and Weak Tests: test functions, returned checks, skips, swallowing handlers, async tests and markers
+# Inert and Weak Tests: test functions, returned checks, skips and expected failures, uncollected classes,
+# swallowing handlers, async tests and markers
 rg -H -n --pcre2 '^\s*(async\s+)?def\s+test_\w*' -- $PY_TESTS
 rg -H -n --pcre2 '^\s+return\s+(?!None\b)\S' -- $PY_TESTS
 rg -H -n '@pytest\.mark\.skip\b|pytest\.skip\(|@unittest\.skip\b|unittest\.skip\(' -- $PY_TESTS
+rg -H -n --pcre2 '@pytest\.mark\.xfail\b(?![^)]*strict\s*=\s*True)|pytest\.xfail\(' -- $PY_TESTS
+rg -H -n --pcre2 '^\s+def\s+__init__\(' -- $PY_TESTS
 rg -H -n --pcre2 '^\s*except(\s+(Exception|BaseException|AssertionError)\b[^:]*)?\s*:' -- $PY_TESTS
 rg -H -n 'async def test_|pytest\.mark\.(asyncio|anyio|trio)|pytestmark' -- $PY_TESTS
 # Weak: existence, truthiness, and type-only checks; broad raises; argument-free interaction checks
@@ -127,7 +170,8 @@ rg -H -n --pcre2 'caplog\.(text|records|messages)|\b(str|repr)\([^)]*\)\s*==' --
 rg -H -n '\.call_count\b|assert_has_calls\(|\.mock_calls\b|\.call_args_list\b' -- $PY_TESTS
 rg -H -n --pcre2 'read_text\(|inspect\.getsource|open\([^)]*\.py["\x27]|hasattr\(|ImportError' -- $PY_TESTS
 
-# Test Double Misuse: doubles without spec or autospec, and spec-only doubles (check signatures)
+# Test Double Misuse: doubles without spec or autospec, spec-only doubles (check signatures), patch targets (check
+# where the subject looks the name up)
 rg -H -n --pcre2 '\b(Magic|Async)?Mock\((?![^)]*\bspec)' -- $PY_TESTS
 rg -H -n --pcre2 '(?<![\w.])((unittest\.)?mock\.|mocker\.)?patch(\.object)?\((?![^)]*\bautospec\s*=\s*True)' -- $PY_TESTS
 rg -H -n 'create_autospec\(|autospec\s*=\s*True|spec(_set)?\s*=' -- $PY_TESTS
@@ -135,18 +179,22 @@ rg -H -n 'create_autospec\(|autospec\s*=\s*True|spec(_set)?\s*=' -- $PY_TESTS
 # Test Setup Duplication: fixtures and builders (compare bodies across conftest.py files and modules)
 rg -H -n --pcre2 '@pytest\.fixture|^\s*def\s+(make|build|create)_\w+\(' -- $PY_TESTS
 
-# Flaky Test Indicators: sleeps, clocks, randomness, environment, module state, wide fixtures, real services,
-# unreleased resources, set order, retries
+# Flaky Test Indicators: sleeps, clocks, randomness, generated data, environment, module and class state (skip a name
+# that only @pytest.mark.parametrize reads), wide fixtures, started patchers, real services, unreleased resources,
+# set order, retries
 rg -H -n 'time\.sleep\(|asyncio\.sleep\(' -- $PY_TESTS
 rg -H -n --pcre2 'datetime\.(now|utcnow|today)\(|date\.today\(|time\.time\(\)|\brandom\.(?!seed\b)\w+\(' -- $PY_TESTS
+rg -H -n --pcre2 '\bFaker\(|\bfactory\.Faker\(' -- $PY_TESTS
 rg -H -n --pcre2 'os\.environ\[[^\]]+\]\s*=|os\.environ\.(update|setdefault|pop)\(|os\.putenv\(|os\.chdir\(' -- $PY_TESTS
-rg -H -n --pcre2 '^[A-Za-z_]\w*\s*(:[^=]+)?=\s*(\[|\{|set\(|dict\(|list\()|^\s*global\s' -- $PY_TESTS
+rg -H -n --pcre2 '^[A-Za-z_]\w*\s*(:[^=]+)?=\s*(\[|\{|set\(|dict\(|list\()|^\s*global\s|def\s+setUpClass\(' -- $PY_TESTS
 rg -H -n --pcre2 'scope\s*=\s*["\x27](session|package|module)' -- $PY_TESTS
+rg -H -n '\.start\(\)' -- $PY_TESTS
 rg -H -n --pcre2 '\b(requests|httpx)\.\w+\(\s*f?["\x27]https?://|urlopen\(' -- $PY_TESTS
 rg -H -n 'tempfile\.|NamedTemporaryFile\(|mkdtemp\(|ClientSession\(|AsyncClient\(|create_async_engine\(' -- $PY_TESTS
 rg -H -n 'assert\s+list\(' -- $PY_TESTS
 rg -H -n '@pytest\.mark\.flaky|@flaky\b' -- $PY_TESTS
 
-# Config: async mode, update flags, and retries (pytest-rerunfailures --reruns) in addopts and test commands
-rg -H -n --hidden -e 'asyncio_mode|addopts|--snapshot-update|--force-regen|--regen-all|--reruns' --glob '**/pyproject.toml' --glob '**/pytest.ini' --glob '**/setup.cfg' --glob '**/tox.ini' --glob '**/noxfile.py' --glob '**/Makefile' --glob '.github/workflows/**' -- .
+# Config: async mode, update flags, retries, strict xfail, markers and collection, xdist, coverage exclusions in
+# addopts, configs, and test commands
+rg -H -n --hidden -e 'asyncio_mode|addopts|--snapshot-update|--force-regen|--regen-all|--reruns|--runxfail|xfail_strict|strict_xfail|strict\s*=|norecursedirs|--ignore|-m\s|-n\s|exclude_lines|exclude_also|omit' --glob '**/pyproject.toml' --glob '**/pytest.ini' --glob '**/setup.cfg' --glob '**/tox.ini' --glob '**/.coveragerc' --glob '**/noxfile.py' --glob '**/Makefile' --glob '.github/workflows/**' -- .
 ```
