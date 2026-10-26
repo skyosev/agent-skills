@@ -13,8 +13,11 @@ suppressions, hedging, narration. Goal: **the code reads as if a careful human w
 The test for every finding is *is this noise?*, never *did an AI write this?*
 
 **Not covered (owned by other hunters):** missing "why" comments, stale or false comments, and the content quality
-of public docs (→ doc-hunter); comments over non-trivial code (→ smell-hunter, Comments as Deodorant); live but
-unreachable logic, unused functions and constants (→ simplicity-hunter, Dead Code Paths); exported dead symbols
+of public docs (→ doc-hunter); comments that call the code a hack or a workaround and name no cause, or that name a
+dependency defect but not when the workaround can go, whatever the marker (→ doc-hunter, Unexplained Workarounds);
+names that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code
+(→ smell-hunter, Comments as Deodorant); live but unreachable logic, unused functions and constants
+(→ simplicity-hunter, Dead Code Paths); exported dead symbols
 (→ boundary-hunter, Dead Exports); generic package / module names (→ boundary-hunter, Generic Boundary Names);
 stuttering names as package design (→ smell-hunter); error-chain
 correctness, type-checker suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`), and discarded error
@@ -22,7 +25,7 @@ returns (→ invariant-hunter); narration that leaks secrets (→ security-hunte
 Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -75,9 +78,19 @@ A comment that restates trivial code, a name, or a language construct.
 
 **Ownership — the comment ownership rule** (also governs Hedging and Narration):
 
+- Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
+  construct another hunter audits (a discarded error, a type-system bypass) → that hunter.
+- Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
+- Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
+  go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
+- Comment states an invariant that no check enforces and the code could → doc-hunter (Undocumented Contracts:
+  enforce it, keep the comment until then), unless a status-string, duration, or money type would enforce it →
+  smell-hunter.
+- Comment states a "why" the code cannot (a source, an external cause, a contract the types cannot state) and the
+  code matches it → no finding.
 - Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
-- Comment present and the code trivial → here (delete the redundant comment).
-- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
+- Comment restates what trivial code does → slop-hunter (delete the redundant comment).
+- Comment explains what non-trivial code does → smell-hunter (extract/refactor; the comment is deodorant).
 
 *Trivial* code is one statement or one simple condition whose meaning the comment repeats; a comment that summarizes
 two or more statements or a compound condition sits over non-trivial code.
@@ -157,7 +170,8 @@ Text and declarations that compile or parse but do nothing, and can be judged in
 **Signals:**
 
 - Commented-out code, of any size
-- `TODO` / `FIXME` / `HACK` / `XXX` with no owner, ticket, or concrete condition
+- `TODO` / `FIXME` / `XXX` with no owner, ticket, or concrete condition. A marker comment that calls the code a hack
+  or a workaround, or that names a dependency defect the code works around, is doc-hunter's (Unexplained Workarounds)
 - Leftover `pass` in a non-empty Python body
 - Unused imports and unused function-local bindings where the language lets them compile
 - Linter suppression with no stated reason: bare `//nolint`; `# noqa`, `# pylint: disable`; `// eslint-disable*`,
@@ -189,11 +203,12 @@ Speculative, apologetic, or self-referential text, and logging that narrates con
 
 **Signals:**
 
-- `// This is a workaround for...` with no issue reference
 - `// Note: this might need to be updated if...`
 - `// For safety, we also check...`
 - `// New, improved version...` — compares against a version the reader cannot see; accurate, but carries no
   information
+- Task history: `// now uses the v2 client`, `// changed to UTC`, `// added on client feedback`, `// tried a map
+  first`. It belongs in the commit or the PR
 - Logging that narrates flow: `log.Println("entering X")`, `logger.debug("starting")`, `console.log('here')`
 
 **Action:** Delete. Keep comments that document a concrete constraint or a known issue with a reference.
@@ -202,8 +217,9 @@ Speculative, apologetic, or self-referential text, and logging that narrates con
 noise.
 
 **Ownership:** narration that leaks a secret or PII is security-hunter's; cross-reference, severity is theirs. The
-comment ownership rule (Redundant Comments) applies: a workaround comment over non-trivial code is smell-hunter's
-Comments as Deodorant.
+comment ownership rule (Redundant Comments) applies: a workaround comment that names no cause, or names a defect but
+not when the workaround can go, is doc-hunter's Unexplained Workarounds; one that excuses the project's own design is
+smell-hunter's Comments as Deodorant.
 
 ### Unnecessary Error Wrapping *(Go only)*
 

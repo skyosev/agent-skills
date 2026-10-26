@@ -49,8 +49,8 @@ rg -H -n --pcre2 '(stretchr/testify|gotest\.tools|google/go-cmp|onsi/ginkgo/v2|o
   wait for that goroutine.
 - **golangci-lint** runs only when its config (`.golangci.yml`, `.yaml`, `.toml`, `.json`) enables `testifylint`,
   `tparallel`, or `ginkgolinter`, in each module directory:
-  `golangci-lint run ./... | rg '\((testifylint|tparallel|ginkgolinter)\)$'`, never with `--fix`. Only these outputs
-  are used:
+  `golangci-lint run --fix=false --allow-serial-runners ./... | rg '\((testifylint|tparallel|ginkgolinter)\)$'`. Only
+  these outputs are used:
   - `testifylint` `useless-assert` (`assert.Equal(t, x, x)`) → Tautological Tests (subject on both sides).
   - `testifylint` `error-is-as` (`assert.Error(t, err, ErrX)`) → Inert and Weak Tests (Weak, the error-kind case).
   - `testifylint` `go-require` (`require` in a goroutine) nominates an assertion in a goroutine; a finding only when

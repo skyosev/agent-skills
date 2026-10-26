@@ -19,7 +19,7 @@ SOLID violations (→ solid-hunter); module boundary and dependency direction (�
 style (→ slop-hunter).
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `doc-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `error-hunter-py`, `security-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -144,12 +144,12 @@ Operations that must be called in a specific order, with nothing in the API enfo
 `Build()`, per-state types exposing only valid transitions, dependencies accepted at construction rather than via
 setters.
 
-**Ownership:** the coupling and its redesign are owned here. doc-hunter covers only constraints that are *staying*
-(redesign rejected or out of scope) and need documenting — a comment is the fallback, not the fix. The construction
-test with invariant-hunter, Go only: a type that can be *constructed* invalid — zero value usable, no constructor —
-is invariant-hunter's Zero-Value Traps; a validly constructed value whose *methods* must be called in order (`Init`
-before `Run`, `Build` before required setters) is here. In Python and TypeScript the construction test does not
-route away; both cases stay here.
+**Ownership:** the coupling and its redesign are owned here. An order that a protocol, a third-party library, the OS, or
+a framework imposes on the project's code is doc-hunter's Unexplained Workarounds. A wrapper the project writes around
+such an order is the project's own API, and stays here. The construction test with invariant-hunter, Go only: a type
+that can be *constructed* invalid — zero value usable, no constructor — is invariant-hunter's Zero-Value Traps; a
+validly constructed value whose *methods* must be called in order (`Init` before `Run`, `Build` before required setters)
+is here. In Python and TypeScript the construction test does not route away; both cases stay here.
 
 ### Comments as Deodorant
 
@@ -157,11 +157,22 @@ Comments explaining *what* confusing code does rather than *why* — masking a d
 
 **Comment ownership rule:**
 
+- Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
+  construct another hunter audits (a discarded error, a type-system bypass) → that hunter.
+- Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
+- Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
+  go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
+- Comment states an invariant that no check enforces and the code could → doc-hunter (Undocumented Contracts:
+  enforce it, keep the comment until then), unless a status-string, duration, or money type would enforce it →
+  smell-hunter.
+- Comment states a "why" the code cannot (a source, an external cause, a contract the types cannot state) and the
+  code matches it → no finding.
 - Comment absent and the "why" non-obvious → doc-hunter (add the missing "why" comment).
-- Comment present and the code trivial → slop-hunter (delete the redundant comment).
-- Comment present and the code non-trivial → smell-hunter (extract/refactor; the comment is deodorant).
+- Comment restates what trivial code does → slop-hunter (delete the redundant comment).
+- Comment explains what non-trivial code does → smell-hunter (extract/refactor; the comment is deodorant).
 
-*Trivial* code is one statement or one simple condition whose meaning the comment repeats; a comment that summarizes two or more statements or a compound condition sits over non-trivial code.
+*Trivial* code is one statement or one simple condition whose meaning the comment repeats; a comment that summarizes
+two or more statements or a compound condition sits over non-trivial code.
 
 **Signals:**
 

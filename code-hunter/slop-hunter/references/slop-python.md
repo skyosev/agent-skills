@@ -99,12 +99,12 @@ D() { git diff -U0 "$MB" -- $PY_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 
 D '\s*#'                                                       # comments (classify manually)
 D '.*("""|:param |:returns?:|Args:|Returns:)'                    # docstrings and tags
-D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
+D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
 D '.*#\s*(noqa|pylint:\s*disable)'                           # linter suppressions (check for a reason)
 D '\s*pass\s*$'                                                # leftover pass (then read the body)
 D '\s*(import |from \S+ import )'                              # added imports (check uses in the file)
 D '.*(print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here))'   # narration
-D '.*(?i)(workaround|might need|for safety|new, improved|improved version)'                       # hedging
+D '.*(?i)(might need|for safety|new, improved|improved version)'                                  # hedging
 
 # Removed lines, with file and hunk headers: a removed use of a still-imported name nominates a Phase 4 candidate
 git diff -U0 "$MB" -- $PY_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
@@ -115,11 +115,11 @@ W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must n
 W '^\s*#'                                                      # comments (classify manually)
 W '"""'                                                        # docstring blocks
 W -B1 '^\s*def\s+_'                                            # docstrings on private helpers
-W '\b(TODO|FIXME|HACK|XXX)\b'
+W '\b(TODO|FIXME|XXX)\b'
 W '#\s*(noqa|pylint:\s*disable)'
 W '^\s*pass\s*$'
 W 'print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)'
-W -i 'workaround|might need|for safety|new, improved|improved version'
+W -i 'might need|for safety|new, improved|improved version'
 
 # Unused-import nomination (path mode): for each imported name, count uses outside the import line
 # rg -c '\bNAME\b' FILE   → 1 means the import is the only mention

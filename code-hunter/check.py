@@ -1,4 +1,4 @@
-"""Keep the eight code-hunter skills consistent.
+"""Keep the nine code-hunter skills consistent.
 
     python3 code-hunter/check.py                         # report drift and lint problems; exit 1 if any
     python3 code-hunter/check.py --sync-from smell-hunter
@@ -12,6 +12,7 @@ import argparse, pathlib, re, sys
 ROOT = pathlib.Path(__file__).resolve().parent
 HUNTERS = sorted(d.name for d in ROOT.glob("*-hunter"))
 NOT_SLOP = [h for h in HUNTERS if h != "slop-hunter"]  # slop's step 1 differs on purpose: diff is its default scope
+COMMENT_RULE = ["doc-hunter", "slop-hunter", "smell-hunter"]
 
 # (file, first-line prefix, end-line prefix or None for "next blank line", hunters)
 SHARED = [
@@ -26,11 +27,17 @@ SHARED = [
     ("SKILL.md", "Write each subset to `<run>/<lang>.txt`", None, NOT_SLOP),
     ("SKILL.md", "Hunter names are unsuffixed.", None, HUNTERS),
     ("references/report-format.md", "The report is, in order:", None, HUNTERS),
+    ("SKILL.md", "- Comment contradicts the code it describes", None, COMMENT_RULE),
+    ("SKILL.md", "*Trivial* code is one statement", None, COMMENT_RULE),
 ]
 
-# Copied mid-paragraph with different wrapping, so compared as normalized text: check only, never synced.
-PUBLISHED_UNIT = ("boundary-hunter", "**Any evidence of documented import use opens the set**",
-                  "No release workflows or tags are read.", ["invariant-hunter", "simplicity-hunter", "type-hunter"])
+# Definitions copied from their owner, mid-paragraph or with different wrapping, so compared as normalized text:
+# check only, never synced. (owner, start text, end text, hunters holding a copy)
+COPIED = [
+    ("boundary-hunter", "**Any evidence of documented import use opens the set**",
+     "No release workflows or tags are read.", ["invariant-hunter", "simplicity-hunter", "type-hunter"]),
+    ("test-hunter", "**Critical code**", "Generated code is never critical.", ["doc-hunter"]),
+]
 
 problems = []
 
@@ -128,15 +135,15 @@ def check():
             groups = " | ".join(", ".join(v) for v in variants.values())
             problems.append(f"shared block '{start or file}' differs: {groups}")
 
-    owner, start, end, copies = PUBLISHED_UNIT
-    t = norm((ROOT / owner / "SKILL.md").read_text())
-    m = re.search(re.escape(norm(start)) + ".*?" + re.escape(norm(end)), t)
-    if not m:
-        problems.append(f"{owner}: Published unit definition not found")
-    else:
+    for owner, start, end, copies in COPIED:
+        t = norm((ROOT / owner / "SKILL.md").read_text())
+        m = re.search(re.escape(norm(start)) + ".*?" + re.escape(norm(end)), t)
+        if not m:
+            problems.append(f"{owner}: copied definition '{start}' not found")
+            continue
         for h in copies:
             if m.group(0) not in norm((ROOT / h / "SKILL.md").read_text()):
-                problems.append(f"{h}: Published unit copy differs from {owner}'s")
+                problems.append(f"{h}: copy of {owner}'s '{start}' differs")
 
     for h in HUNTERS:
         d = ROOT / h

@@ -107,11 +107,11 @@ D() { git diff -U0 "$MB" -- $TS_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 
 D '\s*(//|/?\*)'                                             # comments and JSDoc (classify manually)
 D '.*(@param|@returns?|@description)'                            # JSDoc tags
-D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
+D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
 D '.*(eslint-disable|biome-ignore)'                              # linter suppressions (check for a reason)
 D '\s*import\s'                                                # added imports (check uses in the file)
 D '.*console\.(log|debug|info)\('                              # narration candidates
-D '.*(?i)(workaround|might need|for safety|new, improved|improved version)'   # hedging
+D '.*(?i)(might need|for safety|new, improved|improved version)'              # hedging
 
 # Removed lines, with file and hunk headers: a removed use of a still-imported name nominates a Phase 4 candidate
 git diff -U0 "$MB" -- $TS_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
@@ -122,10 +122,10 @@ W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must n
 W '^\s*//'                                                     # comments (classify manually)
 W '/\*\*'                                                      # JSDoc blocks
 W -B2 '^\s*(async\s+)?function\s+[a-z]|^\s*const\s+[a-z]\w*\s*=\s*(async\s*)?\(' # non-exported functions with docs
-W '\b(TODO|FIXME|HACK|XXX)\b'
+W '\b(TODO|FIXME|XXX)\b'
 W 'eslint-disable|biome-ignore'
 W 'console\.(log|debug|info)\('
-W -i 'workaround|might need|for safety|new, improved|improved version'
+W -i 'might need|for safety|new, improved|improved version'
 
 # Unused-import nomination (path mode): for each imported name, count uses outside the import line
 # rg -c '\bNAME\b' FILE   → 1 means the import is the only mention

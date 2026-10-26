@@ -120,12 +120,12 @@ MB=$(cat <run>/mb); [ -n "$MB" ] || exit 1                     # STOP: empty res
 D() { git diff -U0 "$MB" -- $GO_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 
 D '\s*//'                                                      # comments and godoc (classify manually)
-D '.*\b(TODO|FIXME|HACK|XXX)\b'                                # placeholder markers
+D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
 D '.*//\s*nolint'                                              # suppressions (check for a trailing reason)
 D '\s*_\s*=\s*\w'                                              # blank-identifier silencing
 D '.*fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'               # error-wrapping candidates
 D '.*(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'   # narration
-D '.*(?i)(workaround|might need|for safety|new, improved|improved version)'                        # hedging
+D '.*(?i)(might need|for safety|new, improved|improved version)'                                   # hedging
 
 # Removed lines, with file and hunk headers: a removed use of a parameter or struct field nominates a Phase 4 candidate
 git diff -U0 "$MB" -- $GO_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
@@ -135,12 +135,12 @@ git diff -U0 "$MB" -- $GO_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/nu
 W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must not search the whole tree
 W '^\s*//'                                                     # comments (classify manually)
 W -B1 '^func\s+(\([^)]*\)\s*)?[a-z]'                           # godoc on unexported functions and methods
-W '\b(TODO|FIXME|HACK|XXX)\b'
+W '\b(TODO|FIXME|XXX)\b'
 W '//\s*nolint'
 W '^\s*_\s*=\s*\w'
 W 'fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'
 W '(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'
-W -i 'workaround|might need|for safety|new, improved|improved version'
+W -i 'might need|for safety|new, improved|improved version'
 
 # ---- Formatter (Phase 3) ----
 gofmt -l $GO_FILES
