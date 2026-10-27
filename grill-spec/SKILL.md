@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Spec
 
-Run the `grill-plan` interview: read its SKILL.md (the `grill-plan` directory beside this one) and follow its workflow steps 1–5b and its principles. Then produce the artifact in two passes: you write the plan, a sub-agent enriches its hot points.
+Run the `grill-plan` interview: read its SKILL.md (the `grill-plan` directory beside this one) and follow its workflow steps 1–5b and its principles. `grill-plan` and `enriching-plans` are user-invoked only, so the Skill tool cannot load them; read the files instead, here and in the sub-agent. Then produce the artifact in two passes: you write the plan, a sub-agent enriches its hot points.
 
 The two passes are separate on purpose. The enricher reads only the artifact and the existing material, never this conversation. If the artifact does not carry a decision, the enricher cannot use it, and neither can the reviewer.
 
@@ -44,7 +44,7 @@ Instructions for the sub-agent:
 
 - Read the artifact and the listed existing material.
 - Enrich only the steps listed under Hot Points. Edit the artifact in place and keep every original line.
-- When the step touches code: apply the `enriching-plans` skill at the path given — Seams, enrichment blocks, critical-code blocks, `## Enrichment Decisions` and `## Questions for Reviewer` — to the hot steps only. Its rule that every task needs a Seams block does not apply here; a lean step gets nothing.
+- When the step touches code: read the `enriching-plans` SKILL.md at the path given and apply its rules — Seams, enrichment blocks, critical-code blocks, `## Enrichment Decisions` and `## Questions for Reviewer` — to the hot steps only. Its rule that every task needs a Seams block does not apply here; a lean step gets nothing.
 - Otherwise: under the step add a `> **Enrichment:**` block holding the exact value, formula, wording or ordering the implementer would otherwise guess, each with its reason. A line that restates the step is not enrichment.
 - A value the artifact and the existing material do not settle may come from general domain knowledge. Every such value is logged under `## Enrichment Decisions` with its reason, on both branches.
 - A name or decision in the artifact that looks wrong goes under `## Questions for Reviewer`; keep using it as written.
