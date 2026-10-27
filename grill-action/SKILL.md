@@ -1,6 +1,6 @@
 ---
-name: grill-light
-description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements before modifying the code. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
+name: grill-action
+description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements before acting on them. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 
@@ -11,7 +11,7 @@ Help turn unclear or vague ideas into fully formed execution plan through natura
 Start by understanding the current project context, then ask questions to refine the idea. 
 Weak assumptions and underestimated risks are unacceptable—call them out or resolve them.
 
-The goal of this session is a direct implementation plan that can be executed with minimal further clarification.
+The goal of this session is a direct plan that can be executed with minimal further clarification.
 
 ## Workflow
 
@@ -26,8 +26,7 @@ Extract:
 
 ### 2 Decide whether this is one task or multiple tasks
 
-Assess if the request mixes multiple high-level concepts. If yes, propose usint the `grill-hard` skill to produce details
-specification artefact. If the user insists on a single task, identify the main theme and defer other themes as "future work" or "out of scope" with clear rationale.
+Assess if the request mixes multiple high-level concepts. If yes, propose the `grill-plan` skill (problem description for review) or the `grill-spec` skill (plan with implementation detail on its risky steps) to produce a reviewed artefact. If the user insists on a single task, identify the main theme and defer other themes as "future work" or "out of scope" with clear rationale.
 
 ### 3 Challenge and validate ideas or proposals
 
@@ -38,12 +37,13 @@ specification artefact. If the user insists on a single task, identify the main 
 - Are constraints real or assumed? Flag weak assumptions explicitly.
 - Are the proposed features or requirements justified by user value, or are they "nice to have" features that should be deferred?
 
-### 4 Ground in codebase reality
+### 4 Ground in what exists
 
-- Identify the existing types, interfaces, and modules that the feature touches.
-- Reference concrete method signatures and data structures—not vague module names.
-- Note architectural constraints (layer boundaries, dependency direction) that shape what is achievable.
-- Surface risks: missing abstractions, type gaps, invariants that may break.
+Ask what the plan changes or builds on, and read it. Usually that is the code. It can also be existing skills, documents, configuration or data, or nothing at all.
+
+- When the plan touches code: identify the existing types, interfaces, and modules it touches. Reference concrete method signatures and data structures—not vague module names. Note architectural constraints (layer boundaries, dependency direction) that shape what is achievable. Surface risks: missing abstractions, type gaps, invariants that may break.
+- When the plan touches other existing material: read it and reference it by file and section.
+- When nothing exists yet: say so. The user is the only source, and every claim is stress-tested in the interview instead.
 
 ### 5 Ask targeted questions
 
@@ -64,4 +64,4 @@ specification artefact. If the user insists on a single task, identify the main 
   would contain zero items — do not include empty lists, placeholder subsections, or negative statements like
   "none", "N/A", or "no open questions".
 
-After the interview, present the synthesized requirements to the user for implementation approval.
+After the interview, present the synthesized plan to the user for approval.

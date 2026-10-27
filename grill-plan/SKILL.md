@@ -1,6 +1,6 @@
 ---
-name: grill-hard
-description: Grilling session that challenges your requirements against the existing codebase. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
+name: grill-plan
+description: Grilling session that challenges your requirements against what already exists (usually the codebase) and produces a problem description for review. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 
@@ -16,7 +16,7 @@ Weak assumptions and underestimated risks are unacceptable—call them out or re
 | Problem Description (this skill)                            | Implementation plan (separate step)            |
 | ----------------------------------------------------------- | ---------------------------------------------- |
 | _What_ the system must do and _why_                         | _How_ to build it (file changes, task order)   |
-| References to existing types, interfaces, method signatures | Actual code diffs and new file scaffolds       |
+| References to existing material (types, signatures, documents) | Actual changes (code diffs, final wording)   |
 | Pseudo-code or data-flow sketches clarifying behavior       | Step-by-step implementation instructions       |
 | Constraints, invariants, edge cases                         | Detailed test plans with exact assertions      |
 | High-level acceptance criteria                              | CI commands, deployment steps                  |
@@ -59,13 +59,14 @@ Rules:
 - Are the proposed features or requirements justified by user value, or are they "nice to have" features that should be deferred?
 - Sharpen fuzzy language. When the user uses vague or overloaded terms, propose a precise canonical term. "You're saying 'account' — do you mean the Customer or the User? Those are different things."
 
-### 4 Ground in codebase reality
+### 4 Ground in what exists
 
-- Identify the existing types, interfaces, and modules that the feature touches.
-- Reference concrete method signatures and data structures—not vague module names.
-- Note architectural constraints (layer boundaries, dependency direction) that shape what is achievable.
-- Surface risks: missing abstractions, type gaps, invariants that may break.
-- When the user states how something works, check whether the code agrees. If you find a contradiction, surface it: "Your code cancels entire Orders, but you just said partial cancellation is possible — which is right?"
+Ask what the plan changes or builds on, and read it. Usually that is the code. It can also be existing skills, documents, configuration or data, or nothing at all.
+
+- When the plan touches code: identify the existing types, interfaces, and modules it touches. Reference concrete method signatures and data structures—not vague module names. Note architectural constraints (layer boundaries, dependency direction) that shape what is achievable. Surface risks: missing abstractions, type gaps, invariants that may break.
+- When the plan touches other existing material: read it and reference it by file and section.
+- When nothing exists yet: say so. The user is the only source, and every claim is stress-tested in the interview instead.
+- In every case, when the user states how something works, check whether the existing material agrees. If you find a contradiction, surface it: "Your code cancels entire Orders, but you just said partial cancellation is possible — which is right?"
 
 ### 5a Ask targeted questions
 
@@ -76,13 +77,13 @@ Rules:
 
 ### 5b Show the result
 
-- Before you write the artefact, make the proposed result visible where appropriate: a throwaway probe (worktree patch, flag toggle, mock) that shows each main variant side by side, today vs proposed.
+- Before you write the artefact, make the proposed result visible where appropriate: a throwaway probe (worktree patch, flag toggle, mock; for non-code work a sample such as one ad or one budget table) that shows each main variant side by side, today vs proposed.
 - Do it whenever the probe is cheap relative to the implementation. If it would be a considerable part of the implementation, say so and skip it.
-- Store the images beside the artefact and reference them from it.
+- Store the images or samples beside the artefact and reference them from it.
 
 ### 6 Synthesize artifact
 
-Produce `docs/process/brainstorm/{Y-m-d-session-name}.md` — containing the result of the brainstorming session.
+Produce `docs/process/brainstorm/{Y-m-d-session-name}.md` — containing the result of the brainstorming session. When `docs/process/` does not exist, ask once where to write the artifact.
 This document serves as the **input** for a future precise requirements or implementation plan.
 
 ## Principles
