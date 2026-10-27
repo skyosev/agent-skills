@@ -16,7 +16,7 @@ Write `docs/process/spec/{Y-m-d-session-name}.md`. When `docs/process/` does not
 
 - **Problem Statement**, **Glossary**, **Expected Behavior**, **Scope** — as in the grill-plan template.
 - **Decisions**: every decision taken in the interview, numbered, with its reason.
-- **Steps**: an ordered list. Each step names what it produces (file, symbol, section, deliverable) and which earlier steps it depends on. A step touches code when it changes a file the project compiles, runs or tests; a markdown or config file is not code even when it quotes a regex. A step that touches code gives the exported signatures, in the project's language.
+- **Steps**: an ordered list. Each step names what it produces (file, symbol, section, deliverable) and which earlier steps it depends on. A step touches code when it changes a file the project compiles, runs or tests; a markdown or config file is not code even when it quotes a regex. A step that touches code lists its exported signatures under an **Interfaces:** line (Produces / Consumes), in the project's language; the enricher anchors its Seams block there.
 - **Hot Points**: the steps that meet a criterion below, each with one line naming the criterion and the specific way an implementer would go wrong.
 - **Open Questions**
 
@@ -44,7 +44,7 @@ Instructions for the sub-agent:
 
 - Read the artifact and the listed existing material.
 - Enrich only the steps listed under Hot Points. Edit the artifact in place and keep every original line.
-- When the step touches code: follow the `enriching-plans` skill at the path given: seams, test outline, critical-code blocks, `## Enrichment Decisions` and `## Questions for Reviewer`.
+- When the step touches code: apply the `enriching-plans` skill at the path given — Seams, enrichment blocks, critical-code blocks, `## Enrichment Decisions` and `## Questions for Reviewer` — to the hot steps only. Its rule that every task needs a Seams block does not apply here; a lean step gets nothing.
 - Otherwise: under the step add a `> **Enrichment:**` block holding the exact value, formula, wording or ordering the implementer would otherwise guess, each with its reason. A line that restates the step is not enrichment.
 - A value the artifact and the existing material do not settle may come from general domain knowledge. Every such value is logged under `## Enrichment Decisions` with its reason, on both branches.
 - A name or decision in the artifact that looks wrong goes under `## Questions for Reviewer`; keep using it as written.
