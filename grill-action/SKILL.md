@@ -1,6 +1,6 @@
 ---
 name: grill-action
-description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements, then act on them in the same session. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
+description: Clarify the user’s intent for vague, incomplete, or ambiguous clauses, statements, and requirements before acting on them. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 disable-model-invocation: true
 ---
 
@@ -11,7 +11,7 @@ Help turn unclear or vague ideas into fully formed execution plan through natura
 Start by understanding the current project context, then ask questions to refine the idea. 
 Weak assumptions and underestimated risks are unacceptable—call them out or resolve them.
 
-The goal of this session is a direct plan that can be executed with minimal further clarification. The plan is presented in chat, not written to a file. Once the user approves it, execute it in this session.
+The goal of this session is a direct plan that can be executed with minimal further clarification. The plan is presented in chat, not written to a file.
 
 ## Workflow
 
@@ -64,4 +64,4 @@ Ask what the plan changes or builds on, and read it. Usually that is the code. I
   would contain zero items — do not include empty lists, placeholder subsections, or negative statements like
   "none", "N/A", or "no open questions".
 
-After the interview, present the synthesized plan in chat for approval. No artifact is written. On approval, execute the plan in this session.
+After the interview, present the synthesized plan in chat for approval. No artifact is written. On approval, ask how to proceed: execute it in this session, dispatch a sub-agent with the plan as its brief, or hand it off to a new session (for example `/mattpocock-skills:handoff`).
