@@ -149,9 +149,9 @@ least, with the lock state of each.
 
 **Action:** `sync.Mutex` / `RWMutex`, `sync/atomic`, or channel ownership.
 
-**Ownership:** data-race and synchronization *correctness* is here. security-hunter keeps exploitability-framed
-concurrency (unbounded goroutines from user input, deadlocks reachable from requests, TOCTOU on auth decisions);
-goroutine leaks and `-race` discipline in *tests* stay with test-hunter.
+**Ownership:** data-race and synchronization *correctness* is here. security-hunter keeps goroutine creation a
+request can grow without a bound (Resource Exhaustion); check-then-act races on persistent state are reported by
+neither hunter; goroutine leaks and `-race` discipline in *tests* stay with test-hunter.
 
 **Report table:**
 

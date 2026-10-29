@@ -22,7 +22,7 @@ unit types with no validation boundary (→ smell-hunter); linter suppressions a
 What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -325,7 +325,8 @@ Medium severity.
    word-splits on spaces; whitespace paths are a declared limitation.
 
 2. **Detect languages** from file extensions alone: the manifest's, or in codebase mode those of
-   `git ls-files --cached --others --exclude-standard` (Scope records only their counts; the scans still search `.`):
+   `git ls-files --cached --others --exclude-standard` (Scope records only their counts; the language scans still
+   search `.`):
    - `.go` → go
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
@@ -427,7 +428,7 @@ to its owning hunter.
 
 Save as `YYYY-MM-DD-invariant-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
 (e.g. `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). A caller-specified output path or
-return mode (e.g. the party-hunter orchestrator) overrides this default.
+return mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 

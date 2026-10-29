@@ -82,7 +82,8 @@ cited as evidence.
 - Repeated inline `typeof` / `in` checks at several call sites instead of one reusable predicate
 - A validated value — `parseEmail()` returning `string` — travelling downstream as plain `string`: a brand produced
   only by the parser. Brands for plain identity (`UserId` with no validation boundary) are smell-hunter's Primitive
-  Obsession; security-sensitive strings are security-hunter's
+  Obsession; a brand for a security-sensitive string (SQL, HTML, a path) is no hunter's finding;
+  security-hunter names it as a remedy
 - Empty-check branches a `NonEmptyArray<T>` removes
 - `satisfies T` where an object literal is meant to conform but is unchecked — Low
 - `as const` on fixed configuration and lookup tables — **adoption only, at Low**, on values with no runtime guard.

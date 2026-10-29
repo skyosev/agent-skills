@@ -355,7 +355,7 @@ folder exists).
 - **Scope: performance and resource management only.** Do not flag type invariants (→ invariant-hunter-py), type design
   (→ type-hunter-py), structural complexity (→ simplicity-hunter-py), module boundary issues (→ boundary-hunter-py),
   class/interface design (→ solid-hunter-py), missing documentation (→ doc-hunter-py), security
-  (→ security-hunter-py), test quality (→ test-hunter-py), or cosmetic style (→ slop-hunter-py). If a finding doesn't
+  (→ security-hunter), test quality (→ test-hunter-py), or cosmetic style (→ slop-hunter-py). If a finding doesn't
   answer "does this code waste resources or block unnecessarily?", it doesn't belong here.
 - **Boundary with simplicity-hunter**: simplicity-hunter flags unnecessary abstractions and dead code from a structural
   perspective. Perf-hunter flags patterns that are structurally correct but operationally wasteful (blocking I/O, N+1,

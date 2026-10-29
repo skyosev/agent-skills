@@ -1,4 +1,4 @@
-"""Keep the ten code-hunter skills consistent.
+"""Keep the eleven code-hunter skills consistent.
 
     python3 code-hunter/check.py                         # report drift and lint problems; exit 1 if any
     python3 code-hunter/check.py --sync-from smell-hunter
@@ -171,7 +171,7 @@ def check():
                 problems.append(f"{rel}: scan passes raw $SCOPE (use the per-language eligible list)")
             for line in text.splitlines():
                 cmd = re.match(r"\s*rg ((?:-[-\w=]*\s+)*)['\"]", line)
-                if cmd and re.search(r"-- \$(GO|PY|TS)_(FILES|PROD|TESTS)\b", line):
+                if cmd and re.search(r"-- \$((GO|PY|TS)_(FILES|PROD|TESTS)|ALL_\w+)\b", line):
                     opts = cmd.group(1).split()
                     if not any(o == "-H" or re.fullmatch(r"-[A-Za-z]*[Hl][A-Za-z]*", o) for o in opts):
                         problems.append(f"{rel}: scan without -H (one-file list prints no file name): {line[:60]}")

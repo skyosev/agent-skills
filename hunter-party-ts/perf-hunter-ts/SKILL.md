@@ -371,7 +371,7 @@ For each opened resource:
 
 Save as `YYYY-MM-DD-perf-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
 `fable-5`) — in the project's docs folder (or project root if no docs folder exists). If the caller specifies an
-output path (e.g. the party-hunter orchestrator), it overrides this default.
+output path (e.g. a party-mode orchestrator), it overrides this default.
 
 Severity levels, used for per-finding labels and the Recommendations grouping:
 

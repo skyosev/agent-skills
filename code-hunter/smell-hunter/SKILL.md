@@ -19,7 +19,7 @@ SOLID violations (→ solid-hunter); module boundary and dependency direction (�
 style (→ slop-hunter).
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
-(`perf-hunter-py`, `security-hunter-go`, `security-hunter-ts`): route to the one matching the finding's language.
+(`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
 
 ## Quick Reference
 
@@ -221,8 +221,8 @@ Primitive types for domain concepts deserving their own named or branded types.
 construct yet**. An existing constant group or enum built with the wrong construct is type-hunter's Enum Construct
 Mechanics; an existing Go or Python alias used as an identity type is its Alias vs Named Type Mechanics; TypeScript
 aliases stay here under brand-or-withdraw. Boolean parameters belong to simplicity-hunter. Brands encoding
-*validated* state (parse-don't-validate) belong to invariant-hunter; brands for security-sensitive strings (SQL
-fragments, HTML, paths) belong to security-hunter.
+*validated* state (parse-don't-validate) belong to invariant-hunter; a missing brand for a security-sensitive string
+(SQL fragments, HTML, paths) is no hunter's finding; security-hunter names brands as a remedy.
 
 **Signals:**
 
@@ -432,7 +432,8 @@ High impact at Low severity: every handler author reads it.
    word-splits on spaces; whitespace paths are a declared limitation.
 
 2. **Detect languages** from file extensions alone: the manifest's, or in codebase mode those of
-   `git ls-files --cached --others --exclude-standard` (Scope records only their counts; the scans still search `.`):
+   `git ls-files --cached --others --exclude-standard` (Scope records only their counts; the language scans still
+   search `.`):
    - `.go` → go
    - `.py`, `.pyi` → python
    - `.ts`, `.tsx`, `.mts`, `.cts` → typescript
@@ -519,7 +520,7 @@ routed to its owning hunter.
 
 Save as `YYYY-MM-DD-smell-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
 `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). A caller-specified output path or return
-mode (e.g. the party-hunter orchestrator) overrides this default.
+mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 

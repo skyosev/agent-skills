@@ -173,7 +173,7 @@ exists).
 - **No code edits.** This skill produces a review report only. Implementation is a separate step.
 - **No empty sections.** Include only categories with findings. Omit a heading, table, or list entirely when it would contain zero items — do not include empty tables, placeholder subsections, or negative statements like "no dead exports", "none found", or "no issues".
 - **Scope: design, idiomaticity, and testing.** This is a holistic review. For deep-dive audits on specific concerns
-  (simplicity, boundaries, types, security, etc.), use the dedicated hunter-party-go skills.
+  (simplicity, boundaries, types, security, etc.), use the dedicated code-hunter skills.
 - **Evidence required.** Every finding must cite `file/path.go:line` with the exact code.
 - **Tone: professional, direct, and technical.** Be strict and honest — do not hesitate to call out weaknesses or
   unnecessary complexity.
