@@ -77,6 +77,8 @@ applies in every supported language; each language reference holds its scans, ga
 - **Hidden defect** — a concrete defect in the behavior the test claims to check, for the input the test uses, that
   the test cannot detect *because of where its expected value comes from*. It must follow from the Oracle Trace: a
   subject that returns the expected literal (`return 1750`) is not one, because every example-based test misses it.
+  When owned code runs between arrangement and assertion, give the value that both sides take under the defect, for
+  that input.
 - **Blind test** — a test that cannot detect a defect in the behavior it claims to check: tautological (except a
   mirror computation), Absent, Never executes, Weak, or driving that behavior through a double that diverges from the
   real code on it.
@@ -91,6 +93,8 @@ applies in every supported language; each language reference holds its scans, ga
   **divergent double** is a double of owned code that does something the real code cannot: returns
   a value or shape the real code never returns, omits an error or validation the real code has, or accepts a call the
   real code rejects.
+  An object that holds only data (no functions), such as a partial theme or config, is fixture data, not a double,
+  also when a cast such as `as unknown as T` builds it.
 
 ## Not a finding on these grounds alone
 
@@ -136,8 +140,11 @@ coverage pragma on code that is not critical (`__repr__`), or on lines a test dr
 traced, which goes to Scope as `unresolved coverage` (Phase 3).
 
 **Action:** name the test to add: its input and the outcome it asserts. A production defect suspected while tracing is
-named in the Action ("suspected: refund rounds before tax at `refund.go:88`; the missing test confirms or clears it");
-the finding stays a Coverage Gap.
+named in the Action by its cause and its effect ("suspected: refund rounds before tax at `refund.go:88`; the missing
+test confirms or clears it"); the finding stays a Coverage Gap. The Action names no production change. When the
+defect is a contract question (reject the input, or handle it), the Action cites the code, documents and tests that
+state the current contract (`file:line`), and the test asserts that contract. A change of contract is the
+maintainer's decision.
 
 **Ownership:** coverage pragmas are here, with or without a reason; slop-hunter does not report them.
 
@@ -181,6 +188,9 @@ assertion, the Hidden Defect is `any — no owned code runs`, and the Oracle Tra
   Weak Tests (Weak, non-discriminating double) only when the double answers any input, so a subject that forwards the
   wrong argument still passes.
 - A **learning test**: input sent through third-party code and checked against a hand-written output.
+- An expected side built from a production helper that has its own independent tests (cite them), when the test checks
+  which inputs reach the helper (an inset amount, a chosen branch): a wrong input changes only the actual side. A part
+  that the test copies without such tests (an outline written out again) stays a candidate.
 
 **Action:** rewrite with an independent oracle — a hand-worked value, a property, a reference — or delete the test and
 name the test that replaces it.
@@ -238,6 +248,8 @@ reference maps its own forms and detector rules to them:
   - A table or parametrize row that branches into no assertion.
   - An ignored setup error (Go `x, _ := setup()`; an un-awaited setup promise in TypeScript), so the test asserts on
     zero values.
+  - A check of a proxy that does not decide the claimed property: the end points of a path for "the outline stays
+    inside the box", when an arc between two inside end points can leave it.
 - **Weakened in diff** — diff mode only. The change removed an assertion or a whole test (a deleted test file
   included, Location `<path> (deleted)`), replaced a matcher with a weaker one (`toEqual(x)` → `toBeDefined()`), or
   added a skip, while the behavior the assertion checked still exists and no remaining test checks it. A skip or a
@@ -363,12 +375,15 @@ step that the code under test reads.
 - **Data Clumps in test helpers**: the same three or more domain values passed together through several helpers → a
   builder with defaults, so each test states only the values it depends on.
 
-**Evidence bar:** the Locations cell lists every copy.
+**Evidence bar:** the Locations cell lists every copy in the repository; a copy outside the target scope is marked
+`(context)`.
 
 **Not a finding:** repeated values that each case depends on — the reader must see what matters; test infrastructure
 parameters (`t`, `ctx`, a database handle, a client), which are never a clump; size alone.
 
 **Action:** a builder with defaults, a fixture, or a parameterized case.
+List the differences between the copies first. The builder holds only what every copy does; each difference stays at
+its call site, and a diverged one (above) is named in the row.
 
 **Ownership:** simplicity-hunter routes test-code duplication here. smell-hunter routes Data Clumps in test helpers
 here. Duplication inside a test-support package outside test paths (Go `internal/testutil`) is simplicity-hunter's,
@@ -681,6 +696,12 @@ For each candidate, in the working tree: apply the general Not-a-finding list an
 line first; apply the within-skill routing, and if it moved the candidate, the routed category's Not-a-finding line
 too; clear the category's evidence bar; then apply the loaded reference's version-gated and config-gated signals.
 
+**Siblings.** A scan nominates a pattern; a finding has a reason (a fixture too small to reach the guard, a schema
+field with no lower bound). When a candidate becomes a finding, search for that reason in the same test file and in
+the production files that the finding cites. Each hit is a new candidate, and this phase judges it like any other.
+A confirmed sibling with the same Action joins the row's Location; one with another Action gets its own row. A
+sibling outside the target scope is context: it joins the Location marked `(context)` and anchors no row.
+
 Work in this order, so that a run the context budget cuts short has judged what matters most: candidates at critical
 units first, then tests with a targeted-scan hit, then tests that only the census nominates. When the budget ends
 first, Scope records `not assessed: <n> tests, <m> units — context budget`, so the report says that it is partial.
@@ -698,6 +719,7 @@ Save as `YYYY-MM-DD-test-hunter-audit-{model-name}.md` — `{model-name}` is the
 mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
+When the report merges several runs, read `references/merge-runs.md`.
 
 ## Operating Constraints
 
@@ -708,5 +730,18 @@ Read `references/report-format.md` for the report template and per-category tabl
 - **Evidence required.** Every finding cites `file:line` with the exact test or production code, and its category's
   evidence cell is filled from the code read. A Hidden Defect, Accepted Defect, or Breaking Refactor is reasoned from
   that code and names the lines it follows from.
+  A consequence (a wrong drawing, a wrong amount) names the reader at `file:line` that turns the wrong value into it,
+  or the public export that hands the value to callers. Trace it from the public entry point, with input that its
+  validators accept; a finding about validation traces the rejected input to its rejection. A claim about other tests
+  ("only the snapshots catch it", "the other rows fail") names the search for tests of that value, and works the
+  defect through each test it names. A description of another test's oracle ("hand-worked") is an Oracle Trace.
+  A code comment, a fixture value, or a value that a command printed is quoted exactly, with its `file:line` or
+  command.
+- **Proposed assertions are worked.** An assertion that an Action proposes states its expected value from an
+  independent oracle (Terms), never from the subject's current output. Work it through the code read, for the test's
+  input, and cite the lines. It holds on the current output, unless the row names a production defect. It fails on
+  a named wrong outcome: the row's Accepted Defect or Hidden Defect; for a Coverage Gap, a wrong result of the
+  untested branch. A replacement for a Brittle Test passes after the Breaking Refactor. When the code read does not
+  settle the value, write `value not worked`.
 - **One defect, one finding.** The within-skill routing decides the category; a defect owned by another hunter is
   cross-referenced to it and not scored here.
