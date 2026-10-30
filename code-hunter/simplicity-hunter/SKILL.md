@@ -102,7 +102,20 @@ Declarations; repeated logic and repeated runtime values stay here. Test code: s
    genuinely different consumers.
 2. Where elimination does not apply, a consolidation finding must show the shared unit **reduces total code and total
    concepts** and represents **one stable behavior**, not two behaviors that merely look alike today.
+   The Action writes the shared unit's signature. Each of these is evidence of two behaviors; the row note answers it,
+   or the finding is dropped:
+   - a callback, or a flag whose values run different steps (a side parameter that selects the mirror image of one
+     test is one behavior);
+   - a message, hint or tolerance that differs per caller;
+   - a caller that must transform its input (reverse or mirror a row, map a list) before the call.
+
+   When two findings change one function, judge their Actions together: one must not undo the other.
 3. **Occurrence count is supporting evidence, not a gate.** Report it; decide on the evidence.
+4. **Complete the set.** A consolidation names one home. The Action lists every copy, found by the quantity that the
+   copies judge (the field and the comparison, Phase 3 step 2), not by a constant's name or value. Each copy is in the
+   Action or has a reason to stay. A scope-out that holds for whole rules ("different rules") is checked clause by
+   clause: two rules can share a clause, and that clause is its own candidate. When the home already holds a helper
+   for that clause, the Action says whether the new unit uses it, and if not, why not.
 
 **Signals:** two near-identical bodies differing only in a value or branch; multiple implementations of the same
 algorithm; identical non-trivial error-handling or validation *logic* repeated across handlers.
@@ -120,6 +133,30 @@ difference, report the defect as its own finding — standalone, fixed by the mi
 and judge the consolidation separately against the *post-fix* copies. A live divergence is evidence the copies drifted;
 it is **not** license to collapse them: if what remains after the one-line fix is copies that genuinely differ in
 per-copy policy, the collapse may not clear the reporting gate at all.
+
+**Probe a writer and its checker.** When code that writes a value and code that checks the stored form enforce one
+rule (a builder and the validator of what it builds), and the comparison finds a difference between them (the order
+of steps, a tolerance, how a message prints a value), write one probe in the run directory and run it. The probe
+states the relation that it tests:
+
+- **The checker accepts what the writer produces.** A checker can also test context that the writer cannot see,
+  such as the parent or the siblings. Put the value in a context that passes those tests, and name the check that
+  rejects it. A rejection by a check that needs that context is design. Any other rejection is a defect finding
+  under the rule above.
+- **Both reject the same inputs, or report the same error first.** This relation holds only where code, a comment or
+  a test says that the two agree. Where nothing says so, a difference only nominates. Where a test pins the
+  difference, it is design.
+
+Take the inputs from the difference: the values on each side of a tolerance edge, and the input types that the two
+message paths print differently. A probe changes no source file. When no runner that the project has can run it,
+write "probe blocked" in the row note. The language reference names the runner.
+
+**Readers of a tolerated value.** When an Action changes how a value is tolerated or normalized (a snap, an epsilon,
+rounding), search the readers of the value by operand (Phase 3 step 2). The Action names the value that is stored and
+each reader found, with the form that the reader expects: a band or an exact value. Do not write an Action that makes
+one check tolerate a value that a reader compares exactly. Keep the minimal edit to the drifted copy. When a reader
+still disagrees with what a check accepts, write the counterexample in the row note, and mark that part "remedy
+unresolved".
 
 ### Reinvented Primitives
 
@@ -380,6 +417,11 @@ three sources its Phase 2 block names:
    file alone is not adoption — run that same command without its fix option. Keep the findings that anchor in the
    eligible list, for the rules the reference maps to categories. Use only the rules the project enables; never install
    a tool. Record one Scope outcome per linter: **ran**, **skipped** (not adopted, or not installed), **errored**.
+   An inline suppression of a complexity rule nominates its function: open it, and read the comment on the marker
+   line and on the line above. When that comment documents a deferral, record it in Scope (Complexity documented as
+   intentional). Record a command's result only for the files that it checks: a gate that diffs against a base ref
+   checks only the changed files, and a clone detector checks only clones above its size floor. Neither counts as a
+   seed search.
 2. **Toolchain modernizer**, where the reference names one.
 3. **Regex scans.** Approximate: they miss and over-match, so they only nominate.
 
@@ -396,6 +438,15 @@ every hit belongs to a candidate.
    chain, an error message, an unusual condition — and search them project-wide:
    `rg -F -n '<line>' --type <t> $DUP_EXCLUDE .`. Hits outside the target scope are context; the finding anchors at
    the in-scope copy.
+
+   A short predicate is often written again with another receiver, destructured, or split over two lines. A search
+   for one copy's line then finds only that copy. Also search each comparison with its receiver removed, as a fixed
+   string: `rg -F -n '<field> <operator> <operand>' --type <t> $DUP_EXCLUDE .` (for example
+   `'rightHeightRatio === 1'`, or `'shortHeightRatio -'` for a difference).
+
+   **Declared copies.** A comment that names another function as the source or the mirror of its code ("Mirrors
+   placeLeftTallShed", "as in renderToSVG") nominates the pair. Open the named function, follow its calls to the code
+   that the comment describes, and compare as in step 3. The language reference's Phase 3 block holds the scan.
 3. **Compare.** Open every hit's enclosing body and compare after normalizing names and values. Cite only the region
    that matches (see Duplication: Scope the claim to the shared region).
 
@@ -426,12 +477,42 @@ For each candidate: apply the general Not a finding list and the category's own 
 category's evidence bar in What to Hunt and the reporting gate; choose the simplest elimination. Re-open every
 signature a remedy cites: each parameter, arity, and adjacency it relies on must exist as written.
 
+**Remedy check (every Action that adds, splits, moves or inlines code).** An executor builds the Action as written,
+so the Action is a spec. Write each clause below that applies to the Action; write "none" when the search finds
+nothing:
+
+1. **Reuses** (the Action adds a type, helper or constant): the existing unit of the same shape (the same fields, the
+   same clauses, or the same value for the same quantity), and whether the Action uses it in place of a new one. If
+   not, why not: the same shape can carry a different meaning. Duplication rule 1 applies to the remedy too.
+2. **Shared locals** (an extraction): each local that the old body computes once and that two or more new units
+   read, and how each new unit gets it: as a parameter, from one helper beside the new units, or computed again,
+   with the reason.
+3. **Call sites** (the Action changes a signature): each call site, tests included, and each import that the Action
+   adds (`from.ts → to.ts`).
+4. **Lost callers** (a merge, a move or an inline): each unit whose call sites or importers fall to one or zero. At
+   zero, apply the liveness channels and the published-unit rule (Terms) before the Action deletes the unit or
+   removes its `export`. At one, Within-skill precedence decides whether the unit stays.
+
 **Generated anchors.** A candidate whose anchor file carries the reference's generated-code marker is reported once, at
 the generator input (config, template, or schema) when that input is in the target scope, and dropped otherwise.
 
-**Behavior parity (every remedy).** The remedy keeps every output, every error, every side effect and its order, and
-the blocking and concurrency behavior. When the finding cannot show this, its Action says what changes, or the finding
-is dropped.
+**Behavior parity (every remedy).** The remedy keeps every output, every error (its code, the values its message
+names, and which error wins), every side effect and its order, and the blocking and concurrency behavior. The Action
+ends with one parity clause. "Order stays", "output unchanged" or "traced" alone is not a parity clause:
+
+- **Error order:** each caller's checks in order, now and after. A shared unit cannot take checks from both sides of a
+  check that stays in the caller. In a loop, say whether each check runs per item or over all items.
+- **Outputs:** the test, snapshot set or probe that shows parity, and the inputs it covers. Inputs that one caller
+  rejects can still come from another caller.
+- **Contracts:** every direct caller, tests included, defines the contract. One caller's precondition does not make a
+  branch dead. An Action that deletes a test which pins the behavior changes the contract, and says so.
+
+Mark the clause **shown** when the audit's own evidence shows the claim before and after, and name the inputs it
+covers: a trace of each caller's checks, or a probe that runs the old and the new form on the same inputs. A test
+that was read shows what it covers, and the current code run as it is shows the current behavior; neither shows
+that the remedy keeps it. Mark the clause **to verify** when the claim waits for a check that must run on the built
+remedy, and name the check. When the audit can neither show parity nor name such a check, the Action says what
+changes, or the finding is dropped. An Action rewritten after review gets this check again.
 
 **Platform-guarantee rule (flag only with evidence).** When recommending removal because "the platform / framework /
 middleware already guarantees it," name the owning layer and cite the proof that it keeps that parity. Without that
@@ -448,11 +529,21 @@ Save as `YYYY-MM-DD-simplicity-hunter-audit-{model-name}.md` — `{model-name}` 
 (e.g. `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). If the caller specifies
 an output path or return mode (e.g. a party-mode orchestrator), it overrides this default.
 
+**Merging a split run.** When one audit is split across agents (by folder or by language) and merged into one report,
+copy each finding's Action cell and row note, or derive them again from the code. An edit may remove repetition, but
+not a condition, a site or evidence. When two runs report one site, keep the claim whose every site clears the
+evidence bar; a wider claim does not win because it covers more. In Scope, keep each command result with the run that
+it covers, and add the coverage counts without counting a seed twice.
+
 Read `references/report-format.md` for the report template and per-category table schemas.
 
 ## Operating Constraints
 
 - **Report only.** The audit report is the deliverable; source files stay untouched.
 - **Evidence required.** Every finding cites `file:line`, and its row note holds the exact code.
+  A comment, commit or defect record used as evidence is quoted in the row note, and is cited only when its subject
+  is the code that the finding cites. A claim about a whole set ("every other pair", "no caller", "all copies") lists
+  the members it was checked on, or is removed. A count of call sites or tests to change lists each one, with its
+  reason.
 - **Public API shape may change.** Report a simplification that changes an exported API like any other finding,
   whatever its backward-compatibility cost.

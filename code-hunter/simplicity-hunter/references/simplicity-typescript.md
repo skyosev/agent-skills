@@ -93,6 +93,9 @@ rg -Hn --pcre2 '(?<!\?)\?(?![.?:])[^;,]*(?<!\?)\?(?![.?:])[^;,]*:' --type ts $EX
 
 # .then() chains of 3+ steps, one-line or split, inline arrow callbacks included
 rg -Hn -U --pcre2 '\.then\((?:[^()]|\([^()]*\))*\)\s*\.then\((?:[^()]|\([^()]*\))*\)\s*\.then\(' --type ts $EXCLUDE -- $TS_FILES
+
+# Inline suppressions of a complexity rule; -B1 shows the reason on the line above
+rg -Hn -B1 --pcre2 '(?:eslint|oxlint|biome|fallow)[-\w]*(?:disable|ignore)[^\n]*\b(?:complexity|max-depth|max-params)\b' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 ## Phase 3 — Duplication list and exclude
@@ -104,4 +107,12 @@ DUP_EXCLUDE="$EXCLUDE --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.*
 # Seeds: codebase mode ($TS_FILES is .) enumerates; diff and path mode filter the eligible list.
 if [ "$TS_FILES" = . ]; then DUP_FILES=$(rg --files --type ts $DUP_EXCLUDE .)
 else DUP_FILES=$(printf '%s\n' $TS_FILES | grep -Ev '\.(test|spec|e2e)\.[^/]*$|(^|/)__tests__/'); fi
+
+# Declared copies: a copy phrase in a line or block comment, then a camelCase name within 60 characters
+# (the phrase ignores case; the name does not)
+rg -Hn --pcre2 '(?://|/\*|^\s*\*).*\b(?i:mirrors|mirror of|as in|same as|copy of|in step with|keep in sync with)\b.{0,60}\b[a-z]+[A-Z][A-Za-z]*' --type ts $DUP_EXCLUDE -- $DUP_FILES
 ```
+
+**Probe runner** (Drifted copies): a TypeScript runner that the project already has, or `node <run>/probe.ts`. Node
+strips types by default from 22.18 and 23.6, and with `--experimental-strip-types` from 22.6. Relative imports must
+carry `.ts`; `enum`, `namespace` and `.tsx` do not run. Neither form type-checks. Never install a runner.

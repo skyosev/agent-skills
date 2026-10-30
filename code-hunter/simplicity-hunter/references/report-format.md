@@ -9,9 +9,10 @@ table, or "none found" line; a thin report is a valid result.
 Language-only categories appended by a language reference (Go: Interface Pollution, Channel & Goroutine Overuse) use
 the table schemas supplied in that reference.
 
-**Row notes.** Under each table, one note per row, headed `#N`: the exact code the row cites, in a fenced block, then
-any one-clause note — the other reading a Within-skill precedence rule set aside, or the nesting a Mixed Concerns row
-absorbs.
+**Row notes.** Under each table, one note per row, headed `#N`: the exact code the row cites, in a fenced block; then
+each comment, commit or record that the row uses as evidence, quoted; then one clause for each item that applies —
+the other reading a Within-skill precedence rule set aside, the nesting a Mixed Concerns row absorbs, the answer to a
+two-behavior signal (Duplication rule 2), a blocked probe, or a "remedy unresolved" counterexample (Drifted copies).
 
 **Limitation lines.** One per open published unit whose negative claims were withdrawn:
 `Limitation: {unit} open; {the signal that opened it}; consumer set not closed`. One per other withdrawn finding (an
@@ -31,6 +32,7 @@ verified}`.
 - References loaded: {go, python, typescript as present}
 - Linters: {per language — ran <command> / skipped — <reason> / errored — <message>; go fix the same}
 - Duplication coverage: {searched} of {total} seed functions searched
+- {Complexity suppression: {file:line} — {the deferral its comment documents} — one line per documented deferral}
 - {excluded — no reference for .<ext>: {count} files — one line per unsupported extension in the manifest}
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
