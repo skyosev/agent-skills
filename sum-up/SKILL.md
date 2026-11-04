@@ -50,9 +50,14 @@ Do not invent a part to fill a shape. A ticket with no surprise has no surprise 
 - Give an instance only when it shows the surprise, as a bullet in `A > B` or `A → B` form with the real field and document names. An instance of the obvious part adds nothing.
 - Add the secondary rule with its condition ("when X and Y are the same, ...").
 - Use the words the team uses in the ticket and its comments. A reader will search for them.
+- Give each concept one name and keep it. "Written first in the document", "position" and "document order" for one idea make the reader wonder whether they are three ideas. Define the name once, in parentheses, where it first appears.
+- Write a change as a change. "The LLM writes both facts" reads as today's behaviour; "The LLM now writes both facts" says it is new.
 - Make it as short as the decision allows, and no shorter. There is no word limit, but every line must tell the reader something they cannot derive from the other lines. When it grows, check whether a line restates another, describes evidence or history, or lists a case the general sentence already decides.
 - Do not wrap it in Problem / Solution / Example sections. The sum-up is already the short form.
-- Do not repeat yourself in other words. A line that follows from the lines before it goes.
+- Do not repeat yourself in other words. Before you hand it over, read each sentence and ask whether an earlier sentence, or a term already used, says or implies it. If so, cut it. Typical repeats:
+  - a sentence that restates the rule just stated ("Only position counts" after "the pick is the fact written first");
+  - a sentence that brings back the rule under a new name ("Document order is the default" after the rule itself); keep only what it adds ("for every field");
+  - a clause that spells out what a term already means ("until the user picks" after "provisional pick").
 
 Strunk's rules that matter most here: positive form ("prefer the recap", not "do not prefer the pro-forma"), definite and concrete words (`currency`, not "values of this kind"), similar form for similar clauses, and the emphatic word at the end of the sentence.
 
