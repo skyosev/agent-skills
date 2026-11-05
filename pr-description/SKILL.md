@@ -75,7 +75,7 @@ Leave out what the diff, the commits or CI already show, and what no reader acts
 5. **Positive form; a change reads as a change.** "Laytime now stops at 17:00", not "Laytime no longer fails to stop". "Now" marks what is new; "should" marks a follow-up that is not done yet.
 6. **Structure over prose.** When the content is structural, pick the smallest view that shows the change, and keep only the calls, files, props or states the point needs:
    - a `diff` of the shape that changes, matched to the topic: pseudocode for logic, a call tree for control flow, a component tree for UI, a shallow file tree for a move;
-   - a Mermaid sequence diagram when the change is in who calls whom;
+   - an ASCII diagram (`hub ──► calculator ──► claim page`) when the change is in who calls whom; Mermaid only when the flow has more steps or branches than ASCII shows clearly;
    - a table when cases differ on two axes.
 
    Lead each section with its answer. Keep a list to five items; group and rank longer ones, most important first.
