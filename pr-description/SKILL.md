@@ -16,7 +16,7 @@ Write for a reviewer who has not read the ticket, the spec, the brainstorm, or t
 - Do not reuse ticket titles or spec phrases as if the reader knows them. Say what they mean.
 - Prefer plain words to new terms. Define a term, in parentheses where it first appears, only when the description uses it again.
 - Give each concept one name and keep it. "Working hours" and "working time" for one thing make the reader wonder whether they are two things.
-- Use the names the code and the UI use, so the reader can search for them.
+- Use the names the code and the UI use, so the reader can search for them. If the repo has a `GLOSSARY.md`, use its terms.
 - Write each abbreviation out, or replace it with its plain name ("DH" → "the hub"). Keep only abbreviations the code or the UI shows.
 
 ## Shape
@@ -73,10 +73,13 @@ Leave out what the diff, the commits or CI already show, and what no reader acts
 3. **No figurative language.** Write the literal claim.
 4. **ASD-STE100 where it fits.** Active voice, one idea per sentence, sentences under 25 words.
 5. **Positive form; a change reads as a change.** "Laytime now stops at 17:00", not "Laytime no longer fails to stop". "Now" marks what is new; "should" marks a follow-up that is not done yet.
-6. **Structure over prose.** Use a nested list, a table or a small `diff` sketch when the content is structural. Lead each section with its answer.
-7. **Zinsser:** simplicity, brevity, clarity, humanity. Cut filler: "just", "basically", "note that", "in order to", "it is worth mentioning".
+6. **Structure over prose.** When the content is structural, pick the smallest view that shows the change, and keep only the calls, files, props or states the point needs:
+   - a `diff` of the shape that changes, matched to the topic: pseudocode for logic, a call tree for control flow, a component tree for UI, a shallow file tree for a move;
+   - a Mermaid sequence diagram when the change is in who calls whom;
+   - a table when cases differ on two axes.
 
-Ideas from `/show-me`, `/i-have-adhd` and `/wait-what` are welcome where they make a point clearer or shorter.
+   Lead each section with its answer. Keep a list to five items; group and rank longer ones, most important first.
+7. **Zinsser:** simplicity, brevity, clarity, humanity. Cut filler: "just", "basically", "note that", "in order to", "it is worth mentioning". Cut a hedge ("perhaps", "might", "could possibly") unless it carries real uncertainty; then say what is unverified.
 
 ## An example
 
