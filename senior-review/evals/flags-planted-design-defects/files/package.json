@@ -1,2 +1,0 @@
-{ "name": "voyages", "private": true, "type": "module", "scripts": { "test": "vitest run" },
-  "dependencies": { "pg": "^8.11.0" }, "devDependencies": { "vitest": "^1.6.0", "typescript": "^5.4.0" } }

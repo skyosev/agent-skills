@@ -1,7 +1,0 @@
-schema_version: "1.1"
-name: flags-planted-design-defects
-context:
-  scaffold_script: place-files.sh
-expected_outcome: |
-  A report file that flags the planted design defects in the TypeScript fixture, each with file:line,
-  the quoted code and a concrete fix, without editing the code.
