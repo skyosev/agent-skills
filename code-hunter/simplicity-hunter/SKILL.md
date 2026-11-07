@@ -300,10 +300,27 @@ One finding per site. The reported finding's row note (report format) names the 
   Extracting the concerns usually flattens it.
 - **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
   Concerns, not an Unnecessary Abstraction.
-- **Strata:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
+- **Strata or copies:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
   Generations.
 - **Flags:** always on or always off → Dead Code Paths; both branches live with no removal plan → Coexisting
   Generations.
+- **Constant arguments:** a parameter that every caller passes with one value, or leaves at its default →
+  Over-Parameterized APIs, never also Dead Code Paths, even when it is a boolean flag. The Action removes the
+  parameter and deletes each branch that the value rules out. A branch dead for another reason (the type, the
+  preceding logic) is a separate Dead Code Paths finding.
+- **A hand-rolled primitive copied at two or more sites**, with nothing else shared → Reinvented Primitives, in one
+  row that lists each copy that clears all six gates. Not Duplication. A copy that fails a gate stays a Duplication
+  candidate. When the copies share more than the primitive, Duplication claims that region, and its Action calls the
+  primitive inside the shared unit.
+- **A branch chain that restates a mapping an existing constant or map holds** → Duplication (rule 1), never also
+  Complex Control Flow: the Action reads the existing source. When only some arms match, Duplication claims those
+  arms, and Complex Control Flow judges the chain that its Action leaves.
+- **A wrapper whose whole body re-implements a primitive** (a manual `Promise` around a promisified API, a
+  context-manager class that `contextlib` covers) → Reinvented Primitives, never also Unnecessary Abstractions. The
+  Action calls the primitive at each call site and deletes the wrapper.
+- **A hand-rolled helper and the primitive it re-implements, both live** → Coexisting Generations when its evidence
+  bar holds with the primitive as the survivor (a deprecation or migration that names it). Otherwise, and always in
+  diff scope (Phase 4 is skipped), → Reinvented Primitives.
 
 ## Test-code scope
 
