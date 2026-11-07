@@ -300,9 +300,9 @@ One finding per site. The reported finding's row note (report format) names the 
   Extracting the concerns usually flattens it.
 - **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
   Concerns, not an Unnecessary Abstraction.
-- **Strata or copies:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
-  Generations.
-- **Flags:** always on or always off → Dead Code Paths; both branches live with no removal plan → Coexisting
+- **Strata:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
+  Generations. A copy with zero live sites is Dead Code Paths too.
+- **Feature flags:** always on or always off → Dead Code Paths; both branches live with no removal plan → Coexisting
   Generations.
 - **Constant arguments:** a parameter that every caller passes with one value, or leaves at its default →
   Over-Parameterized APIs, never also Dead Code Paths, even when it is a boolean flag. The Action removes the

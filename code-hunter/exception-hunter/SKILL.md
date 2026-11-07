@@ -478,8 +478,9 @@ One site, one finding. The rules, in order:
    when it is otherwise correct.
 4. **A dropped cause or stack wins over Poor Error Context.** A wrap that drops the cause and names no input →
    Broken Error Chains; the Action also adds the input. A log call that drops the traceback or stack and is a message
-   event with an interpolated message → Broken Error Chains; the Action logs with the stack and fixed text
-   (`logger.exception("job %s failed", job_id)`), which also ends the message event.
+   event with an interpolated message, in a handler that is otherwise correct (rule 9 decides the others) → Broken
+   Error Chains; the Action logs with the stack and fixed text (`logger.exception("job %s failed", job_id)`), which
+   also ends the message event.
 5. **Go goroutines.** `go f()` discarding `f`'s error → Orphaned Async Failures. A goroutine body that drops an error
    it received → Swallowed Errors. A panic in a spawned goroutine → Panic and Exit Misuse.
 6. **Cancellation** (Terms: the current task's own, or the caller's deadline). Caught and not re-raised →

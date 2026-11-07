@@ -4,7 +4,8 @@
     python3 code-hunter/pilot/compare.py --selftest
 
 Each setup dir holds one sub-dir per run, with the report.md and result.json that pilot.sh writes. A finding's
-anchor is the first file:line in the Location(s) cell of a Findings table. Findings in one file whose lines are at
+anchor is the first file:line in the second cell of a Findings table row, else in the row. A run dir without a
+report.md is skipped. Findings in one file whose lines are at
 most --tol apart are one site across runs, whatever their category: two runs can file one defect under two
 categories. --within keeps only findings whose anchor file starts with one of the prefixes (the premise test compares
 only the subset's findings). Prints a runs table, rows per category, and a site matrix; writes the sites that only one
@@ -18,7 +19,7 @@ COMPLETED = re.compile(r"Audit completed:\s*(\d+)")
 
 
 def parse(text):
-    """Rows of a report: (category, file, line, row text). Location is the second column of every table."""
+    """Rows of a report: (category, file, line, row text). The anchor is in the second column, or in the row."""
     rows, category, in_findings = [], None, False
     for line in text.splitlines():
         if line.startswith("## "):
@@ -31,7 +32,7 @@ def parse(text):
             if len(cells) < 4 or cells[1].strip() == "#" or set(cells[1].strip()) <= set("-: "):
                 continue
             loc = cells[2].replace("`", "")
-            m = ANCHOR.search(loc)
+            m = ANCHOR.search(loc) or ANCHOR.search(line)
             rows.append((category, m.group(1) if m else loc.strip(), int(m.group(2)) if m else 0, line.strip()))
     return rows
 
@@ -40,7 +41,10 @@ def load(setup_dir):
     runs = {}
     for d in sorted(p for p in pathlib.Path(setup_dir).iterdir() if p.is_dir()):
         report, result = d / "report.md", d / "result.json"
-        text = report.read_text() if report.exists() else ""
+        if not report.exists():
+            print(f"warning: {d}: no report.md, run skipped", file=sys.stderr)
+            continue
+        text = report.read_text()
         res = json.loads(result.read_text()) if result.exists() and result.stat().st_size else {}
         rows = parse(text)
         m = COMPLETED.search(text)
@@ -102,9 +106,11 @@ def disagreements(only, setups):
 
 def selftest():
     a = "## Scope\n- Audit completed: 2 findings\n\n## Findings\n\n### Magic Numbers\n\n| # | Location | Value |\n|---|---|---|\n" \
-        "| 1 | `internal/a.go:10` | `x \\| y` |\n| 2 | internal/b.go:5, internal/c.go:7 | 3 |\n\n## Recommendations\n| 1 | z.go:1 |\n"
+        "| 1 | `internal/a.go:10` | `x \\| y` |\n| 2 | internal/b.go:5, internal/c.go:7 | 3 |\n\n### Coexisting Generations\n\n" \
+        "| # | Concern | Strata |\n|---|---|---|\n| 1 | HTTP | `lib/old.go:3` and `lib/new.go:8` |\n\n## Recommendations\n| 1 | z.go:1 |\n"
     rows = parse(a)
-    assert [(r[0], r[1], r[2]) for r in rows] == [("Magic Numbers", "internal/a.go", 10), ("Magic Numbers", "internal/b.go", 5)], rows
+    assert [(r[0], r[1], r[2]) for r in rows] == [("Magic Numbers", "internal/a.go", 10), ("Magic Numbers", "internal/b.go", 5),
+                                                ("Coexisting Generations", "lib/old.go", 3)], rows
     fs = [("S", "1", "M", "a.go", 10, ""), ("W", "1", "M", "a.go", 12, ""), ("W", "1", "M", "a.go", 20, ""), ("S", "1", "N", "a.go", 10, ""),
           ("S", "1", "M", "b.go", 11, "")]
     assert [len(g) for g in cluster(fs, 3)] == [3, 1, 1]  # one site whatever the category; another file is another site
