@@ -80,15 +80,17 @@ Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this o
   .loc b { color: var(--ink); font-weight: 500; }
   ul.checks { list-style: none; padding: 0; } ul.checks li { padding-left: 24px; position: relative; margin: 0 0 6px; }
   ul.checks li::before { content: "✓"; position: absolute; left: 2px; color: var(--green); font-weight: 700; }
+  button.theme { position: fixed; top: 12px; right: 12px; z-index: 9; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); font-size: 16px; cursor: pointer; }
 </style>
 <body>
+<button class="theme" type="button" title="Light or dark" onclick="const r=document.documentElement,d=r.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.dataset.theme=d=='dark'?'light':'dark'">◐</button>
 <header>
   <p class="kicker">PR #257 · AbraxaGroup/monorepo · merged into main</p>
   <h1>Upload refusals, grouped by reason</h1>  <!-- the change, 3 to 7 words -->
   <p class="meta"><span>15 files</span><span>+280 −105</span><span>f0e5ba1 → 1b9d235</span></p>
   <div class="tldr"><p><!-- 40 words at most: the cause and what the user saw, then what the system now does --></p></div>
   <details class="thread"><summary>Why · LAY-1141</summary>
-    <doc-quote via="linear" from="<author>" at="<date>" href="<ticket url>"><!-- the ticket, word for word, trimmed with … ; else the PR body; else the commit messages --></doc-quote>
+    <doc-quote via="linear" from="<author>" at="<date>" href="<ticket url>"><!-- the ticket, word for word, trimmed with … ; with no ticket, a review, plan or spec that the PR body names (via="doc", where="<path>"); else the PR body; else the commit messages --></doc-quote>
   </details>
 </header>
 <main>
@@ -109,6 +111,7 @@ Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this o
 <h2>How it fits</h2>
 <!-- Only when the diff changes how parts relate: a new caller, a record that crosses parts, a moved responsibility.
      Groups only where the code has them. Each box links to its step.
+     A changed decision path that runs through several steps: a flowchart here instead (step 5).
      doc-flow: "+" new, "-" removed, "~" changed, on a box or an arrow. [#id] links a box. An indented line under a box adds detail.
      Then a Terms table, only when the PR adds or renames a domain term or uses two names for one. -->
 <p>Three layers, one record across them: <code>RejectionGroup</code>.</p>
@@ -185,8 +188,12 @@ git worktree add --detach $D/wt-head $HEAD   # and $D/wt-base $BASE
 - 5 steps or fewer, 5 decisions or fewer, 8 boxes or fewer in 2 or 3 columns, approximately 350 words of prose.
 - These are defaults, not limits. Every behaviour change in the diff goes on the page, in "Before and after" or in a step, even when it breaks a default.
 - A behaviour that was true before the PR goes in the "Not changing" line. It gets no diagram, no code and no step.
+- Each sentence, pin and note tells what the PR changes, why, or what it puts at risk.
+- An edit that changes neither what the code does nor how its parts fit (an import, a comment, a format, a rename inside one file) gets no step, no pin and no sentence. If no step shows its file, the file gets a row in "Also in this PR".
+- The page explains the PR. It does not review it: no remarks on style or naming, and no suggestions.
 - One exhibit per concept on the whole page. If "How it fits" shows the layers, no step shows them again.
 - A decision needs a source: a code comment, a commit message, a test name, the PR body, the ticket or a review comment. Write it as "Source: <kind>, <file:line or who>". If no source says it, label it "Inferred", or leave it out.
+- If the PR body, a plan or a code comment states what the new structure does not guarantee or cover, put that limit on the page: a `doc-note` under the step of that structure.
 
 ## 5. Code on the page comes from git
 
@@ -201,6 +208,7 @@ git worktree add --detach $D/wt-head $HEAD   # and $D/wt-base $BASE
   Cite it as `<doc-code src="hunks/<name>.diff" lines="<@@ line>-<last line>" diff file="<path>">`.
 - New code: `<doc-code src="<path>" lines="a-b" ref="<HEAD, full SHA>">`.
 - A replaced rule: two `doc-code` blocks, one under the other, `ref=<BASE>` with the caption "Before" and `ref=<HEAD>` with "After".
+- A changed decision path (a new branch, a new outcome, checks in a new order): an annotated flowchart, a `doc-flow` that you draw from the code at HEAD ("A flowchart" in `references/blocks.md`). If the path is in one step, the flowchart is the exhibit of that step in place of the Before and After pair, and the code at HEAD follows it as a `doc-code` with `collapsed`. If the path runs through several steps, the flowchart goes in "How it fits" in place of the parts diagram, and each box links to its step.
 - `ref=` takes only BASE or HEAD, as a full SHA.
 
 ## 6. Prose

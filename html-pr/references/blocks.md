@@ -45,7 +45,7 @@ Everything the reader can see is a comment target: code lines, arrows, `data-ref
 - **Code at a commit:** `src` + `lines="a-b"` (`lines="40"` is one line) + `ref="<sha>"`. Pack reads the file from git under `--root`.
 - **A hunk:** `src` points at a patch file from `git diff`, `lines` is the hunk's range in that file, `diff` marks it as a diff, and `file="path"` names the source file. The `@@ -a,b +c,d @@` header numbers the gutter. One file per block. Never cut lines out of the middle of a hunk.
 - `doc-pin line="N"` uses the number shown in the gutter (`old="N"` for a removed line). `tone="info|warn|risk|ok"`. A pin says what the line is, in a clause.
-- 10 to 25 lines. `hl="4-5,9"` highlights. `wrap` soft-wraps long lines. `caption` adds a line under the header. `collapsed` starts it closed.
+- 10 to 25 lines. A hunk over 25 lines: cite it whole and add `collapsed`. `hl="4-5,9"` highlights. `wrap` soft-wraps long lines. `caption` adds a line under the header. `collapsed` starts it closed.
 
 ## `doc-quote` — who asked, in their words
 
@@ -55,7 +55,7 @@ Everything the reader can see is a comment target: code lines, arrows, `data-ref
 </details>
 ```
 
-`via` names where the words come from: `linear`, `github`, `slack`, `doc`, `email`, `meeting`. Quote, do not paraphrase. Trim with `…`.
+`via` names where the words come from: `linear`, `github`, `slack`, `doc`, `email`, `meeting`. `from` is a bare name or handle. `where` names the place: a file and its section, a channel, a meeting. Quote, do not paraphrase. Trim with `…`.
 
 ## `doc-note`
 
@@ -83,6 +83,37 @@ wk -> db : claim
 - `group "Name": a, b` draws a frame around boxes.
 - The `| a | b |` rows place the boxes, like ASCII art; `.` is an empty cell. Keep to 12 boxes or fewer, in 2 or 3 columns.
 - `a -> b : label` is an arrow. Keep labels to two or three words.
+
+### A flowchart: a decision path, with a note on each box
+
+```html
+<doc-flow marks="new,removed,changed" dashed="refused" caption="Each dropped file, at 1b9d235. Tap a box for its note.">
+<script type="text/plain">
+in = A dropped file [pill]
+ty = Allowed type? [diamond]
+~ sz = Total ≤ 25 MB? [diamond]
+  Before: checked after the count.
+ok = Queued [pill green]
+rt = Refused: type [red]
+rs = Refused: size [red]
+| in | .  |
+| ty | rt |
+| sz | rs |
+| ok | .  |
+in -> ty
+ty --> rt : no
+ty -> sz : yes
+sz --> rs : no
+sz -> ok : yes
+</script>
+</doc-flow>
+```
+
+- A decision is a `[diamond]` with a short question. Each arrow out of it has a label: `yes`, `no`, or the value.
+- The start and the end are `[pill]`. `[green]` colours the good end, `[red]` a refusal or an error. Shapes: `box pill diamond db circle note hex actor`. Tones: `accent green amber red blue purple muted ink`.
+- `-->` is a dashed arrow. `dashed="…"` names it in the legend.
+- The indented line is the note. The box shows "…", and the reader taps it to read the note. On a `~` box, the note says what was true at BASE.
+- Put the main path in one column, from top to bottom, and the refusals in the column to its right.
 
 For a few cards side by side, use `<div class="cols"><div class="card"><h4>Before</h4><p>…</p></div>…</div>`.
 
