@@ -367,7 +367,13 @@ solid-hunter's Responsibility Sprawl, including the split's design.
 Per import edge: a Cyclic Dependencies finding whose Failure is `provable` or `observed` > Dependency Direction
 Violations > Cyclic Dependencies with Failure `none observed` > Deep Imports. Per exported member: a member failing
 the rewrite test with a consumer touching it is Leaked Internals; exposed but untouched is Dead Exports at member
-granularity. The reported finding's Evidence cell names the other readings in one clause, or its Action cell where
+granularity. A member that External Type Leaks also claims is routed by its consumers, never by Severity. With Dead
+Exports, it stays Dead Exports: unexporting takes the external type out of the API. With Leaked Internals, it is
+External Type Leaks when a consumer in an inward unit touches it — that consumer needs the owned replacement type, and
+the Action names it `file:line` — else Leaked Internals. An import edge that Dependency Direction Violations claims
+and an exported signature in the same unit that External Type Leaks claims for a type from that edge's target are two
+findings, each naming the other in one clause: fixing the signature leaves the edge wherever unexported code still
+uses the target. The reported finding's Evidence cell names the other readings in one clause, or its Action cell where
 the table has no Evidence column.
 
 ## Test-code scope
@@ -554,10 +560,12 @@ block for its language-specific judgment.
 
 Assign **Severity and Impact** to every finding. One finding per edge and per exported member. Nothing is held back; `Audit completed: N findings` counts every reported finding.
 
-**The zero-findings line is reached only when no category has a candidate** — no export, no module-graph cycle, no
-module edge between different tiers or named by a prohibition, no deep import, no external type in an exported
-signature, no generic-named unit. It is never keyed on cross-unit edges: two files inside one barrel directory
-importing each other are a cycle candidate although the projection onto units shows no edge at all.
+**`Audit completed: 0 findings` needs every candidate resolved** (the Done line below). On a run with candidates,
+the `Limitation` and `Policy:` lines name what was withdrawn. On a run without candidates, no category had one — no
+export, no module-graph cycle, no module edge between different tiers or named by a prohibition, no deep import, no
+external type in an exported signature, no generic-named unit. Candidates are never keyed on cross-unit edges: two
+files inside one barrel directory importing each other are a cycle candidate although the projection onto units shows
+no edge at all.
 
 Done when every candidate is a reported finding, a withdrawal (`Limitation` or `Policy:` line), a drop (failed
 evidence bar or a Not-a-finding line), or a hand-off to its owning hunter.
