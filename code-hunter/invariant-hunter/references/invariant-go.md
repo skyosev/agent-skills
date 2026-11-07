@@ -62,7 +62,9 @@ path that returns `nil, err`, the map miss.
 contract.
 
 **Ownership:** a nil guard the preceding logic already guarantees is simplicity-hunter's Dead Code Paths. `if err !=
-nil` is Go working as designed, not a nil guard; what its branch does with the error is exception-hunter's.
+nil` is Go working as designed, not a nil guard; what its branch does with the error is exception-hunter's. A field
+that is nil only at the zero value of a type that Zero-Value Traps reports is one finding there: the dereference is
+the failing method in its Issue cell, not a row here.
 
 **Report table:**
 

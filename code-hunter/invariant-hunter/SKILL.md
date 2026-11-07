@@ -246,7 +246,9 @@ type-hunter's Loose Type Parameter Constraints — one finding there, not scored
 A *single* type claim (`as T`, `cast(T, x)`, `x!`, `x.(T)`) is an Unguarded Type Assertion. A construct that
 *disables* checking (`any`, `Any`, double cast, ignore directive) is a Type-System Bypass. A cast to a union variant
 (`s as Leaf`, `cast(Leaf, s)`) on a value whose union has a discriminant is Leaky Discriminated Unions
-(`cast past discriminant`), not an Unguarded Type Assertion.
+(`cast past discriminant`), not an Unguarded Type Assertion. A double cast to a variant (`s as unknown as Leaf`) is a
+Type-System Bypass, not `cast past discriminant`; its Action is to narrow by the discriminant. `assert x is not None`
+is a single type claim too: an Unguarded Type Assertion, never Defensive Access.
 
 ### Go-only categories
 
@@ -415,8 +417,9 @@ For each runtime guard, assertion, or validation nominated:
 
 For each candidate: apply the category's own Not-a-finding line first (Go: also the reference's Not-a-finding list);
 confirm the category is applicable to that file's language; apply the within-skill routing (assertion vs. bypass vs.
-cast past discriminant); clear the category's evidence bar from What to Hunt; check repository policy (Phase 1
-step 5). Run each loaded reference's Phase 5 block for its language-only categories and language-specific judgment.
+cast past discriminant vs. defensive access); clear the category's evidence bar from What to Hunt; check repository
+policy (Phase 1 step 5). Run each loaded reference's Phase 5 block for its language-only categories and
+language-specific judgment.
 
 Assign **Severity and Impact** to every finding. Nothing is held back; `Audit completed: N findings` counts every
 reported finding.
