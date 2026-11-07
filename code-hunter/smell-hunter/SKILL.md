@@ -348,13 +348,35 @@ behavior → keep it, it is the right tool.
 ### Within-skill precedence
 
 **One site, one finding.** When two categories here read the same site, the first matching rule decides the
-category, and the Evidence cell names the other reading in one clause:
+category, and the Evidence cell names the other reading in one clause (in a table with no Evidence column, the Action
+cell):
 
 - A function outside a domain entity performing one of its state transitions → Anemic Domain Model, not Feature
   Envy. Feature Envy keeps envy of data that is not an entity's transition.
 - Three or more values travelling together → Data Clumps, whose Evidence names any swap risk. Exactly two same-typed
   values a caller could swap → Primitive Obsession.
 - A stateful singleton → Mutable Global State; a stateless one → Class Abuse (the singleton split).
+- A stateless service whose methods perform an entity's transitions → Anemic Domain Model for those methods. Class
+  Abuse judges the class on the methods left after the move; with none left, there is no Class Abuse row.
+- A status-string assignment (`order.status = "shipped"`) carries two claims at two anchors. The field's type →
+  Primitive Obsession, at the field declaration. The transition → Anemic Domain Model when the line sits outside the
+  entity (Python, TypeScript), its Action adding any missing source-state guard; otherwise Temporal Coupling when no
+  check guards the source state. Each row names the other.
+- A raw status string compared outside its entity (`if order.status == "paid"` in a service) carries two claims at
+  two anchors: the field's type → Primitive Obsession, at the field declaration; the decision's placement → Anemic
+  Domain Model, at the entity. Each Evidence cell names the other row.
+- An unguarded transition performed outside its entity → Anemic Domain Model, not Temporal Coupling. Its Action adds
+  the source-state guard, and its Severity carries the order risk. Temporal Coupling keeps an order that the entity's
+  own API leaves open.
+- A field one method sets and a later method reads: when every operation after the setter needs it, it is a late
+  dependency → Temporal Coupling, remedied at construction; when it is meaningful within one operation or one state
+  only → Temporary Field.
+- A field subset copied across types that history shows changing together is one cause, one finding: Data Clumps
+  when one shared type can replace the copies, its Evidence citing the commits; Shotgun Surgery when the copies must
+  stay separate (a wire type and a storage row) and the fix is generation, its Action naming the clump.
+
+A rule does not apply in a language where the category it picks is n/a (Go: Anemic Domain Model, Class Abuse); the
+other category keeps the site.
 
 ## Applicability
 
