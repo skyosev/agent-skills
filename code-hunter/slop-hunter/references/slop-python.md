@@ -55,7 +55,7 @@ Sphinx). Markers:
   imported by other files: an unused one is simplicity-hunter's Dead Code Paths
 - Leftover `pass` in a non-empty body
 - Commented-out code (`# old_result = …`); `TODO` / `FIXME` without owner, ticket, or condition
-- Bare `# noqa`, `# pylint: disable=…` with no trailing reason
+- Bare `# noqa`, `# nosec`, `# pylint: disable=…` with no trailing reason
 
 Not a finding: an import in `__init__.py` (a re-export); `# noqa: F401` on such a re-export with a stated reason or
 an `__all__` entry.
@@ -100,7 +100,7 @@ D() { git diff -U0 "$MB" -- $PY_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 D '\s*#'                                                       # comments (classify manually)
 D '.*("""|:param |:returns?:|Args:|Returns:)'                    # docstrings and tags
 D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
-D '.*#\s*(noqa|pylint:\s*disable)'                           # linter suppressions (check for a reason)
+D '.*#\s*(noqa|nosec|pylint:\s*disable)'                     # linter suppressions (check for a reason)
 D '\s*pass\s*$'                                                # leftover pass (then read the body)
 D '\s*(import |from \S+ import )'                              # added imports (check uses in the file)
 D '.*(print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here))'   # narration
@@ -114,9 +114,9 @@ git diff -U0 "$MB" -- $PY_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/nu
 W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must not search the whole tree
 W '^\s*#'                                                      # comments (classify manually)
 W '"""'                                                        # docstring blocks
-W -B1 '^\s*def\s+_'                                            # docstrings on private helpers
+W -A1 '^\s*def\s+_'                                            # docstrings on private helpers
 W '\b(TODO|FIXME|XXX)\b'
-W '#\s*(noqa|pylint:\s*disable)'
+W '#\s*(noqa|nosec|pylint:\s*disable)'
 W '^\s*pass\s*$'
 W 'print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)'
 W -i 'might need|for safety|new, improved|improved version'
@@ -134,6 +134,8 @@ For each docstring candidate:
 
 - Which style does the applicable config or the nearby code use? Judge the tags against that style.
 - Does any section say something the signature and annotations do not? Strip only the sections that do not.
+- Would stripping it leave the body with no statement (the docstring is the only one, or other Actions delete the
+  rest)? Then the Action puts `pass` in its place: an empty body does not parse.
 
 For each unused-import candidate in diff mode:
 
@@ -147,8 +149,9 @@ For each suppression:
 
 For each `pass`:
 
-- Is it the sole statement of a deliberately empty body (protocol method, exception class, abstract stub)? Keep.
-  Is it left in a body that now has other statements? Delete.
+- Is it the sole statement of a deliberately empty body (protocol method, exception class, abstract stub), or the
+  only statement besides a docstring? Keep: the docstring may be stripped (Verbose Documentation), and `pass` keeps
+  the body valid. Does the body hold a statement other than `pass` and a docstring? Delete.
 
 For each `print(`:
 

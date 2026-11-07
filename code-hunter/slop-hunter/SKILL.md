@@ -175,8 +175,8 @@ Text and declarations that compile or parse but do nothing, and can be judged in
   or a workaround, or that names a dependency defect the code works around, is doc-hunter's (Unexplained Workarounds)
 - Leftover `pass` in a non-empty Python body
 - Unused imports and unused function-local bindings where the language lets them compile
-- Linter suppression with no stated reason: bare `//nolint`; `# noqa`, `# pylint: disable`; `// eslint-disable*`,
-  `// biome-ignore` — each without a trailing reason. Type-checker suppressions
+- Linter suppression with no stated reason: bare `//nolint`, `// #nosec`; `# noqa`, `# nosec`, `# pylint: disable`;
+  `// eslint-disable*`, `// biome-ignore` — each without a trailing reason. Type-checker suppressions
   (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are invariant-hunter's Type-System
   Bypasses, with or without a reason
 - Go only: `_ = x` silencing a non-error binding the author meant to use; unused parameters; unused struct fields.
@@ -231,6 +231,18 @@ Error wrapping that adds words, not context. Defined in `references/slop-go.md`.
 A doc comment attached to a declaration (godoc, docstring, JSDoc) → Verbose Documentation. Any other comment →
 Redundant Comments, or Hedging and Narration when it speculates or apologizes. Commented-out code → Trivially Dead
 Code. One finding per site.
+
+**Markers and suppressions.** A `TODO` / `FIXME` / `XXX` comment or a linter suppression → Trivially Dead Code, also
+when its text hedges or restates code, and also inside a doc comment. That comment gets no other row; the rest of a
+doc comment stays Verbose Documentation. When Trivially Dead Code does not report it (an owner, a ticket, a
+condition, a stated reason), no other category does.
+
+**Deleted text gets one row.** When an Action deletes whole lines or a whole comment, no other row reports text
+inside them: an unused import out of its group → Trivially Dead Code only. An Action that keeps part of a line (a
+side-effect initializer) deletes no line. A consolidated Style Drift row keeps its enumerated count.
+
+**Doc style.** A doc block in another style than the baseline (Google, NumPy, or Sphinx docstrings; JSDoc tag form)
+→ Style Drift. Verbose Documentation judges only redundancy.
 
 ## Test-code scope
 

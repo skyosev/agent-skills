@@ -39,6 +39,10 @@ Error wrapping that adds words, not context.
 Error Chains), matching (Unmatchable Failures), and a message that names no input (Poor Error Context). They compose:
 wrap with the cause, wrap once, match by identity.
 
+**With Style Drift:** a redundant wrap that also uses another wrapping library than the project's is one
+Unnecessary Error Wrapping row. If its Action keeps a wrap, the wrap uses the project's library. That call gets no
+Style Drift row.
+
 **Report table:**
 
 | # | Location | Pattern | Severity | Impact | Action |
@@ -77,7 +81,7 @@ Go's compiler rejects unused imports and unused local variables, so those never 
 - `_ = x` silencing a non-error binding the author meant to use
 - Unused function parameters (after a refactor)
 - Unused struct fields
-- Bare `//nolint` or `//nolint:<linter>` with no trailing `// reason`
+- Bare `//nolint` or `//nolint:<linter>` with no trailing `// reason`; bare `// #nosec` or `// #nosec <rule>`
 - Commented-out code; `TODO` / `FIXME` without owner, ticket, or condition
 
 Not a finding: `import _ "pkg"` for side effects; `var _ Iface = (*T)(nil)` compile-time assertions; `_ = x` where
@@ -122,7 +126,7 @@ D() { git diff -U0 "$MB" -- $GO_FILES | rg "^\+\+\+ |^@@|^\+($1)"; }
 
 D '\s*//'                                                      # comments and godoc (classify manually)
 D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
-D '.*//\s*nolint'                                              # suppressions (check for a trailing reason)
+D '.*//\s*(nolint|#nosec)'                                     # suppressions (check for a trailing reason)
 D '\s*_\s*=\s*\w'                                              # blank-identifier silencing
 D '.*fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'               # error-wrapping candidates
 D '.*(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'   # narration
@@ -137,7 +141,7 @@ W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must n
 W '^\s*//'                                                     # comments (classify manually)
 W -B1 '^func\s+(\([^)]*\)\s*)?[a-z]'                           # godoc on unexported functions and methods
 W '\b(TODO|FIXME|XXX)\b'
-W '//\s*nolint'
+W '//\s*(nolint|#nosec)'
 W '^\s*_\s*=\s*\w'
 W 'fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'
 W '(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'
@@ -157,11 +161,12 @@ For each `fmt.Errorf` candidate:
 - Is `%v` used where a caller matches the chain? That is exception-hunter's Broken Error Chains — cross-reference,
   do not score.
 
-For each `//nolint`:
+For each `//nolint` or `#nosec`:
 
 - Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real
   (`errcheck` on a dropped error)? Then the noise hides a finding (SKILL.md Severity). Score only the bare
-  suppression; cross-reference the dropped error to exception-hunter's Swallowed Errors.
+  suppression; cross-reference the dropped error to exception-hunter's Swallowed Errors, and a real gosec finding to
+  security-hunter.
 
 For each `_ = x`:
 
