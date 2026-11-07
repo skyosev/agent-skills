@@ -310,7 +310,9 @@ the code could).
   Python exception that callers catch; a TypeScript `throw` that callers catch. These count only when the error design
   itself is sound.
 - **Boundary handling and rejected inputs** with a caller-visible effect: empty input returns all rows, not none; the
-  end date is inclusive; a negative amount, which the type allows, returns an error.
+  end date is inclusive; a negative amount, which the type allows, returns an error. A doc whose sentence covers that
+  input and states another result is a Misleading Comments and Names finding (`false`): "returns body truncated to
+  maxBytes" over a `maxBytes <= 0` branch that returns the whole body.
 - **Interface contracts**: two implementations of an owned interface differ on a caller-visible point (one returns
   `ErrNotFound`, the other `nil, nil`), and no doc states which is the contract.
 - **Units or ranges** of a parameter or a return that the name does not state, when a line in the body fixes them
@@ -452,13 +454,16 @@ the violations may be new on this branch, or CI may lint only new issues.
 One site, one finding. The first matching rule wins:
 
 1. Text (comment, doc, or name) is present and contradicted by the code or by the repository → Misleading Comments
-   and Names.
+   and Names, unless the text states only an invariant on a value (`// ids is never empty`) and the contradiction is
+   a path that passes or admits that value → rule 6 (`enforceable`). Text that says a check enforces the invariant
+   ("already validated") stays here.
 2. The code is shaped by a dependency, platform, or protocol → Unexplained Workarounds.
 3. A literal or branch encodes a domain decision → Unexplained Business Rules. A technique's own constants (the Earth
    radius in haversine, a CRC polynomial) are not domain decisions; a domain parameter inside a technique (the rate in
    a compound-interest formula) is.
 4. The code implements a nameable technique → Non-Obvious Algorithms (its own constants are part of this row).
-5. Any other literal → Magic Numbers.
+5. Any other literal → Magic Numbers, unless it fixes the unit of a parameter or a return whose name does not state
+   it (`metres / 1852`) → rule 6, with the literal's line as Established At and the unit in the name as the Action.
 6. Caller-facing behavior not in the name or signature, or an invariant stated only in a comment that the code could
    enforce → Undocumented Contracts.
 7. A public symbol with no doc and nothing else to state → Missing Public Docs.
@@ -646,9 +651,10 @@ then the rest, and record the files left as `not read: <n> files — context bud
 4. Each formula, bit operation, regular expression, and comparator.
 5. Each delay, retry, platform branch, and order of calls on a third-party object.
 6. Each function's effects, hidden inputs, returned resources, errors, boundary handling, and units.
-7. The loaded reference's Blind spots.
+7. Each symbol and Go package that an open Missing Public Docs gate covers, for its doc comment.
+8. The loaded reference's Blind spots.
 
-Done when every file on the list (diff mode: every hunk and nomination) is read with items 1–7 applied, or counted in
+Done when every file on the list (diff mode: every hunk and nomination) is read with items 1–8 applied, or counted in
 `not read`; diff mode's removed-symbol search is done; and every scan hit, detector code, and reading result is listed
 as a candidate with its line.
 
