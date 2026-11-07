@@ -1,3 +1,4 @@
 .opencode
 .vscode
 docs/process
+__pycache__/
