@@ -1,0 +1,239 @@
+<!--
+A finished step, from a tutorial of the package @fenstra/configurator (PR #123 of skyosev/fensternorm2,
+commit a3f227e46fa27b264cddafa0da60117a93047b89). It took four rounds of user feedback to reach this depth.
+Use it as the measure of how much a step explains; do not copy its content.
+
+What each part does (the user asked for each of these):
+- Opens with the two questions the concept answers, then a familiar analogy mapped term by term (spreadsheet).
+- Defines `ctx` (the rule context) before the first code that uses it.
+- "Three ways to name a field": a table of the usual alternatives, one row per consequence.
+- A closed details.alt "The three ways in code": a sketch per alternative, marked "sketch · not in the code",
+  real tsc errors, a real run that shows the failure (the live object), and the usual fix for the
+  alternative leading back to this design ("that name is a handle").
+- "Decision 2": three concrete cases with real engine output, each followed by what stored values would do.
+- An open details.inside with the real, trimmed source and links to exact lines at the pinned commit.
+- A "Keep this" rule.
+It uses the CSS classes of ../assets/template.html.
+-->
+<!-- ───────────────────────── STEP 1 ───────────────────────── -->
+<section class="panel" role="tabpanel" id="step-1" aria-labelledby="t1">
+  <p class="kicker">Step 1 of 9</p>
+  <h2>Handles and picks: two decisions that come before all code</h2>
+  <ul class="new"><li>New</li><li><code>Field</code></li><li><code>numberField</code></li><li><code>Intents</code></li></ul>
+  <p>The tutorial uses a small product: a <b>panel</b> with a length in mm. The panel gets more fields in later steps: an extension that makes it longer, and a net length that the engine computes.</p>
+  <p>Before you write a rule or a component, two questions need an answer, because every part of the configurator touches a field:</p>
+  <ol class="plain">
+    <li><b>How does code refer to a field?</b> The input box, the rules, the drawing, the price and the saved file all mention <i>the length</i>.</li>
+    <li><b>What does the configurator store?</b> The form shows many values. Some came from the user. The engine computed the others.</li>
+  </ol>
+  <p>A spreadsheet is a good model. You type into some cells. The other cells hold formulas. A formula refers to a cell by its address, for example <code>B2</code>. When you save the file, you save what you typed, and the formulas compute the rest each time you open it. A <b>handle</b> is the address. A <b>pick</b> is what you typed.</p>
+
+  <h3>Decision 1: a field is a handle</h3>
+  <p>A handle is a small constant object: an id and a kind. You make it once and import it everywhere.</p>
+  <div class="code"><div class="cap"><b>panel.ts</b><span>your product code</span></div><pre><code>import { choiceField, numberField } from '@fenstra/configurator';
+
+export const panel = {
+    length: numberField('panel.length'),  <span class="c">// the id is spelled here, and only here</span>
+    extra: choiceField('panel.extra')     <span class="c">// an extension that makes the panel longer; step 5 gives it options</span>
+};</code></pre></div>
+  <div class="out"><div class="cap">Output <span>· what the handles are at run time</span></div><div class="tw"><table><tbody>
+    <tr><td><code>panel.length</code></td><td><code>{ id: 'panel.length', kind: 'number' }</code></td></tr>
+    <tr><td><code>panel.extra</code></td><td><code>{ id: 'panel.extra', kind: 'choice' }</code></td></tr>
+  </tbody></table></div></div>
+  <p>Code reads a field in two places. A component reads a field to show it. A <b>rule</b> reads other fields to compute a value. A rule is a function that the engine calls, for example "the net length is the length minus 10&nbsp;mm". The engine gives each rule one argument, the <b>context</b>, by convention named <code>ctx</code>. The context has two members:</p>
+  <div class="code"><div class="cap"><b>packages/configurator/src/engine/fields.ts</b><a href="https://github.com/skyosev/fensternorm2/blob/a3f227e46fa27b264cddafa0da60117a93047b89/packages/configurator/src/engine/fields.ts#L56-L59" target="_blank" rel="noopener">lines 56–59 ↗</a></div><pre><code>export interface Context&lt;C&gt; {
+    readonly catalog: C;                       <span class="c">// the product data, for example the allowed lengths; C is its type</span>
+    get&lt;T extends Json&gt;(field: Field&lt;T&gt;): T;   <span class="c">// the current value of another field</span>
+}
+
+<span class="c">// a rule: the engine calls it with ctx</span>
+const net = (ctx) =&gt; ctx.get(panel.length) - 10;</code></pre></div>
+  <p>So <code>ctx.get</code> needs a way to name a field. Step 2 shows where a rule goes and when the engine calls it.</p>
+  <p>A handle holds no value and no rule. Why so little? Compare it with the two other usual ways to name a field:</p>
+  <div class="out"><div class="cap">Three ways to name a field</div><div class="tw"><table>
+    <thead><tr><th></th><th>A string<br><code>'panel.length'</code></th><th>A live field object<br>holds value + rule</th><th>A handle<br><code>{ id, kind }</code></th></tr></thead>
+    <tbody>
+      <tr><td>You type <code>lenght</code></td><td><span class="err">compiles</span>; fails at run time, or reads nothing</td><td><span class="ok">compile error</span></td><td><span class="ok">compile error</span></td></tr>
+      <tr><td>Type of the value</td><td>any JSON; you need a cast</td><td><code>number</code></td><td><code>number</code></td></tr>
+      <tr><td>An input box imports</td><td>nothing; it repeats the string</td><td>the rule and the catalog with it</td><td>the id and the kind only</td></tr>
+      <tr><td>Two configurations at the same time</td><td>yes</td><td><span class="err">no</span>: the object holds one value</td><td>yes</td></tr>
+    </tbody>
+  </table></div></div>
+  <p>The last row matters more than it looks. The browser holds one configuration. The server checks many saved configurations with the same product code (step 8). A handle holds no state, so one module of handles serves all of them.</p>
+  <details class="alt"><summary>The three ways in code</summary><div class="body">
+    <p>A and B are sketches. They are not in the configurator. The compiler errors come from <code>tsc --strict</code>. The output of B comes from a real run of the sketch.</p>
+
+    <h4>A. A string</h4>
+    <p>A string API has to return any JSON, because it cannot know which field you mean.</p>
+    <div class="code"><div class="cap"><b>sketch · not in the code</b><span><code>StringContext.get(id: string): Json</code></span></div><pre><code><span class="c">// the rule for the net length</span>
+const net = (ctx) =&gt; ctx.get('panel.length') - 10;
+<span class="c">// error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.</span>
+
+<span class="c">// so each reader adds a cast, and the compiler does not check the cast</span>
+const length = ctx.get('panel.length') as number;  <span class="c">// ok</span>
+const extra  = ctx.get('panel.extra') as number;   <span class="c">// compiles, but the value is an option id such as 'b-50'</span>
+const typo   = ctx.get('panel.lenght') as number;  <span class="c">// compiles, but no such field exists</span>
+
+<span class="c">// an input box repeats the same string</span>
+useField('panel.lenght');                          <span class="c">// a React hook (step 4); compiles, fails only when the page runs</span></code></pre></div>
+    <p>Each string is a copy. When you rename a field, you must find every copy with a text search.</p>
+
+    <h4>B. A live field object</h4>
+    <p>This is how many form libraries work. Each field is an object that holds its value and its own rule.</p>
+    <div class="code"><div class="cap"><b>sketch · not in the code</b><span>panel.ts</span></div><pre><code>import catalog from './catalog.json';
+
+class LiveNumberField {
+    value: number;
+    constructor(readonly id: string, readonly limits: { min: number; max: number; default: number }) {
+        this.value = limits.default;
+    }
+    set(value: number): void { this.value = value; }
+    get error(): string | undefined {
+        return this.value &gt; this.limits.max ? 'OUT_OF_RANGE' : undefined;
+    }
+}
+
+export const panel = { length: new LiveNumberField('panel.length', catalog.length) };</code></pre></div>
+    <div class="code"><div class="cap"><b>sketch · not in the code</b><span>LengthInput.tsx</span></div><pre><code>import { panel } from './panel.ts';  <span class="c">// brings the class, the rule and catalog.json into the input box</span>
+
+const length: number = panel.length.value;  <span class="c">// typed: good</span>
+panel.length.set(180);</code></pre></div>
+    <p>The problem: the module holds one object, so it holds one value. The server checks saved files. Two checks run at the same time:</p>
+    <div class="code"><div class="cap"><b>sketch · not in the code</b><span>server</span></div><pre><code>async function check(saved: Record&lt;string, number&gt;): Promise&lt;string&gt; {
+    panel.length.set(saved['panel.length']);
+    await loadPrices();                   <span class="c">// the other check runs here and calls set</span>
+    return panel.length.error ?? 'ok';
+}
+
+await Promise.all([check({ 'panel.length': 180 }), check({ 'panel.length': 250 })]);</code></pre></div>
+    <div class="out"><div class="cap">Output <span>· real run of the sketch</span></div><div class="tw"><table><tbody>
+      <tr><td><code>[ 'OUT_OF_RANGE', 'OUT_OF_RANGE' ]</code></td><td><span class="err">wrong</span>: 180 is valid, but the first check read 250</td></tr>
+    </tbody></table></div></div>
+    <p>To fix this, you make new objects for each configuration, for example <code>createPanel(catalog)</code>. But then the input box cannot import <code>panel</code>. Something must give it the correct object, and it needs a name to ask for it. That name is a handle.</p>
+
+    <h4>C. A handle</h4>
+    <p>This is what the configurator does.</p>
+    <div class="code"><div class="cap"><b>panel.ts</b><span>names only</span></div><pre><code>export const panel = {
+    length: numberField('panel.length'),
+    extra: choiceField('panel.extra')
+};</code></pre></div>
+    <div class="code"><div class="cap"><b>Rules, an input box, the server</b><span>errors from <code>tsc --strict</code></span></div><pre><code><span class="c">// the rule for the net length</span>
+const net = (ctx) =&gt; ctx.get(panel.length) - 10;   <span class="c">// a number, no cast</span>
+ctx.get(panel.extra) - 10
+<span class="c">// error TS2362: The left-hand side of an arithmetic operation must be of type 'any', 'number', 'bigint' or an enum type.</span>
+ctx.get(panel.lenght)
+<span class="c">// error TS2551: Property 'lenght' does not exist on type '{ length: NumberField; extra: ChoiceField&lt;Option&gt;; }'. Did you mean 'length'?</span>
+
+<span class="c">// an input box</span>
+import { panel } from './panel.ts';   <span class="c">// two small objects: no rule, no catalog</span>
+useField(panel.length);               <span class="c">// the store gives the value (step 4)</span>
+
+<span class="c">// the server: each check computes from its own picks; nothing is shared</span>
+resolve(definition, catalog, { 'panel.length': 180 });   <span class="c">// no issue (resolve: step 2)</span>
+resolve(definition, catalog, { 'panel.length': 250 });   <span class="c">// issue OUT_OF_RANGE</span></code></pre></div>
+    <p>The handle keeps what B does well: a typed value and a compile error for a typo. It drops what goes wrong in B: the value and the rule. The rule goes to the product definition (step 2). The value goes to the store (step 3).</p>
+  </div></details>
+  <p>The handle also gives the type. TypeScript knows the result type of <code>ctx.get(handle)</code> from the handle:</p>
+  <div class="code"><div class="cap"><b>What the compiler says</b><span>checked with <code>tsc --strict</code></span></div><pre><code>const length: number = ctx.get(panel.length);   <span class="c">// ok</span>
+const extra: string  = ctx.get(panel.extra);    <span class="c">// ok: a choice holds an option id</span>
+const wrong: string  = ctx.get(panel.length);   <span class="c">// error TS2322: Type 'number' is not assignable to type 'string'.</span></code></pre></div>
+  <p>The <b>kind</b> tells what a field is and what you may do with it:</p>
+  <div class="out"><div class="tw"><table>
+    <thead><tr><th>Kind</th><th>Made by</th><th>Holds</th><th>The user can pick it</th><th>Shown in</th></tr></thead>
+    <tbody>
+      <tr><td><code>'number'</code></td><td><code>numberField(id)</code></td><td>a whole number, for example mm</td><td><span class="ok">yes</span></td><td>step 2</td></tr>
+      <tr><td><code>'choice'</code></td><td><code>choiceField(id)</code></td><td>the id of one option</td><td><span class="ok">yes</span></td><td>step 5</td></tr>
+      <tr><td><code>'derived'</code></td><td><code>derivedField(id)</code></td><td>a value that a rule computes</td><td><span class="err">no</span>: a pick for it throws</td><td>step 5</td></tr>
+    </tbody>
+  </table></div></div>
+  <p>The real window feature has 8 handles in one constant. The two demo forms of step 9 import this constant from the package. They never import a rule.</p>
+  <div class="code"><div class="cap"><b>packages/configurator/src/windows/dimensions.ts</b><a href="https://github.com/skyosev/fensternorm2/blob/a3f227e46fa27b264cddafa0da60117a93047b89/packages/configurator/src/windows/dimensions.ts#L22-L33" target="_blank" rel="noopener">lines 22–33 ↗</a></div><pre><code>export const dimensionFields = {
+    width: numberField('dimensions.width'),
+    height: numberField('dimensions.height'),
+    extension: {
+        top: choiceField&lt;ExtensionOption&gt;('dimensions.extension.top'),
+        bottom: choiceField&lt;ExtensionOption&gt;('dimensions.extension.bottom'),
+        left: choiceField&lt;ExtensionOption&gt;('dimensions.extension.left'),
+        right: choiceField&lt;ExtensionOption&gt;('dimensions.extension.right')
+    },
+    envelopeWidth: derivedField&lt;number&gt;('dimensions.envelopeWidth'),
+    envelopeHeight: derivedField&lt;number&gt;('dimensions.envelopeHeight')
+};</code></pre></div>
+
+  <h3>Decision 2: store the picks, compute the rest</h3>
+  <p>The engine calls a pick an <b>intent</b>: what the user wants. The type <code>Intents</code> is a record from field id to a JSON value. A field that the user did not touch has no entry.</p>
+  <div class="code"><div class="cap"><b>The picks</b><span>type <code>Intents</code></span></div><pre><code>import type { Intents } from '@fenstra/configurator';
+
+const typed: Intents = { 'panel.length': 180 };   <span class="c">// the user typed 180</span>
+const untouched: Intents = {};                    <span class="c">// the user typed nothing</span></code></pre></div>
+  <p>Why not store the values that the form shows? Because a value cannot tell <i>why</i> it is there. Three cases show what the picks keep and the values lose. The tables are real engine output. The <b>catalog</b> is the product data from the server, for example the default length.</p>
+
+  <p><b>Case 1. The default changes.</b> The catalog changes the default length from 150 to 160.</p>
+  <div class="out"><div class="cap">Output <span>· same picks, two catalogs</span></div><div class="tw"><table>
+    <thead><tr><th>Picks</th><th>Default 150</th><th>Default 160</th></tr></thead>
+    <tbody>
+      <tr><td><code>{}</code></td><td>length 150 <span class="c">(default)</span></td><td>length <b>160</b> <span class="c">(default)</span>: follows the catalog</td></tr>
+      <tr><td><code>{ 'panel.length': 180 }</code></td><td>length 180 <span class="c">(user)</span></td><td>length 180 <span class="c">(user)</span>: the user's choice stays</td></tr>
+    </tbody>
+  </table></div></div>
+  <p>If you store values, both rows hold a plain number. You cannot tell which number to update.</p>
+
+  <p><b>Case 2. An option goes away and comes back.</b> The user picks the extension <code>b-50</code>. Then the catalog drops <code>b-50</code> for a time.</p>
+  <div class="out"><div class="cap">Output <span>· picks <code>{ 'panel.length': 180, 'panel.extra': 'b-50' }</code> stay the same</span></div><div class="tw"><table>
+    <thead><tr><th>Catalog</th><th>Value of <code>panel.extra</code></th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>has <code>b-50</code></td><td><code>'b-50'</code></td><td>the user's pick</td></tr>
+      <tr><td>has no <code>b-50</code></td><td><code>'none'</code></td><td>a fallback; the engine reports that <code>b-50</code> is not available</td></tr>
+      <tr><td>has <code>b-50</code> again</td><td><code>'b-50'</code></td><td>the pick was never deleted</td></tr>
+    </tbody>
+  </table></div></div>
+  <p>If you store values, row 2 writes <code>'none'</code> over <code>'b-50'</code>, and the user's choice is lost. Step 6 explains the fallback.</p>
+
+  <p><b>Case 3. Save and check.</b> The saved file holds only the picks, for example <code>{ "panel.length": 180, "panel.extra": "b-50" }</code>. With each price request, the browser also sends the values that it showed (step 7). The server does not trust them. It computes every value again from the picks, with its own catalog, and compares. If a value is different, it rejects the order (step 8). So the picks are the input, and the values are only a record of what the user saw.</p>
+
+  <p>One more rule: in a change, <code>null</code> removes a pick. The field then goes back to its default, as if the user never touched it. Step 3 shows it.</p>
+
+  <details class="inside" open><summary>Inside the engine: a handle carries a type that it does not hold</summary><div class="body">
+    <p>At run time a handle is <code>{ id, kind }</code>. So how does TypeScript know that <code>panel.length</code> holds a number? TypeScript compares object types by their shape. Without help, a <code>Field&lt;number&gt;</code> and a <code>Field&lt;string&gt;</code> have the same shape and are the same type. The engine adds an optional property under a symbol that is only declared. The property has the value type in it. No object ever has this property, but the compiler sees it, and the two types become different.</p>
+    <div class="code"><div class="cap"><b>packages/configurator/src/engine/fields.ts</b><a href="https://github.com/skyosev/fensternorm2/blob/a3f227e46fa27b264cddafa0da60117a93047b89/packages/configurator/src/engine/fields.ts#L1-L50" target="_blank" rel="noopener">lines 1–50, trimmed ↗</a></div><pre><code>export type Json = string | number | boolean | null;
+export type Intents = Readonly&lt;Record&lt;FieldId, Json&gt;&gt;;
+
+declare const fieldTypes: unique symbol; <span class="c">// declared only; no value exists</span>
+
+export interface Field&lt;T extends Json = Json, O extends Option = Option&gt; {
+    readonly id: FieldId;
+    readonly kind: FieldKind;
+    readonly [fieldTypes]?: { readonly value: T; readonly option: O }; <span class="c">// compile time only</span>
+}
+
+export interface NumberField extends Field&lt;number&gt; {
+    readonly kind: 'number';
+}
+
+export function numberField(id: FieldId): NumberField {
+    return { id, kind: 'number' };
+}</code></pre></div>
+    <div class="code"><div class="cap"><b>The effect</b><span>checked with <code>tsc --strict</code></span></div><pre><code>const net = derivedField&lt;number&gt;('panel.net');
+const d: DerivedField&lt;string&gt; = net;
+<span class="c">// error TS2322: Type 'DerivedField&lt;number&gt;' is not assignable to type 'DerivedField&lt;string&gt;'.</span></code></pre></div>
+    <p>A value is only JSON: a string, a number, a boolean or <code>null</code>. No objects and no arrays. So a pick goes into a saved file as it is, and the engine compares two picks with <code>===</code>.</p>
+    <p>The engine checks each pick before it runs a rule. A pick for a derived field, or for an id that the product does not have, throws:</p>
+    <div class="code"><div class="cap"><b>packages/configurator/src/engine/resolve.ts</b><a href="https://github.com/skyosev/fensternorm2/blob/a3f227e46fa27b264cddafa0da60117a93047b89/packages/configurator/src/engine/resolve.ts#L335-L343" target="_blank" rel="noopener">lines 335–343 ↗</a></div><pre><code>export function writableFieldOf&lt;C&gt;(definition: BuiltDefinition&lt;C&gt;, id: FieldId): NumberFieldDef&lt;C&gt; | ChoiceFieldDef&lt;C&gt; {
+    const def = definition.byId.get(id);
+
+    if (def === undefined || def.kind === 'derived') {
+        fail('INTENT_INVALID', `no writable field '${id}'`);
+    }
+
+    return def;
+}</code></pre></div>
+    <div class="out"><div class="cap">Output <span>· real runs</span></div><div class="tw"><table><tbody>
+      <tr><td>pick <code>{ 'panel.net': 1 }</code></td><td><span class="err">throws</span> <code>INTENT_INVALID: no writable field 'panel.net'</code></td></tr>
+      <tr><td>read the field <code>numberField('panel.lenght')</code> from a result</td><td><span class="err">throws</span> <code>FIELD_UNKNOWN: panel.lenght</code></td></tr>
+    </tbody></table></div></div>
+    <p>The second row is the one mistake a handle cannot catch at compile time: a typo in the id string itself. That is why you spell each id once, in the handle, and import the handle everywhere else.</p>
+  </div></details>
+  <div class="rule"><b>Keep this</b><p>Refer to a field only by its handle. Store only the picks. Never store a value that the engine can compute from the picks.</p></div>
+  <p class="src"><span>Source:</span><a href="https://github.com/skyosev/fensternorm2/blob/a3f227e46fa27b264cddafa0da60117a93047b89/packages/configurator/src/engine/fields.ts#L1-L50" target="_blank" rel="noopener">fields.ts:1–50 ↗</a><a href="https://github.com/skyosev/fensternorm2/blob/a3f227e46fa27b264cddafa0da60117a93047b89/packages/configurator/src/windows/dimensions.ts#L22-L33" target="_blank" rel="noopener">dimensions.ts:22–33 ↗</a></p>
+</section>
+

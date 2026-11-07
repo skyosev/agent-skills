@@ -1,0 +1,410 @@
+<!-- pr-tutorial template. Replace every [[FILL: ...]] and delete these guide comments. The Artifact host adds the doctype, html, head and body. -->
+<title>[[FILL: a name, 2 to 4 words]]</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+/* One reading column: the step rail on top, one shared "built so far" map, one panel per step. */
+:root {
+  --bg: #f4f6f7;
+  --surface: #ffffff;
+  --sunk: #e9eef1;
+  --ink: #17212b;
+  --ink-2: #4b5a67;
+  --ink-3: #6f7e8a;
+  --line: #d3dbe1;
+  --accent: #1d6b84;
+  --accent-soft: #dcecf1;
+  --async: #9a5d0c;
+  --async-soft: #f5e9d6;
+  --bad: #a93636;
+  --good: #2f7a4b;
+  --display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --sx-kw: #8a3fa0; --sx-str: #2f7a3b; --sx-num: #a1560b; --sx-type: #1d6b84; --sx-fn: #2b55a8;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1518; --surface: #162026; --sunk: #1c2830; --ink: #e3e9ed; --ink-2: #a2b0bb; --ink-3: #7d8c97;
+    --line: #2c3a44; --accent: #63b5d0; --accent-soft: #19323d; --async: #e2a650; --async-soft: #3a2b16;
+    --bad: #e58585; --good: #74c391; color-scheme: dark;
+  --sx-kw: #d39af0; --sx-str: #8fcf8a; --sx-num: #e8a95b; --sx-type: #63b5d0; --sx-fn: #8fb2f5;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1518; --surface: #162026; --sunk: #1c2830; --ink: #e3e9ed; --ink-2: #a2b0bb; --ink-3: #7d8c97;
+  --line: #2c3a44; --accent: #63b5d0; --accent-soft: #19323d; --async: #e2a650; --async-soft: #3a2b16;
+  --bad: #e58585; --good: #74c391; color-scheme: dark;
+  --sx-kw: #d39af0; --sx-str: #8fcf8a; --sx-num: #e8a95b; --sx-type: #63b5d0; --sx-fn: #8fb2f5;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font: 16px/1.6 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 36px 80px;
+}
+.page { max-width: 860px; margin: 0 auto; display: grid; gap: 28px; }
+.page > * { min-width: 0; }
+header { display: grid; gap: 12px; }
+.kicker { font: 500 12px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 0; }
+h1 { font: 600 clamp(30px, 5vw, 40px)/1.1 var(--display); margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+h2 { font: 600 26px/1.2 var(--display); margin: 0; text-wrap: balance; }
+h3 { font: 600 17px/1.3 var(--display); margin: 6px 0 0; letter-spacing: .01em; }
+p { margin: 0; max-width: 72ch; }
+.lead { font-size: 18px; color: var(--ink-2); max-width: 66ch; }
+.terms { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; font-size: 15px; }
+.terms dt { font-weight: 600; }
+.terms dd { margin: 0; min-width: 0; max-width: 66ch; color: var(--ink-2); }
+@media (max-width: 520px) { .terms { grid-template-columns: 1fr; gap: 2px; } .terms dd { margin-bottom: 8px; } }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font: 0.88em/1.4 var(--mono); background: var(--sunk); padding: 1px 4px; border-radius: 2px; }
+
+/* step rail */
+.rail { overflow-x: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.rail [role="tablist"] { display: flex; min-width: max-content; }
+.rail button {
+  appearance: none; border: 0; border-right: 1px solid var(--line); background: none; color: var(--ink-2);
+  font: 500 13px/1.25 var(--sans); padding: 10px 14px 9px; cursor: pointer; text-align: left;
+  display: grid; gap: 2px; border-bottom: 3px solid transparent;
+}
+.rail button:last-child { border-right: 0; }
+.rail button .n { font: 500 11px/1 var(--mono); color: var(--ink-3); letter-spacing: .05em; }
+.rail button:hover { color: var(--ink); background: var(--sunk); }
+.rail button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); background: var(--accent-soft); }
+.rail button[aria-selected="true"] .n { color: var(--accent); }
+.rail button.seen:not([aria-selected="true"]) .n::after { content: " ✓"; color: var(--good); }
+.rail button:focus-visible { outline-offset: -3px; }
+
+/* built-so-far map */
+.map { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; display: grid; gap: 0; }
+.map .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--sunk); font: 500 12px/1.4 var(--mono); color: var(--ink-3); }
+.map .head b { color: var(--ink); font-weight: 500; }
+.map .key { display: flex; gap: 12px; flex-wrap: wrap; }
+.map .key span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; border: 1.5px solid var(--ink-2); }
+.map .key .k-new::before { background: var(--accent-soft); border-color: var(--accent); }
+.map .key .k-later::before { border-style: dashed; border-color: var(--ink-3); opacity: .6; }
+.map .fig { overflow-x: auto; padding: 12px 14px 14px; }
+.map svg { display: block; width: 100%; min-width: 600px; height: auto; }
+.dg .box { fill: var(--surface); stroke: var(--ink-2); stroke-width: 1.2; transition: opacity .2s; }
+.dg .t { fill: var(--ink); font: 600 13px var(--sans); }
+.dg .s { fill: var(--ink-2); font: 400 11px var(--mono); }
+.dg .l { fill: var(--ink-2); font: 500 11px var(--mono); }
+.dg .row { fill: var(--ink-3); font: 500 10.5px var(--mono); letter-spacing: .08em; }
+.dg .ar { stroke: var(--ink-2); stroke-width: 1.3; fill: none; }
+.dg .ar.async { stroke: var(--async); }
+.dg .hd { fill: var(--ink-2); }
+.dg .hd.async { fill: var(--async); }
+.dg [data-s] { transition: opacity .2s; }
+.dg .later { opacity: .14; }
+.dg .now .box { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.dg .now .ar { stroke: var(--accent); stroke-width: 1.8; }
+.dg .now .ar.async { stroke: var(--async); }
+
+/* step panels */
+.panel { display: grid; gap: 16px; }
+.panel > * { min-width: 0; }
+.panel[hidden] { display: none; }
+.new { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 0; padding: 0; list-style: none; font: 500 12px/1 var(--mono); color: var(--ink-3); }
+.new li code { display: inline-block; background: var(--accent-soft); color: var(--accent); padding: 5px 7px; border-radius: 3px; font-size: 12px; }
+.new li:first-child { text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
+.code { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.code .cap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font: 500 12px/1.4 var(--mono); color: var(--ink-3); padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--sunk); }
+.code .cap b { color: var(--ink); font-weight: 500; overflow-wrap: anywhere; }
+.code .cap a { color: var(--accent); text-decoration: none; white-space: nowrap; }
+.code .cap a:hover { text-decoration: underline; }
+.code .cap .tag { color: var(--async); }
+.code pre { margin: 0; overflow-x: auto; padding: 12px 14px; font: 13px/1.55 var(--mono); tab-size: 4; }
+.code pre code { background: none; padding: 0; font: inherit; }
+.c { color: var(--ink-3); font-style: italic; }
+.code .hljs-keyword, .code .hljs-literal, .code .hljs-variable.language_ { color: var(--sx-kw); }
+.code .hljs-string, .code .hljs-regexp { color: var(--sx-str); }
+.code .hljs-number { color: var(--sx-num); }
+.code .hljs-built_in, .code .hljs-type, .code .hljs-title.class_ { color: var(--sx-type); }
+.code .hljs-title.function_ { color: var(--sx-fn); }
+.code .hljs-comment { color: var(--ink-3); font-style: italic; }
+.hl { background: var(--accent-soft); box-shadow: -14px 0 0 var(--accent-soft), 14px 0 0 var(--accent-soft); }
+.out { border: 1px solid var(--line); border-radius: 4px; background: var(--surface); overflow: hidden; }
+.out .cap { font: 600 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--sunk); }
+.out .cap span { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.tw { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 14px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font: 600 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); }
+td code { white-space: nowrap; }
+th code { text-transform: none; letter-spacing: 0; }
+td pre { margin: 0; font: 12.5px/1.5 var(--mono); white-space: pre; }
+.ok { color: var(--good); font-weight: 600; }
+.err { color: var(--bad); font-weight: 600; }
+.amb { color: var(--async); font-weight: 600; }
+.rule { border-left: 3px solid var(--accent); padding: 4px 0 4px 16px; font-size: 16px; display: grid; gap: 4px; }
+.rule b { font: 600 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--accent); }
+ul.plain, ol.plain { margin: 0; padding-left: 22px; display: grid; gap: 6px; max-width: 72ch; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.cols > * { min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; display: grid; gap: 6px; align-content: start; }
+.card h3 { margin: 0; }
+.card p, .card li { font-size: 15px; }
+.pill { display: inline-block; font: 500 11px/1 var(--mono); padding: 4px 6px; border-radius: 3px; vertical-align: 1px; background: var(--async-soft); color: var(--async); }
+.src { font: 12px/1.5 var(--mono); color: var(--ink-3); display: flex; flex-wrap: wrap; gap: 4px 14px; }
+.src a { text-decoration: none; }
+.src a:hover { text-decoration: underline; }
+.pager { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 4px; }
+.pager button { appearance: none; font: 500 14px/1.2 var(--sans); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 3px; padding: 9px 14px; cursor: pointer; }
+.pager button:hover { border-color: var(--accent); color: var(--accent); }
+.pager button.next { background: var(--accent); color: var(--surface); border-color: var(--accent); margin-left: auto; }
+.pager button.next:hover { color: var(--surface); filter: brightness(1.08); }
+.pager button[hidden] { display: none; }
+details.inside { border: 1px solid var(--line); border-left: 3px solid var(--async); border-radius: 4px; background: var(--async-soft); }
+details.inside > summary { cursor: pointer; padding: 10px 14px; font: 600 14px/1.4 var(--sans); color: var(--ink); list-style-position: inside; }
+details.inside > summary:hover { color: var(--async); }
+details.inside > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+details.inside > .body { display: grid; gap: 12px; padding: 0 14px 14px; }
+details.inside > .body > * { min-width: 0; }
+details.alt { border: 1px solid var(--line); border-left: 3px solid var(--ink-3); border-radius: 4px; background: var(--surface); }
+details.alt > summary { cursor: pointer; padding: 10px 14px; font: 600 14px/1.4 var(--sans); color: var(--ink); list-style-position: inside; }
+details.alt > summary:hover { color: var(--accent); }
+details.alt > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+details.alt > .body { display: grid; gap: 12px; padding: 0 14px 14px; }
+details.alt > .body > * { min-width: 0; }
+h4 { font: 600 15px/1.3 var(--display); margin: 8px 0 0; }
+footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 6px; }
+@media (max-width: 520px) {
+  body { padding-block: 24px 56px; font-size: 15px; }
+  .lead { font-size: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .dg [data-s], .dg .box { transition: none; } }
+</style>
+
+<div class="page">
+
+<header>
+  <p class="kicker">[[FILL: repo]] · [[FILL: package or folder]] · tutorial</p>
+  <h1>[[FILL: the new concept, one step at a time]]</h1>
+  <!-- The lead says what the new thing is and what it does, in words the reader knows from master. No SHA, no unexplained name. -->
+  <p class="lead">[[FILL: what the package or module is, what goes in, what comes out, and what it does not do]]</p>
+  <!-- One dt for each package, folder, branch and commit that the page names. The code version row is the only place that introduces the short SHA. -->
+  <dl class="terms">
+    <dt>[[FILL: the package]]</dt><dd>[[FILL: added in PR #N, on the branch X. It is not on master yet.]]</dd>
+    <dt>[[FILL: a folder the steps name]]</dt><dd>[[FILL: the path, what it holds, what it imports]]</dd>
+    <dt>Code version</dt><dd>Commit <code>[[FILL: short sha]]</code>, the last commit on <code>[[FILL: branch]]</code> when this page was written. Each source link opens that version. Each example output on this page comes from a run against that code.</dd>
+  </dl>
+  <p>[[FILL: how many steps, the example that grows through them, the two parts of each step (usage, then the amber box "Inside the engine"), and what the reader must know already]]</p>
+</header>
+
+<!-- One button per step. aria-controls names the panel id; the first button is selected. -->
+<nav class="rail" aria-label="Steps">
+  <div role="tablist" aria-label="Tutorial steps" id="tabs">
+    <button role="tab" id="t1" aria-controls="step-1" aria-selected="true"><span class="n">STEP 1</span>[[FILL: short title]]</button>
+    <button role="tab" id="t2" aria-controls="step-2" aria-selected="false" tabindex="-1"><span class="n">STEP 2</span>[[FILL: short title]]</button>
+  </div>
+</nav>
+
+<!-- One shared map of the architecture. data-s="N" on a part: the step that introduces it. The script dims later parts and highlights the parts of the current step. Rows are layers; keep 2 to 4 rows. -->
+<figure class="map" style="margin:0" aria-label="What is built so far">
+  <div class="head"><b id="map-title">Built so far: step 1</b><span class="key"><span class="k-new">new in this step</span><span class="k-old">built before</span><span class="k-later">comes later</span></span></div>
+  <div class="fig">
+    <svg class="dg" id="map" viewBox="0 0 760 190" role="img" aria-label="[[FILL: the layers and the parts, in words]]">
+      <defs>
+        <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd" d="M0,0 L10,5 L0,10 z"/></marker>
+        <marker id="ahA" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="hd async" d="M0,0 L10,5 L0,10 z"/></marker>
+      </defs>
+      <text class="row" x="10" y="58">[[FILL: LAYER A]]</text>
+      <text class="row" x="10" y="150">[[FILL: LAYER B]]</text>
+      <g data-s="1"><rect class="box" x="100" y="120" width="200" height="54" rx="3"/><text class="t" x="114" y="142">[[FILL: part]]</text><text class="s" x="114" y="161">[[FILL: its main names]]</text></g>
+      <g data-s="2"><rect class="box" x="330" y="120" width="200" height="54" rx="3"/><text class="t" x="344" y="142">[[FILL: part]]</text><text class="s" x="344" y="161">[[FILL: its main names]]</text></g>
+      <g data-s="2"><line class="ar" x1="330" y1="147" x2="302" y2="147" marker-end="url(#ah)"/></g>
+      <g data-s="2"><rect class="box" x="100" y="28" width="200" height="54" rx="3"/><text class="t" x="114" y="50">[[FILL: part]]</text><text class="s" x="114" y="69">[[FILL: its main names]]</text></g>
+      <!-- An async call: class "ar async" and marker #ahA. -->
+      <g data-s="2"><line class="ar async" x1="200" y1="118" x2="200" y2="84" marker-end="url(#ahA)"/><text class="l" x="208" y="104">[[FILL: call()]]</text></g>
+    </svg>
+  </div>
+</figure>
+
+<!-- ───────────────────────── STEP 1 ─────────────────────────
+     The full step contract. A later step keeps the order and drops the blocks it has no use for. -->
+<section class="panel" role="tabpanel" id="step-1" aria-labelledby="t1">
+  <p class="kicker">Step 1 of 2</p>
+  <h2>[[FILL: concept: the question it answers]]</h2>
+  <!-- Every name this step defines. A later step uses only names from its own list, an earlier list or the terms box. -->
+  <ul class="new"><li>New</li><li><code>[[FILL: Name]]</code></li><li><code>[[FILL: name]]</code></li></ul>
+
+  <!-- 1. The problem: the questions the concept answers, then a familiar analogy. -->
+  <p>[[FILL: the example of this tutorial, in one or two sentences]]</p>
+  <p>[[FILL: why the reader needs an answer before the code]]:</p>
+  <ol class="plain">
+    <li><b>[[FILL: question 1?]]</b> [[FILL: why it matters]]</li>
+    <li><b>[[FILL: question 2?]]</b> [[FILL: why it matters]]</li>
+  </ol>
+  <p>[[FILL: an analogy the reader knows, mapped term by term: "A handle is the cell address. A pick is what you typed."]]</p>
+
+  <!-- 2. Usage: the growing example. The cap names the file; "continues step N" from step 2 on. -->
+  <div class="code"><div class="cap"><b>[[FILL: example.ts]]</b><span>your code</span></div><pre><code>[[FILL: the example; escape &lt; &gt; &amp;]]
+const x = make('id');  <span class="c">// a comment span: the highlighter leaves it as it is</span>
+<span class="hl">const y = next(x);</span>      <span class="c">// a marked line: new in this step</span></code></pre></div>
+  <!-- Output: pasted from a real run of the example against the pinned commit. -->
+  <div class="out"><div class="cap">Output <span>· [[FILL: what the run prints]]</span></div><div class="tw"><table><tbody>
+    <tr><td><code>[[FILL: input]]</code></td><td><code>[[FILL: real output]]</code></td></tr>
+  </tbody></table></div></div>
+
+  <!-- 3. The design choice: the usual alternatives in a table. Columns = the alternatives, rows = consequences. Use .ok / .err / .amb. -->
+  <p>[[FILL: the choice, and why it looks odd at first]]. Compare it with the usual ways:</p>
+  <div class="out"><div class="cap">[[FILL: N ways to do X]]</div><div class="tw"><table>
+    <thead><tr><th></th><th>[[FILL: alternative A]]</th><th>[[FILL: alternative B]]</th><th>[[FILL: this design]]</th></tr></thead>
+    <tbody>
+      <tr><td>[[FILL: a consequence]]</td><td><span class="err">[[FILL]]</span></td><td><span class="ok">[[FILL]]</span></td><td><span class="ok">[[FILL]]</span></td></tr>
+    </tbody>
+  </table></div></div>
+  <!-- Closed by default. Code for each alternative, so the reader sees the failure. Sketches are marked; errors are real tsc --strict text; outputs are real runs. -->
+  <details class="alt"><summary>[[FILL: The N ways]] in code</summary><div class="body">
+    <p>A and B are sketches. They are not in the code. The compiler errors come from <code>tsc --strict</code>. The outputs come from real runs of the sketches.</p>
+    <h4>A. [[FILL: alternative A]]</h4>
+    <div class="code"><div class="cap"><b>sketch · not in the code</b><span>[[FILL: file]]</span></div><pre><code>[[FILL: sketch]]
+<span class="c">// error TS2362: [[FILL: the real message]]</span></code></pre></div>
+    <p>[[FILL: what goes wrong, in one sentence]]</p>
+    <h4>B. [[FILL: this design]]</h4>
+    <p>This is what [[FILL: the package]] does.</p>
+    <div class="code"><div class="cap"><b>[[FILL: file]]</b><span>[[FILL]]</span></div><pre><code>[[FILL: the same case, now correct]]</code></pre></div>
+  </div></details>
+
+  <!-- 4. Concrete cases: before/after with real output, one table per case. -->
+  <p><b>Case 1. [[FILL: what changes]].</b> [[FILL: the set-up]]</p>
+  <div class="out"><div class="cap">Output <span>· [[FILL]]</span></div><div class="tw"><table>
+    <thead><tr><th>[[FILL]]</th><th>[[FILL: before]]</th><th>[[FILL: after]]</th></tr></thead>
+    <tbody><tr><td><code>[[FILL]]</code></td><td>[[FILL]]</td><td>[[FILL]]</td></tr></tbody>
+  </table></div></div>
+  <p>[[FILL: what the rejected design would do in this case]]</p>
+
+  <!-- 5. Inside the engine: open. The real source that does this step, trimmed; the link names the full SHA and the exact lines. -->
+  <details class="inside" open><summary>Inside the engine: [[FILL: the mechanism, as a claim]]</summary><div class="body">
+    <p>[[FILL: the question the source answers, then the answer]]</p>
+    <div class="code"><div class="cap"><b>[[FILL: path/in/repo.ts]]</b><a href="https://github.com/[[FILL: owner/repo]]/blob/[[FILL: full 40-char sha]]/[[FILL: path/in/repo.ts]]#L[[FILL: a]]-L[[FILL: b]]" target="_blank" rel="noopener">lines [[FILL: a–b]], trimmed ↗</a></div><pre><code>[[FILL: trimmed real source]]</code></pre></div>
+    <div class="out"><div class="cap">Output <span>· real runs</span></div><div class="tw"><table><tbody>
+      <tr><td>[[FILL: input]]</td><td><span class="err">throws</span> <code>[[FILL: real message]]</code></td></tr>
+    </tbody></table></div></div>
+  </div></details>
+
+  <!-- 6. Keep this: the rule the reader takes away, in one to three sentences. -->
+  <div class="rule"><b>Keep this</b><p>[[FILL: the rule]]</p></div>
+  <p class="src"><span>Source:</span><a href="https://github.com/[[FILL: owner/repo]]/blob/[[FILL: full sha]]/[[FILL: path]]#L[[FILL: a]]-L[[FILL: b]]" target="_blank" rel="noopener">[[FILL: file.ts:a–b]] ↗</a></p>
+</section>
+
+<!-- ───────────────────────── STEP 2 ───────────────────────── -->
+<section class="panel" role="tabpanel" id="step-2" aria-labelledby="t2" hidden>
+  <p class="kicker">Step 2 of 2</p>
+  <h2>[[FILL: concept: the question it answers]]</h2>
+  <ul class="new"><li>New</li><li><code>[[FILL: name]]</code></li></ul>
+  <p>[[FILL: what step 1 left open, and how this step closes it]]</p>
+  <div class="code"><div class="cap"><b>[[FILL: example.ts]]</b><span>continues step 1</span></div><pre><code>[[FILL]]</code></pre></div>
+  <!-- Two short side facts: .cols with one .card each. A planned part that does not exist: <span class="pill">sketch · not built</span>. -->
+  <div class="cols">
+    <div class="card"><h3>[[FILL: fact]]</h3><p>[[FILL]]</p></div>
+    <div class="card"><h3>[[FILL: fact]]</h3><p>[[FILL]]</p></div>
+  </div>
+  <div class="rule"><b>Keep this</b><p>[[FILL: the rule]]</p></div>
+</section>
+
+<div class="pager">
+  <button type="button" id="prev">← Back</button>
+  <button type="button" class="next" id="next">Next →</button>
+</div>
+
+<footer>
+  <p>Code at <code>[[FILL: short sha]]</code> on <code>[[FILL: branch]]</code> ([[FILL: PR #N]]). [[FILL: where the example comes from, for example a test file]]. Each output comes from a run of these examples against the code at that commit.</p>
+</footer>
+
+</div>
+
+<script>
+/* Tabs: click, arrow keys, Home and End; the pager; the #step-N hash; the map state. */
+(() => {
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const panels = tabs.map((t) => document.getElementById(t.getAttribute('aria-controls')));
+  const parts = [...document.querySelectorAll('#map [data-s]')];
+  const prev = document.getElementById('prev');
+  const next = document.getElementById('next');
+  const mapTitle = document.getElementById('map-title');
+  const LAST = tabs.length;
+  let current = 1;
+
+  const title = (n) => tabs[n - 1].lastChild.textContent;
+
+  function show(n, focus) {
+    current = n;
+    for (const [i, t] of tabs.entries()) {
+      const on = i + 1 === n;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+      if (i + 1 < n) { t.classList.add('seen'); }
+      panels[i].hidden = !on;
+    }
+    for (const p of parts) {
+      const s = Number(p.getAttribute('data-s'));
+      p.classList.toggle('later', s > n);
+      p.classList.toggle('now', s === n && n !== LAST);
+    }
+    mapTitle.textContent = n === LAST ? 'Built so far: everything' : 'Built so far: step ' + n;
+    prev.hidden = n === 1;
+    next.hidden = n === LAST;
+    if (n > 1) { prev.textContent = '← Back: ' + title(n - 1); }
+    if (n < LAST) { next.textContent = 'Next: ' + title(n + 1) + ' →'; }
+    tabs[n - 1].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    if (focus) { tabs[n - 1].focus(); }
+    if (location.hash !== '#step-' + n) { history.replaceState(null, '', '#step-' + n); }
+  }
+
+  function fromHash() {
+    const m = /^#step-(\d+)$/.exec(location.hash);
+    const n = m ? Number(m[1]) : 1;
+    return n >= 1 && n <= LAST ? n : 1;
+  }
+
+  for (const [i, t] of tabs.entries()) {
+    t.addEventListener('click', () => show(i + 1, false));
+    t.addEventListener('keydown', (e) => {
+      let n = null;
+      if (e.key === 'ArrowRight') { n = current === LAST ? 1 : current + 1; }
+      if (e.key === 'ArrowLeft') { n = current === 1 ? LAST : current - 1; }
+      if (e.key === 'Home') { n = 1; }
+      if (e.key === 'End') { n = LAST; }
+      if (n !== null) { e.preventDefault(); show(n, true); }
+    });
+  }
+
+  function turn(n) {
+    show(n, false);
+    document.querySelector('.rail').scrollIntoView({ block: 'start' });
+  }
+  prev.addEventListener('click', () => turn(current - 1));
+  next.addEventListener('click', () => turn(current + 1));
+  window.addEventListener('hashchange', () => show(fromHash(), false));
+
+  show(fromHash(), false);
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+/* Colors the code. It paints text nodes only, so the hand-written comment spans (.c) and line marks (.hl) stay.
+   The language is data-lang on the code element, else TypeScript. The colors come from the --sx-* tokens. */
+(() => {
+  if (!window.hljs) { return; }
+  function paint(node, language) {
+    for (const kid of [...node.childNodes]) {
+      if (kid.nodeType === Node.TEXT_NODE && /\S/.test(kid.nodeValue)) {
+        const tpl = document.createElement('template');
+        tpl.innerHTML = window.hljs.highlight(kid.nodeValue, { language, ignoreIllegals: true }).value;
+        node.replaceChild(tpl.content, kid);
+      } else if (kid.nodeType === Node.ELEMENT_NODE && !kid.classList.contains('c')) {
+        paint(kid, language);
+      }
+    }
+  }
+  for (const block of document.querySelectorAll('.code pre code')) {
+    paint(block, block.dataset.lang || 'typescript');
+  }
+})();
+</script>
