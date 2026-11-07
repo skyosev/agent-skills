@@ -284,11 +284,22 @@ Open both images once. Fix a clipped mock or picture, and arrows that cross labe
 
 ## 8. Hand over
 
-- The path of `$D/<repo>-<n>.packed.html` and of the two page screenshots.
+If the checkout holds the spec this PR was built on, copy the packed page into the spec's folder as `pr-<n>.html`. Find the spec by a spec path that the PR body names, or by the ticket key from step 2:
+
+```bash
+KEY=<ticket key>   # for example LAY-965
+find <checkout> \( -name node_modules -o -name .git -o -name vendor \) -prune -o -iname "*$KEY*" -print | grep -iE "$KEY([^0-9]|\$)"
+```
+
+A matched folder is the spec's folder. For a matched file, use the folder that holds it. If two specs match, ask which one. If none matches, the page stays only in `$D`. Do not commit the copy.
+
+Then hand over:
+
+- The path of `$D/<repo>-<n>.packed.html`, of its copy beside the spec, and of the two page screenshots.
 - BASE and HEAD.
 - The files whose code is inside the page: the last lines of the pack output, with each `hunks/<name>.diff` replaced by the path in its `file=`.
 - Which pictures are drawn, and why the screenshot failed.
 - The pack warnings you kept.
 - The facts you corrected, and the facts you could not verify.
 
-Publish the page as an artifact only when the user asks.
+If you have a tool that publishes an HTML page online (an Artifact tool, for example), end the hand-over with an offer to publish the page. The offer names the files from the list above, because their code goes online with the page. On a yes, run the pack command of step 7 again with `--artifact`, and publish `$D/<repo>-<n>.artifact.html`. Keep it private unless the user asks to share it.
