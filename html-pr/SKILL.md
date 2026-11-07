@@ -7,15 +7,14 @@ description: Use when the user types /html-pr, or asks for one HTML page that ex
 
 Explain this PR: $ARGUMENTS (a PR number, a PR URL or a branch; nothing means the current branch).
 
-You write one linear HTML page in html-plan's document mode: `h2` sections, the contents rail, the blocks, the Comment sheet and `pack.mjs`. The skeleton in step 3 is all of the document mode: each `h2` makes a section and an entry in the contents rail, and the runtime adds the rest. You do not use html-plan's claim tree (`doc-plan`). The reader did not write the PR and has not read the ticket. Every fact about this repo on the page comes from two commits, BASE and HEAD.
+You write one linear HTML page. The runtime in this skill's `runtime/` folder draws it: `h2` sections, the contents rail, the blocks and the Comment sheet. `runtime/pack.mjs` checks the page and makes one file of it. The skeleton in step 3 is all the page structure you need: each `h2` makes a section and an entry in the contents rail, and the runtime adds the rest. The reader did not write the PR and has not read the ticket. Every fact about this repo on the page comes from two commits, BASE and HEAD.
+
+`runtime/` is an unchanged copy of the html-plan runtime (anthropics/claude-plugins-community, commit 163301d, Apache-2.0, see `runtime/LICENSE`).
 
 ## Needs
 
-```bash
-HP=$(dirname "$(ls ~/.agents/skills/html-plan/runtime/pack.mjs ~/.claude/skills/html-plan/runtime/pack.mjs 2>/dev/null | head -1)")
-```
+`R=<this skill's directory>/runtime`. Node runs `$R/pack.mjs`.
 
-- If `$HP` is `.`, html-plan is missing. Stop and print `npx skills add anthropics/claude-plugins-community -s html-plan -g`.
 - If `agent-browser` is not on `PATH`, draw every picture (step 3) and skip the page screenshots (step 7). Say so in the hand-over.
 
 Work in one folder: `D=<session scratchpad, else ${TMPDIR:-/tmp}>/html-pr/<repo>-<n>` (for a branch, `<repo>-<branch>`). Run git and `gh` in the checkout of the PR's repo. Read code only through git (`git show $HEAD:<path>`), never from the working tree: it can be at another commit and hold the user's edits.
@@ -63,7 +62,7 @@ git diff $BASE $HEAD
 
 ## 3. Write the page
 
-Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this order. Leave out a section when the diff gives it nothing, as the comments say. For the attributes of `doc-code`, `doc-mock` and `doc-quote`, read `$HP/../references/blocks.md`. The skeleton's `doc-flow` shows all of its syntax that this page needs.
+Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this order. Leave out a section when the diff gives it nothing, as the comments say. For the attributes of each block, read `references/blocks.md` in this skill's directory.
 
 ```html
 <!doctype html>
@@ -96,7 +95,7 @@ Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this o
 
 <h2>Before and after</h2>
 <!-- One case with real values. A UI change (the diff changes what a screen of this repo draws): two doc-shot (or drawn doc-mock), BASE then HEAD.
-     No UI: two .card in .cols, the input and what a caller gets out.
+     No UI: the input, then two .card in .cols with what a caller gets at BASE and at HEAD.
      A pure refactor: only the line "Nothing a caller sees changes." -->
 <p>One drop on a full queue: three spreadsheets, one 30 MB scan and two small PDFs.</p>
 <div class="cols">
@@ -206,18 +205,66 @@ git worktree add --detach $D/wt-head $HEAD   # and $D/wt-base $BASE
 
 ## 6. Prose
 
-Write in STE, as the Words section of html-plan's `SKILL.md` says. Apply the Writing rules and the three passes (facts, clarity, length) of the `pr-description` skill. Check every sentence against the diff.
+Write for a reader who did not write the PR, has not read the ticket, and gives the page a few minutes.
+
+**ASD-STE100 Simplified Technical English (STE)** for all prose: the `.tldr`, step text, decisions, test lines, captions, pins and table cells.
+
+- **Approved words only.** Use a word only if the STE dictionary approves it, and only with its approved meaning and part of speech. If you are not sure about a word, use the most common short word that has the same meaning.
+- **Technical names and technical verbs are permitted.** Names from the code, product names, UI labels and units are technical names. Verbs of the field (*compile*, *deploy*, *merge*, *render*) are technical verbs.
+- **Short sentences.** One topic for each sentence. A description has 25 words at most. A paragraph has 6 sentences at most.
+- **Active voice.** Say who does what: "The worker claims the row." Not "The row is claimed."
+- **Simple tenses.** Use the present, the past and the future. Do not write *has sent* or *is sending*. Do not use an *-ing* word unless it is part of a technical name.
+- **`must` and `can`.** Use *must* for a rule and *can* for what is possible. Do not use *should*, *may* or *might*.
+- **Noun groups of 3 words at most.** "The retry limit of the send worker." Not "the send worker retry limit setting".
+- **Full grammar.** Keep *the*, *a* and *an*. Do not use contractions, idioms, metaphors or jokes.
+
+| Do not write | Write |
+|---|---|
+| utilize, leverage | use |
+| perform, carry out | do |
+| ensure, verify, check (as a verb) | make sure |
+| demonstrate, indicate | show |
+| commence, begin · terminate | start · stop |
+| obtain · provide | get · give |
+| prior to · in order to | before · to |
+| however · additionally | but · also |
+| about 50 | approximately 50 |
+
+These are not STE and stay as they are: quoted words in a `doc-quote`, code, and the text in a screenshot or mock.
+
+**Names**
+
+- Use the names that the code and the UI use, so the reader can search for them. If the repo has a `GLOSSARY.md`, use its terms.
+- Give each concept one name and keep it. "Working hours" and "working time" for one thing make the reader wonder whether they are two things.
+- Do not reuse ticket titles or spec phrases as if the reader knows them. Say what they mean.
+- Prefer plain words to new terms. A term the page uses again goes in the Terms table.
+- Write each abbreviation out, or use its plain name ("DH" → "the hub"). Keep only abbreviations the code or the UI shows.
+
+**Content**
+
+- **The `.tldr`:** the cause in plain words, then what the user saw because of it; then what the system now does, as a rule, so the reader can predict a case the page does not show.
+- **Observable outcomes.** State a problem as what the user sees, where, what they expected, and what they got. Not "An exclusion row reports a period that its own rule does not define." But "The holiday row ends at Sat 10:43, the next SOF event. The holiday ends at Sat 08:00."
+- **No abstract noun without a referent.** For "rule", "period", "behaviour", "logic", "handles", "edge case": say which one and what it does, or cut the sentence.
+- **A change reads as a change, in positive form.** "Laytime now stops at 17:00", not "Laytime no longer fails to stop". "Now" marks what is new.
+- **Lead each section with its answer.**
+- **Cut filler** ("just", "basically", "note that"). Cut a hedge unless it carries real uncertainty; then say what is not verified.
+
+**Three passes, in this order:**
+
+1. **Facts.** Check each sentence against the diff and the code at BASE and HEAD. Note what you corrected and what you could not verify.
+2. **Clarity.** Read the page as the reader. Rewrite each sentence the reader could not picture or act on. A rewrite replaces the sentence; it does not add an explanation beside it. Start with the `.tldr`, then each sentence that paraphrases the ticket, then each sentence with an abstract noun.
+3. **Length.** For each sentence, ask: does a sentence, a picture or a code block above already say it? Would the reader miss it if it went? Cut it unless the answers are no and yes. Cut a case that the `.tldr` rule already predicts.
 
 ## 7. Pack and look
 
 ```bash
-node $HP/pack.mjs $D/<repo>-<n>.html --root <checkout> --root $D
+node $R/pack.mjs $D/<repo>-<n>.html --root <checkout> --root $D
 ```
 
 - Every "filled … from <checkout>@<sha>" line must name BASE or HEAD. A line filled from `hunks/` names no commit; step 5's `git diff` is its source.
 - A line "no git ref … using the plain file" is an error: pack read the working tree. Fix the `ref=`.
 - Fix every error. Never drop a citation to get a clean pack.
-- The prose warning ("words of prose … ≤ ~30 per block") comes on almost every html-pr page, because pack counts the step, decision and test lists as prose. Make the length pass of `pr-description` once, pack again, and keep the warning.
+- The prose warning ("words of prose … ≤ ~30 per block") and the paragraph warning ("paragraph over 40 words") come on almost every html-pr page. Pack counts the step, decision and test lists as prose, and each list item as one paragraph. Make the length pass of step 6 once, pack again, and keep the warnings.
 - Fix each other warning once, or keep it. Name every warning you keep in the hand-over.
 
 Then look at the page:
@@ -242,5 +289,6 @@ Open both images once. Fix a clipped mock or picture, and arrows that cross labe
 - The files whose code is inside the page: the last lines of the pack output, with each `hunks/<name>.diff` replaced by the path in its `file=`.
 - Which pictures are drawn, and why the screenshot failed.
 - The pack warnings you kept.
+- The facts you corrected, and the facts you could not verify.
 
 Publish the page as an artifact only when the user asks.
