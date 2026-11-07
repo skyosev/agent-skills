@@ -81,10 +81,11 @@ whether it applies and why.
   declarations, not by regex: TypeScript and Python infer arguments without writing them, Go writes them rarely at
   call sites.
 - **Closed consumer set** — invariant-hunter's per-symbol rule, reused for every usage-based narrowing (Generics That
-  Never Vary, Over-Powered Type Constructs, Embedding Antipatterns' used-subset argument). An exported symbol whose unit
-  is closed is judged in tree, export alone being no limit; one whose unit is open has instantiations or callers outside
-  the tree that cannot be enumerated, and is **withdrawn**. The question is asked per exported symbol, from the unit
-  that exports it; no repository-wide classification. Closed and open follow boundary-hunter's **Published unit**
+  Never Vary, Over-Powered Type Constructs, Embedding Antipatterns' used-subset argument, Duplicated Type
+  Declarations' delete-and-use of an exported copy). An exported symbol whose unit is closed is judged in tree, export
+  alone being no limit; one whose unit is open has instantiations or callers outside the tree that cannot be
+  enumerated, and is **withdrawn**. The question is asked per exported symbol, from the unit that exports it; no
+  repository-wide classification. Closed and open follow boundary-hunter's **Published unit**
   definition, copied here: **any evidence of documented import use opens the set** (mixed → open → withdrawn).
   **Closed** (judged in tree): Go — a `main` package; an `internal/` path; a package of a module that contains a `main`
   package **and** whose repository documents no import use (no `go get <module path>` line or quoted `"<module path>…"`
@@ -303,7 +304,11 @@ A hand-rolled type equal to a built-in utility. Forms, gates, Action, Severity, 
 
 One finding per site. On one type parameter: Generics That Never Vary first — removing the parameter
 retires every constraint question; otherwise Over-Powered Type Constructs beats Loose Type Parameter Constraints. A
-`Literal` beside an `Enum` is Duplicated Type Declarations, cross-referenced from Enum Construct Mechanics.
+`Literal` beside an `Enum` is Duplicated Type Declarations, cross-referenced from Enum Construct Mechanics. A generic
+declaration copied by hand is Duplicated Type Declarations where its Path deletes that copy, cross-referenced from
+Generics That Never Vary. Generics That Never Vary on the survivor counts the deleted copy's instantiations. On a
+generic alias (`type X[T …] = …`), Generics That Never Vary first; its Action also carries the alias fix: a named
+type, or delete the alias.
 
 ## Test-code scope
 
@@ -457,10 +462,10 @@ withdraws the finding with a `Limitation` line. Findings claim the enumerated se
 
 For each candidate: apply the category's **Not a finding:** line and the reference's per-category not-findings first;
 confirm the category applies in that file's language (the reference's Applicability table); apply the three ownership
-tests — declaration vs value, existence vs construct, cross-layer mirror — the closed-consumer-set check, and
-within-skill precedence; then clear the category's evidence bar from What to Hunt, the consolidation-path requirement
-and equal-precision bar included. Check repository policy: a `Policy:` line withdraws what it names. Run each loaded
-reference's Phase 4 block for its language-specific judgment.
+tests — declaration vs value, existence vs construct, cross-layer mirror — the closed-consumer-set check on the
+narrowings its Terms entry lists, and within-skill precedence; then clear the category's evidence bar from What to
+Hunt, the consolidation-path requirement and equal-precision bar included. Check repository policy: a `Policy:` line
+withdraws what it names. Run each loaded reference's Phase 4 block for its language-specific judgment.
 
 Assign **Severity and Impact** to every finding. Nothing is held back; `Audit completed: N findings` counts every
 reported finding.
