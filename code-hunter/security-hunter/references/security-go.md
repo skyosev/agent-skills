@@ -174,7 +174,8 @@ spans several statements before `next`.
 - For each server `tls.Config` with no `MinVersion` and each `tls10server` source: apply the Effective TLS default
   (Language facts).
 - For each explicit mode: world-writable (`0666`, `0777`, `ModePerm`) → a finding on any file; group- or
-  other-readable (`0644`, `0640`, `0755`) → a finding only when the file holds a secret, key, or token.
+  other-readable (`0644`, `0640`, `0755`) → a finding only when the file holds a secret, key, or token. A
+  world-readable file of personal data is Sensitive Data Exposure (`storage`, routing rule 13).
 - For each `for … { go … }`: is the loop over a client-sized list, or per request? Is there a pool, a semaphore, or
   `errgroup.SetLimit`?
 - For each fail-open chain: does the error branch reach `next` or the handler without writing a denial?

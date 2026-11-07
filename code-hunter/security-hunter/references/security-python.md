@@ -145,7 +145,7 @@ rg -H -n --pcre2 'jwt\.decode\(|verify_signature["\x27]?\s*[:=]\s*False|algorith
 rg -H -n -i --pcre2 'hmac\.(new|compare_digest)\(|x-hub-signature|stripe-signature|webhook' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -i --pcre2 '\.(role|roles|is_admin|is_staff|is_superuser|admin|owner_id|user_id|tenant_id|org_id|permissions|scopes|verified|is_verified)\s*=\s*(request\.|data\[|payload\[|body\[|json_data\[)|request\.(json|data|POST|args)\[["\x27](role|roles|is_admin|is_staff|is_superuser|admin|owner_id|user_id|tenant_id|org_id)["\x27]\]|\(\*\*(request\.(json|data|POST)|data|payload|body)\)' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -U --pcre2 'except\b[^\n]*:\s*\n\s*(pass|return\s+(True|None|user|request\.user))\b' --type py $EXCLUDE -- $PY_FILES
-# Insecure Configuration (perms/tmp): explicit octal modes with group or other read (then: does the file hold a secret?)
+# Insecure Configuration (perms/tmp): explicit octal modes with group or other read (then: does the file hold a secret, or personal data?)
 rg -H -n --pcre2 '\b0o[0-7]?[0-7][4-7][4-7]\b' --type py $EXCLUDE -- $PY_FILES
 # Sensitive Data Exposure: credential words in prints and logs; exception text in responses
 rg -H -n -i --pcre2 '\b(print|log\w*\.(info|debug|warning|warn|error|exception|critical))\([^\n]*\b(password|passwd|pw|token|secret|authorization|cookie|api[_-]?key|ssn|card|request\.(json|form|data|headers|body))\b' --type py $EXCLUDE -- $PY_FILES

@@ -496,7 +496,9 @@ outside the scope is read as context.
 
 ### Within-skill routing
 
-One site, one finding. The rules, in order:
+One site, one finding per unsafe property. One construction with two unsafe properties that two categories name
+gives two findings (`introspection: true` and no depth limit on one `ApolloServer`; a token inside a `git+https`
+dependency URL). Where a rule below picks one category, it decides. The rules, in order:
 
 1. **A credential literal is Hardcoded Secrets wherever it sits** (a settings module, a settings-class default, a
    signature default). The same name read from the environment is not a finding anywhere.
@@ -506,8 +508,9 @@ One site, one finding. The rules, in order:
 3. **Verification decides Auth Gaps vs Weak Cryptography.** A signature not verified → Auth Gaps
    (`unverified-signature`). A verified signature with a weak primitive or an unpinned algorithm list → Weak
    Cryptography.
-4. **Settings vs primitives.** TLS verification and minimum version, cookie flags, CORS, CSRF, debug, file
-   permissions, exposed diagnostics → Insecure Configuration. Hash, RNG, cipher mode, comparison → Weak Cryptography.
+4. **Settings vs primitives decide Insecure Configuration vs Weak Cryptography.** TLS verification and minimum
+   version, cookie flags, CORS, CSRF, debug, file permissions, exposed diagnostics → Insecure Configuration. Hash,
+   RNG, cipher mode, comparison → Weak Cryptography.
 5. **A missing bound is Resource Exhaustion; a permissive value is Insecure Configuration.** No `ReadHeaderTimeout`
    → Resource Exhaustion (`time`). `introspection: true` → Insecure Configuration (`debug`).
 6. **The channel decides Sensitive Data Exposure vs Hardcoded Secrets.** A secret in a log, response, URL, or client
@@ -526,6 +529,16 @@ One site, one finding. The rules, in order:
 12. **Build-file switches.** A switch that turns off TLS for a package fetch → Insecure Configuration (`tls-verify`;
     Effective In is the Dockerfile or CI step). A switch that skips the checksum database → Dependency and
     Supply-Chain Risks (`checksum-bypass`).
+13. **The data, the cookie's role, and the unsafe property decide Insecure Configuration vs Sensitive Data
+    Exposure**, not the line's syntax. The session or CSRF cookie → Insecure Configuration (`cookie`), whatever flag
+    it lacks; another cookie that carries a token or secret without `HttpOnly` (a reset token) → Sensitive Data
+    Exposure (`client-storage`). A world-readable file of personal data → Sensitive Data Exposure (`storage`); every
+    other mode `perms/tmp` names → Insecure Configuration. A framework switch that puts error detail in every
+    response (`DEBUG = True`, `maskedErrors: false`) → Insecure Configuration (`debug`); a handler that writes error
+    detail into its own body → Sensitive Data Exposure (`response`).
+14. **A reflected origin is Insecure Configuration.** An `Access-Control-Allow-Origin` value taken from the
+    request → Insecure Configuration (`cors`), judged by its credentials; never Injection (`header`). A
+    `Location`, `Set-Cookie`, or `Content-Disposition` value from input stays Injection.
 
 ## Applicability
 
@@ -774,8 +787,8 @@ Read `references/report-format.md` for the report template and per-category tabl
   evidence cells, named in `references/report-format.md`, are filled from code read, never inferred.
 - **Comments are claims; the code is evidence.** A justifying comment (`// internal only`, `# nosec: trusted input`)
   is checked against the code — here, the boundary and its auth — never trusted.
-- **One site, one finding.** When two categories describe the same code, the within-skill routing picks one, and the
-  other is cross-referenced.
+- **One site, one finding per unsafe property.** When two categories describe the same property, the within-skill
+  routing picks one, and the other is cross-referenced.
 - **Never install.** Run only tools the project already has; a tool that is configured but absent is `skipped`, never
   fetched.
 - **No network.** The hunter calls no network service, tests no credential, and reads no git history. The only
