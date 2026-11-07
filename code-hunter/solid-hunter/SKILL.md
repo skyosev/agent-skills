@@ -130,6 +130,8 @@ elsewhere, a plugin architecture in another subsystem, or a discriminant sourced
 
 **Evidence bar:** list **every** dispatch site (enumerated project-wide, not from the manifest alone); show the arms
 share **one responsibility** (the registry gate); show the set is **open**. No openness evidence: withdraw.
+A compensating branch on a contract type is Broken Substitution's site (see its Ownership), never a dispatch site
+here: leave it out of the list and judge the bar on the sites that remain.
 
 **Registry gate.** A registry or dispatch table is the remedy only where the scattered arms share one responsibility —
 near-identical bodies answering the same question. Sites that serve different consumers with deliberately different
@@ -463,5 +465,8 @@ Read `references/report-format.md` for the report template and per-category tabl
 - **Evidence required.** Every finding cites `file:line` with the exact code, and the category's evidence cell —
   Actors, Dispatch sites, Violation, Evidence, Form — is filled from code read in Phase 3: never left blank, never
   asserted without a cited member or site.
-- **One site, one finding.** When two categories describe the same code, pick the primary one and cross-reference. The
-  Broken Substitution / Fat Interfaces routing rule is the worked example.
+- **One site, one finding.** A site is one defect, not one line or one unit: two readings that one remedy clears are
+  one finding — pick the primary one and cross-reference. The Broken Substitution / Fat Interfaces routing rule is
+  the worked example. Two defects in one unit are two findings, each Action naming the other: a Responsibility
+  Sprawl row (the unit's actors) and a Concrete Dependency Chains row (a service the unit creates or reads) on the
+  same class both stand.
