@@ -103,7 +103,7 @@ EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glo
 
 # Swallowed Errors: empty catch (with or without a binding); default return; .catch swallow; return in finally; unthrown errors
 rg -H -n --pcre2 'catch\s*(\([^)]*\))?\s*\{\s*\}' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 'catch\s*(\([^)]*\))?\s*\{\s*return(\s+(null|undefined|\[\]|\{\}|false|0|""|'"''"'))?\s*;?\s*\}' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n -U --pcre2 'catch\s*(\([^)]*\))?\s*\{\s*return(\s+(null|undefined|\[\]|\{\}|false|0|""|'"''"'))?\s*;?\s*\}' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '\.catch\(\s*(noop|\(\s*\w*\s*\)\s*=>\s*(\{\s*\}|undefined|null|void 0|\[\]))\s*\)' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n -U --pcre2 'finally\s*\{[^}]*\breturn\b' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n 'allSettled\(' --type ts $EXCLUDE -- $TS_FILES
@@ -117,8 +117,10 @@ rg -H -n '\.then\(' --type ts $EXCLUDE -- $TS_FILES
 # Overbroad Handling: retry wrappers; cancellation
 rg -H -n --pcre2 'retryIf|shouldRetry|p-retry|axios-retry|async-retry|\bretries\s*:' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'AbortError|signal\.aborted|ABORT_ERR' --type ts $EXCLUDE -- $TS_FILES
-# Broken Error Chains: rethrow without cause; non-Error throws; stack dropped at a log call; custom error classes (then read super())
-rg -H -n -U --pcre2 'catch\s*\(\s*(\w+)[^)]*\)\s*\{[^}]*?throw\s+new\s+\w+\((?![^;]*\bcause\b)[^;]*;' --type ts $EXCLUDE -- $TS_FILES
+# Overbroad Handling and Broken Error Chains: a new error thrown in a catch (then read whether it claims one meaning for
+# every failure that reaches the catch, and whether it keeps the cause)
+rg -H -n -U --pcre2 'catch\s*\(\s*(\w+)[^)]*\)\s*\{[^}]*?throw\s+new\s+\w+\([^;]*;' --type ts $EXCLUDE -- $TS_FILES
+# Broken Error Chains: non-Error throws; stack dropped at a log call; custom error classes (then read super())
 rg -H -n --pcre2 'throw\s+["'"'"'`\d]|Promise\.reject\(\s*["'"'"'`\d]' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '(console|log\w*)\.\w+\([^)]*\b(e|err|error|ex)\.message\b' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'class\s+\w+\s+extends\s+\w*Error\b' --type ts $EXCLUDE -- $TS_FILES
@@ -131,7 +133,7 @@ rg -H -n --pcre2 'throw\s+new\s+(HttpException|(BadRequest|Unauthorized|Forbidde
 # Swallowed Errors (logged-only) and Double Handling: a catch that logs first (then read whether it throws,
 # continues, or returns a default); catch that only re-throws
 rg -H -n -U --pcre2 'catch\s*(\([^)]*\))?\s*\{\s*(console|log\w*)\.\w+\(' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 'catch\s*\(\s*(\w+)\s*\)\s*\{\s*throw\s+\1\s*;?\s*\}' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n -U --pcre2 'catch\s*\(\s*(\w+)\s*\)\s*\{\s*throw\s+\1\s*;?\s*\}' --type ts $EXCLUDE -- $TS_FILES
 # Poor Error Context: literal messages (then judge); message events only with a Tracker line (then read Sentry.init)
 rg -H -n --pcre2 'throw\s+new\s+\w*Error\(\s*["'"'"'][^"'"'"'$]*["'"'"']\s*\)' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'Sentry\.captureMessage\(\s*`[^`]*\$\{' --type ts $EXCLUDE -- $TS_FILES
@@ -140,7 +142,7 @@ rg -H -n 'process\.exit\(' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 Blind spots: floating promises in general (`no-floating-promises`); a catch body with nested braces defeats the
-rethrow-without-cause scan (`preserve-caught-error` covers built-in constructors only, unless `errorClassNames` is
+new-error-in-catch scan (`preserve-caught-error` covers built-in constructors only, unless `errorClassNames` is
 set); a route registered through a variable path or a router builder (`route('/x').get(async …)`); `app.use(async …)`
 with no path; a middleware argument with nested calls (`validate(schema(x))`); a project's own `HttpException`
 subclass (reading, from the boundary pass); a `return promise` without `await` inside a `try` (routing rule 8:

@@ -465,15 +465,21 @@ One site, one finding. The rules, in order:
 1. **Expected failure decides Overbroad vs Swallowed.** A handler with an expected failure (Terms) that also
    catches others → Overbroad Handling. A handler with none that drops the failure → Swallowed Errors.
    `except Exception: return None` in `find_by_id` → Overbroad (`None` means not-found). The same line in `sync_all` →
-   Swallowed (`defaulted`).
+   Swallowed (`defaulted`). At a transport boundary, a catch-all that maps every failure to one 4xx
+   (`catch { res.status(400) }`) → Untranslated Boundary Errors (`outward`), whatever its expected failure.
 2. **Log then default is Swallowed.** A handler that logs and returns a default is `logged-only` or `defaulted`, never
    Double Handling. Double Handling needs the failure to propagate after the log.
 3. **External identity outside the adapter is Untranslated.** An external library's failure matched by text or code
    outside its adapter → Untranslated Boundary Errors (`inward`). An internal failure matched by text → Unmatchable
    Failures. A failure that reaches the generic 500: no identity to map → Unmatchable Failures; an identity the
-   boundary does not map → Untranslated Boundary Errors (`outward`).
-4. **A dropped cause wins over missing input.** A wrap that drops the cause and names no input → Broken Error Chains;
-   the Action also adds the input.
+   boundary does not map → Untranslated Boundary Errors (`outward`). A handler outside the adapter that also drops the
+   external failure or maps failures it was not written for → Swallowed Errors or Overbroad Handling (rule 1); its
+   Action also moves the translation into the adapter. Untranslated Boundary Errors (`inward`) takes the handler only
+   when it is otherwise correct.
+4. **A dropped cause or stack wins over Poor Error Context.** A wrap that drops the cause and names no input →
+   Broken Error Chains; the Action also adds the input. A log call that drops the traceback or stack and is a message
+   event with an interpolated message → Broken Error Chains; the Action logs with the stack and fixed text
+   (`logger.exception("job %s failed", job_id)`), which also ends the message event.
 5. **Go goroutines.** `go f()` discarding `f`'s error → Orphaned Async Failures. A goroutine body that drops an error
    it received → Swallowed Errors. A panic in a spawned goroutine → Panic and Exit Misuse.
 6. **Cancellation** (Terms: the current task's own, or the caller's deadline). Caught and not re-raised →
@@ -484,9 +490,17 @@ One site, one finding. The rules, in order:
    does: translation → Untranslated Boundary Errors; added context → Poor Error Context. A catch that logs or
    recovers is a finding only where the escaped rejection causes a defect at the caller, in that defect's category.
    Action: `return await`.
-9. **A log call that drops the traceback or stack** (`logger.error(str(e))`, `logger.error(e.message)`) in a handler
-   that is a Swallowed Errors or Double Handling finding → that category; its Action also logs the error with its
-   stack. Broken Error Chains takes the log call only when the handler is otherwise correct.
+9. **A log call that drops the traceback or stack** (`logger.error(str(e))`, `logger.error(e.message)`), or a
+   message event with an interpolated message (`logger.error(f"job {job_id} failed")`), in a handler that is a
+   Swallowed Errors or Double Handling finding → that category; its Action also logs the error with its stack, which
+   also ends the message event. Broken Error Chains or Poor Error Context takes the log call only when the handler is
+   otherwise correct.
+10. **A `recover()` that carries on.** Its value discarded (`defer func() { recover() }()`) → Swallowed Errors
+    (`overridden`). Its value read, then normal execution continues → Panic and Exit Misuse.
+11. **A catch-all that converts every failure into one narrower failure without its cause**
+    (`catch (e) { throw new NotFoundError(id) }`, `return err(new NotFound())`) → Overbroad Handling; its Action also
+    keeps the cause. Broken Error Chains takes the conversion only when the catch claims no narrower meaning (an
+    adapter catch-all that throws the adapter's own failure).
 
 ## Applicability
 
