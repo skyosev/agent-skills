@@ -474,6 +474,8 @@ Production side: critical behavior that no test drives → Coverage Gaps. Critic
 → at those tests, under their category, when they are in the target scope; otherwise a Coverage Gap at the unit that
 names them. Never both. The same holds for a critical path that no test drives because a double diverges: Test
 Double Misuse at the double when its test is in the target scope, otherwise a Coverage Gap that names the double.
+In diff mode, a branch of critical code whose only check the change removed (a test file, a test, or an assertion) →
+Inert and Weak Tests (Weakened in diff), never a Coverage Gap. The unit's other untested branches keep their gap.
 One exception: in diff mode, a fix that no test pins stays a Coverage Gap at the production change, even when the
 change added a test; that test gets its own row only when it is blind or weak for what it does check.
 

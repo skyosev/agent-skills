@@ -66,8 +66,7 @@ Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never execute
 
 | # | Location | Unit | Untested Behavior | Test Search | Severity | Impact | Action |
 | - | -------- | ---- | ----------------- | ----------- | -------- | ------ | ------ |
-| 1 | auth/policy.go:58 | `Authorize` — authorization decision: a wrong allow lets a viewer issue refunds | deny path when the role lacks `refund:write` | `rg -w Authorize`: policy_test.go:12 (allow path only); route `"/v1/refunds"`: none | High | High | Add `TestAuthorizeDeniesRefundWithoutScope`: role `viewer` → `ErrForbidden` |
-| 2 | billing/refund.py:41 | `compute_refund` — money calculation: a wrong amount is refunded to the customer | partial refund after tax | `rg -w compute_refund`: tests/test_refund.py:9, blind (expected value from `compute_refund` itself) | High | High | Add a case with a hand-worked value: 40.00 net returned + 20% tax → 48.00; suspected: rounds before tax at refund.py:52 |
+| 1 | billing/refund.py:41 | `compute_refund` — money calculation: a wrong amount is refunded to the customer | partial refund after tax | `rg -w compute_refund`: tests/test_refund.py:9, blind (expected value from `compute_refund` itself) | High | High | Add a case with a hand-worked value: 40.00 net returned + 20% tax → 48.00; suspected: rounds before tax at refund.py:52 |
 
 ### Tautological Tests
 
@@ -81,7 +80,7 @@ Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never execute
 | # | Location | Test | Kind | Accepted Defect | Severity | Impact | Action |
 | - | -------- | ---- | ---- | --------------- | -------- | ------ | ------ |
 | 1 | user.test.ts:30 | `user › loads profile` | Never executes | `expect(load()).resolves` without `await` under Jest: the test ends before the assertion runs | Medium | Low | `await expect(load()).resolves.toEqual(profile)` |
-| 2 | auth_test.go (deleted) | `TestRefundRequiresScope` | Weakened in diff | `ErrorIs(err, ErrForbidden)` at merge base auth_test.go:31; the deny path is still at auth/policy.go:58; `rg -w Authorize`: policy_test.go:12, allow path only | High | High | Restore the test, or name the test that replaces it |
+| 2 | auth_test.go (deleted) | `TestRefundRequiresScope` | Weakened in diff | `ErrorIs(err, ErrForbidden)` at merge base auth_test.go:31; the deny path is still at auth/policy.go:58 (authorization decision: a wrong allow lets a viewer issue refunds); `rg -w Authorize`: policy_test.go:12, allow path only; route `"/v1/refunds"`: none | High | High | Restore the test, or name the test that replaces it |
 
 ### Brittle Tests
 
