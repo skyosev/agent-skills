@@ -297,7 +297,11 @@ impact.
    printed path literally from then on. Every call starts at the repository root (`cd "$(git rev-parse
    --show-toplevel)"`), because every list holds root-relative paths. Write `$SCOPE` to `<run>/scope.txt` and, in diff mode, `$MB` to `<run>/mb`.
    A later call restores what it uses (`SCOPE=$(cat <run>/scope.txt)`); an empty restore is a STOP, never an empty
-   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow or chunk.
+   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow or chunk. With
+   nobody to ask, do one of two things and say which in Scope: read alone as far as the budget allows and record what
+   is left as `not read: <n> files — context budget`, or split the reading over sub-agents and record the split as
+   `Read split: <n> agents by <directory|file list> — merged by this session`. A report with neither line claims that
+   one reader read every file.
 
    **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section, with `$BASE` and `$MB` in diff mode.

@@ -61,6 +61,8 @@ category and sites it withdrew.
 - {Transport boundaries: {framework — files; non-request entry points}}
 - {Tracker: {sentry-sdk or @sentry/* version; event_level (Python); attach_stacktrace / attachStacktrace} — message-event check ran}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

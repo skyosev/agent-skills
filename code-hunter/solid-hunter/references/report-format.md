@@ -48,6 +48,8 @@ Phase 3). States what was searched (`implements`, subclassing, consumers read) a
 - Composition roots: {list}
 - {Enumeration: searched `implements` + explicit subclassing + consumers of {interface}; structural implementors outside those consumers, external packages included, not found}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

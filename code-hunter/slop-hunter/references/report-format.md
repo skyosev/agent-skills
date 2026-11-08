@@ -31,6 +31,8 @@ guide. For a formatter finding in diff mode it also carries the touched-line rul
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - Formatter: {per language — ran <tool> / skipped — <reason> / errored — <message>}
 - {baseline uncertain: <concern> — one line per concern, when any}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

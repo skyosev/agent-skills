@@ -87,6 +87,8 @@ sorted order.
 - {Enumeration: read every import of {unit} (named, default, namespace, aliased, wildcard); searched string references in pyproject.toml, settings/*.py; use-as-interface search for {method}; set closed by {how}}
 - {Limitation: {unit} open; README documents `go get` — consumer set not closed}
 - {Policy: "{quoted instruction or rule}" — withdraws {category} at {sites}}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

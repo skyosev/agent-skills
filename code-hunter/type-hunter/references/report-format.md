@@ -62,6 +62,8 @@ other reading in one clause.
 - {Limitation: {symbol} published from {entry point}; consumer set not closed}
 - {Limitation: {symbol} — {what could not be verified}}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

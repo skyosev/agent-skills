@@ -58,6 +58,8 @@ Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never execute
 - {suite-wide retry: {setting} at {file:line}}
 - {focused test under {runner}: {file:line} — runner not covered; no finding}
 - {not assessed: {n} tests, {m} units — context budget}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

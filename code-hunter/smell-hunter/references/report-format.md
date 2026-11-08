@@ -21,6 +21,8 @@ Language-only categories appended by a language reference use the table schemas 
 - References loaded: {go, python, typescript as present}
 - {excluded — no reference for .<ext>: {count} files — only when such files exist, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings{ — empty diff scope / — no eligible source in scope, only when that stop applied}
 
 ## Findings

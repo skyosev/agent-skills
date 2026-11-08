@@ -71,6 +71,8 @@ boundary.
 - Detectors: {per detector — `gitleaks: ran — gitleaks dir . --no-banner --redact …` / `gosec: skipped — not configured` / `ESLint: skipped — no security-relevant rules enabled` / `govulncheck: errored — fetching vuln.go.dev: …`}
 - {Untraced: {N} candidates (budget)}
 - {Policy: "{quoted instruction}" — accepted by policy: {category} rows {#, #} at {boundary}}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

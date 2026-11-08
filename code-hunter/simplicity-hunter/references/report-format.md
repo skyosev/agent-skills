@@ -37,6 +37,8 @@ verified}`.
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
 - {Limitation: … — one line per withdrawal, see Limitation lines}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

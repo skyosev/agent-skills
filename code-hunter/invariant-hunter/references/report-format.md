@@ -37,6 +37,8 @@ Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as
 - Toolchain: {per language — `go vet ./...: ran — go1.26, ./..., default analyzers` / `golangci-lint (forcetypeassert): skipped — not configured` / `tsc --noEmit: ran — 5.9, tsconfig.json; strict on, exactOptionalPropertyTypes off` / `mypy: errored — <message>`}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
 - {Limitation: {type} in open unit {unit} permits omission of {field}; Loose Optionality withdrawn}
+- {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings

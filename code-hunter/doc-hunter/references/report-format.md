@@ -55,6 +55,7 @@ other reading in one clause.
 - {Library units: {unit} library|closed — {evidence}}
 - History: {full / shallow / unavailable}
 - {not read: {n} files — context budget}
+- {Read split: {n} agents by {unit} — merged by this session}
 - Audit completed: {N} findings
 
 ## Findings
