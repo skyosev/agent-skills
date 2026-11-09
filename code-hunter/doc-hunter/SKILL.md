@@ -533,11 +533,12 @@ diff an exception to the empty-scope stops, and holds the Phase 3 diff reading.
    printed path literally from then on. Every call starts at the repository root (`cd "$(git rev-parse
    --show-toplevel)"`), because every list holds root-relative paths. Write `$SCOPE` to `<run>/scope.txt` and, in diff mode, `$MB` to `<run>/mb`.
    A later call restores what it uses (`SCOPE=$(cat <run>/scope.txt)`); an empty restore is a STOP, never an empty
-   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow or chunk. With
-   nobody to ask, do one of two things and say which in Scope: read alone as far as the budget allows and record what
-   is left as `not read: <n> files — context budget`, or split the reading over sub-agents and record the split as
-   `Read split: <n> agents by <directory|file list> — merged by this session`. A report with neither line claims that
-   one reader read every file.
+   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow. Narrowing is
+   the only known recovery: on a 13 600-line Go scope, a whole-codebase run found about half the sites of a run scoped
+   to one directory, and splitting the reading over agents did not recover them. With nobody to ask, do one of two
+   things and say which in Scope: read alone as far as the budget allows and record what is left as `not read: <n>
+   files — context budget`, or split the reading over sub-agents and record the split as `Read split: <n> agents by
+   <directory|file list> — merged by this session`. A report with neither line claims that one reader read every file.
 
    **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
@@ -641,8 +642,8 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 rg --files --type <t> $EXCLUDE -- . | while read -r f; do rg -q -m1 '<marker>' "$f" || echo "$f"; done >> <run>/read.txt
 ```
 
-If the list does not fit the context budget, stop under Phase 1's rule: report the file count and ask to narrow or
-chunk. When the user says to continue, read files with critical code first, then files with a scan or detector hit,
+If the list does not fit the context budget, stop under Phase 1's rule: report the file count and ask to narrow.
+When the user says to continue, read files with critical code first, then files with a scan or detector hit,
 then the rest, and record the files left as `not read: <n> files — context budget` in Scope.
 
 **Reading checklist**, applied to every read file (diff mode: to every hunk and nomination):
