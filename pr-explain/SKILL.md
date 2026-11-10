@@ -1,9 +1,9 @@
 ---
-name: html-pr
-description: Use when the user types /html-pr, or asks for one HTML page that explains a pull request or merge request (what it built, how the parts fit, which decisions it took), so a reader does not have to rebuild it from the diff.
+name: pr-explain
+description: Use when the user types /pr-explain, or asks for one HTML page that explains a pull request or merge request (what it built, how the parts fit, which decisions it took), so a reader does not have to rebuild it from the diff.
 ---
 
-# html-pr
+# pr-explain
 
 Explain this PR: $ARGUMENTS (a PR number, a PR URL or a branch; nothing means the current branch).
 
@@ -17,7 +17,7 @@ You write one linear HTML page. The runtime in this skill's `runtime/` folder dr
 
 - If `agent-browser` is not on `PATH`, draw every picture (step 3) and skip the page screenshots (step 7). Say so in the hand-over.
 
-Work in one folder: `D=<session scratchpad, else ${TMPDIR:-/tmp}>/html-pr/<repo>-<n>` (for a branch, `<repo>-<branch>`). Run git and `gh` in the checkout of the PR's repo. Read code only through git (`git show $HEAD:<path>`), never from the working tree: it can be at another commit and hold the user's edits.
+Work in one folder: `D=<session scratchpad, else ${TMPDIR:-/tmp}>/pr-explain/<repo>-<n>` (for a branch, `<repo>-<branch>`). Run git and `gh` in the checkout of the PR's repo. Read code only through git (`git show $HEAD:<path>`), never from the working tree: it can be at another commit and hold the user's edits.
 
 ## 1. Freeze BASE and HEAD
 
@@ -60,6 +60,14 @@ git diff $BASE $HEAD
 - To find a line number: `git show $HEAD:<path> | grep -n '<symbol>'`. Use `$BASE` for the old code.
 - If the diff changes a contract with another repo (an API, a generated client, a message), read that repo too. Name the integration pattern on the page ("the generated client follows the hub").
 
+**A diff over the context budget.** Before the last command above, run `git diff $BASE $HEAD | wc -c`. If the diff does not fit the context budget with room left to write the page, split the reading over sub-agents. You write the page yourself, so that it keeps one name per concept and one exhibit per concept.
+
+1. Group the files from `--stat` by part of the system: a folder or a stage of the data flow. Give each group to one sub-agent.
+2. Give each sub-agent BASE, HEAD, its files, and the rule to read code only through git. Each one reports every behaviour change with its `file:line` at HEAD and its hunk, every decision with its source, the test cases, and each contract with another group.
+3. Read the lines that each report cites before you put its fact on the page.
+
+If you have no sub-agent tool, read first the files that change behaviour, and stop at the context budget.
+
 ## 3. Write the page
 
 Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this order. Leave out a section when the diff gives it nothing, as the comments say. For the attributes of each block, read `references/blocks.md` in this skill's directory.
@@ -81,6 +89,9 @@ Save it as `$D/<repo>-<n>.html`. Copy this skeleton. Keep the sections in this o
   ul.checks { list-style: none; padding: 0; } ul.checks li { padding-left: 24px; position: relative; margin: 0 0 6px; }
   ul.checks li::before { content: "✓"; position: absolute; left: 2px; color: var(--green); font-weight: 700; }
   button.theme { position: fixed; top: 12px; right: 12px; z-index: 9; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--paper); color: var(--ink-2); font-size: 16px; cursor: pointer; }
+  /* Shiki's github-dark-default palette, on code blocks only, on a light page too */
+  doc-code { --card: #0d1117; --paper: #0d1117; --sunk: #010409; --ink: #e6edf3; --ink-2: #7d8590; --ink-3: #6e7681; --line: #30363d; --line-2: #30363d; --green: #3fb950; --green-soft: #23863626; --red: #ff7b72; --red-soft: #da363326; --amber: #d29922; --amber-soft: #6e76811a; --blue: #58a6ff; --accent: #58a6ff; --accent-soft: #6e768166; color: var(--ink); }
+  doc-code .tk-k { color: #ff7b72; font-weight: 400; } doc-code .tk-s { color: #a5d6ff; } doc-code .tk-n { color: #79c0ff; } doc-code .tk-f { color: #d2a8ff; } doc-code .tk-t { color: #ffa657; } doc-code .tk-c { color: #8b949e; font-style: normal; } doc-code .tk-p { color: #e6edf3; }
 </style>
 <body>
 <button class="theme" type="button" title="Light or dark" onclick="const r=document.documentElement,d=r.dataset.theme||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');r.dataset.theme=d=='dark'?'light':'dark'">◐</button>
@@ -139,7 +150,9 @@ q -> gr : refused
   <li id="step-1">
     <p class="loc"><b>use-document-queue.ts</b> :26–42</p>
     <p><code>addFiles</code> keeps the refusals as entries. Before, it joined them into one string.</p>
-    <doc-code src="hunks/use-document-queue.diff" lines="34-46" diff file="apps/laytime/src/features/claims/creation/use-document-queue.ts"></doc-code>
+    <doc-code src="hunks/use-document-queue.diff" lines="34-46" diff lang="ts" file="apps/laytime/src/features/claims/creation/use-document-queue.ts">
+      <doc-pin line="38">Keeps the reason that the alert groups by.</doc-pin>
+    </doc-code>
   </li>
 </ol>
 
@@ -205,11 +218,12 @@ git worktree add --detach $D/wt-head $HEAD   # and $D/wt-base $BASE
   grep -n '^@@' $D/hunks/<name>.diff   # a hunk runs from its @@ line to the line before the next @@
   ```
 
-  Cite it as `<doc-code src="hunks/<name>.diff" lines="<@@ line>-<last line>" diff file="<path>">`.
+  Cite it as `<doc-code src="hunks/<name>.diff" lines="<@@ line>-<last line>" diff lang="<file extension>" file="<path>">`. Without `lang`, the hunk has no syntax colours.
 - New code: `<doc-code src="<path>" lines="a-b" ref="<HEAD, full SHA>">`.
 - A replaced rule: two `doc-code` blocks, one under the other, `ref=<BASE>` with the caption "Before" and `ref=<HEAD>` with "After".
 - A changed decision path (a new branch, a new outcome, checks in a new order): an annotated flowchart, a `doc-flow` that you draw from the code at HEAD ("A flowchart" in `references/blocks.md`). If the path is in one step, the flowchart is the exhibit of that step in place of the Before and After pair, and the code at HEAD follows it as a `doc-code` with `collapsed`. If the path runs through several steps, the flowchart goes in "How it fits" in place of the parts diagram, and each box links to its step.
 - `ref=` takes only BASE or HEAD, as a full SHA.
+- A `doc-pin` puts a note in a row under one code line. Pin a line when the code does not show the fact: the line that holds the decision of the step, a removed line whose loss changes behaviour (`old="N"`), or a line that puts something at risk (`tone="warn"` or `tone="risk"`). Each pin adds a fact that the step text does not state.
 
 ## 6. Prose
 
@@ -272,13 +286,13 @@ node $R/pack.mjs $D/<repo>-<n>.html --root <checkout> --root $D
 - Every "filled … from <checkout>@<sha>" line must name BASE or HEAD. A line filled from `hunks/` names no commit; step 5's `git diff` is its source.
 - A line "no git ref … using the plain file" is an error: pack read the working tree. Fix the `ref=`.
 - Fix every error. Never drop a citation to get a clean pack.
-- The prose warning ("words of prose … ≤ ~30 per block") and the paragraph warning ("paragraph over 40 words") come on almost every html-pr page. Pack counts the step, decision and test lists as prose, and each list item as one paragraph. Make the length pass of step 6 once, pack again, and keep the warnings.
+- The prose warning ("words of prose … ≤ ~30 per block") and the paragraph warning ("paragraph over 40 words") come on almost every pr-explain page. Pack counts the step, decision and test lists as prose, and each list item as one paragraph. Make the length pass of step 6 once, pack again, and keep the warnings.
 - Fix each other warning once, or keep it. Name every warning you keep in the hand-over.
 
 Then look at the page:
 
 ```bash
-export AGENT_BROWSER_SESSION="$(agent-browser session id --scope worktree --prefix html-pr)"
+export AGENT_BROWSER_SESSION="$(agent-browser session id --scope worktree --prefix pr-explain)"
 agent-browser set viewport 1280 900
 agent-browser open "file://$D/<repo>-<n>.packed.html"
 agent-browser wait --load networkidle
@@ -308,6 +322,7 @@ Then hand over:
 - The files whose code is inside the page: the last lines of the pack output, with each `hunks/<name>.diff` replaced by the path in its `file=`.
 - Which pictures are drawn, and why the screenshot failed.
 - The pack warnings you kept.
+- For a diff over the context budget, one of these lines: `Read split: <n> agents by <unit> — merged by this session` or `not read: <n> files — context budget`.
 - The facts you corrected, and the facts you could not verify.
 
 If you have a tool that publishes an HTML page online (an Artifact tool, for example), end the hand-over with an offer to publish the page. The offer names the files from the list above, because their code goes online with the page. On a yes, run the pack command of step 7 again with `--artifact`, and publish `$D/<repo>-<n>.artifact.html`. Keep it private unless the user asks to share it.

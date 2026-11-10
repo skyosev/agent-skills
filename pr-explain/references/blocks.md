@@ -1,6 +1,6 @@
 # Blocks
 
-Trimmed from html-plan's `references/blocks.md` (anthropics/claude-plugins-community, commit 163301d, Apache-2.0, see `../runtime/LICENSE`). It keeps only the blocks that html-pr uses.
+Trimmed from html-plan's `references/blocks.md` (anthropics/claude-plugins-community, commit 163301d, Apache-2.0, see `../runtime/LICENSE`). It keeps only the blocks that pr-explain uses.
 
 Two kinds of content:
 
@@ -39,11 +39,11 @@ Everything the reader can see is a comment target: code lines, arrows, `data-ref
   <doc-pin line="27" tone="warn" title="Throws on a refused address">The worker must catch this.</doc-pin>
 </doc-code>
 
-<doc-code src="hunks/send.diff" lines="12-30" diff file="server/src/mail/send.ts"></doc-code>
+<doc-code src="hunks/send.diff" lines="12-30" diff lang="ts" file="server/src/mail/send.ts"></doc-code>
 ```
 
 - **Code at a commit:** `src` + `lines="a-b"` (`lines="40"` is one line) + `ref="<sha>"`. Pack reads the file from git under `--root`.
-- **A hunk:** `src` points at a patch file from `git diff`, `lines` is the hunk's range in that file, `diff` marks it as a diff, and `file="path"` names the source file. The `@@ -a,b +c,d @@` header numbers the gutter. One file per block. Never cut lines out of the middle of a hunk.
+- **A hunk:** `src` points at a patch file from `git diff`, `lines` is the hunk's range in that file, `diff` marks it as a diff, `lang` (the file extension) turns on syntax colours, and `file="path"` names the source file. The `@@ -a,b +c,d @@` header numbers the gutter. One file per block. Never cut lines out of the middle of a hunk.
 - `doc-pin line="N"` uses the number shown in the gutter (`old="N"` for a removed line). `tone="info|warn|risk|ok"`. A pin says what the line is, in a clause.
 - 10 to 25 lines. A hunk over 25 lines: cite it whole and add `collapsed`. `hl="4-5,9"` highlights. `wrap` soft-wraps long lines. `caption` adds a line under the header. `collapsed` starts it closed.
 

@@ -1,6 +1,6 @@
 ---
 name: pr-tutorial
-description: Use when the user types /pr-tutorial, or asks for a tutorial, a step-by-step explainer or a walkthrough that teaches the new concept, package or architecture of a PR or branch to a reader who knows only the main branch. Makes one tabbed HTML artifact; each step adds one idea, shows its use, the real trimmed source behind it at a pinned commit, and real run output. For one page that explains what a PR changed and why, use html-pr.
+description: Use when the user types /pr-tutorial, or asks for a tutorial, a step-by-step explainer or a walkthrough that teaches the new concept, package or architecture of a PR or branch to a reader who knows only the main branch. Makes one tabbed HTML artifact; each step adds one idea, shows its use, the real trimmed source behind it at a pinned commit, and real run output. For one page that explains what a PR changed and why, use pr-explain.
 argument-hint: "[PR number | PR URL | branch]"
 ---
 
@@ -10,7 +10,7 @@ Teach the new concept of: $ARGUMENTS (a PR number, a PR URL or a branch; nothing
 
 You write one HTML page that teaches the concept as a tabbed tutorial. Each step adds one idea to the steps before it. The reader knows the code on the main branch. Everything that the branch adds is new to the reader, the internals too.
 
-html-pr explains what a PR changed, on one page. This skill teaches how the new thing works, step by step. If the user wants a review or a change summary, use html-pr.
+pr-explain explains what a PR changed, on one page. This skill teaches how the new thing works, step by step. If the user wants a review or a change summary, use pr-explain.
 
 ## Needs
 
