@@ -126,7 +126,7 @@ code { font: 0.88em/1.4 var(--mono); background: var(--sunk); padding: 1px 4px; 
 .code .hljs-built_in, .code .hljs-type, .code .hljs-title.class_ { color: var(--sx-type); }
 .code .hljs-title.function_ { color: var(--sx-fn); }
 .code .hljs-comment { color: var(--ink-3); font-style: italic; }
-.hl { background: var(--accent-soft); box-shadow: -14px 0 0 var(--accent-soft), 14px 0 0 var(--accent-soft); }
+.hl { display: inline-block; width: calc(100% + 28px); margin: 0 -14px; padding: 0 14px 0 11px; border-left: 3px solid var(--accent); background: var(--accent-soft); }
 .out { border: 1px solid var(--line); border-radius: 4px; background: var(--surface); overflow: hidden; }
 .out .cap { font: 600 11px/1.4 var(--mono); text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); padding: 8px 14px; border-bottom: 1px solid var(--line); background: var(--sunk); }
 .out .cap span { text-transform: none; letter-spacing: 0; font-weight: 400; }
@@ -245,7 +245,7 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line)
   <!-- 2. Usage: the growing example. The cap names the file; "continues step N" from step 2 on. -->
   <div class="code"><div class="cap"><b>[[FILL: example.ts]]</b><span>your code</span></div><pre><code>[[FILL: the example; escape &lt; &gt; &amp;]]
 const x = make('id');  <span class="c">// a comment span: the highlighter leaves it as it is</span>
-<span class="hl">const y = next(x);</span>      <span class="c">// a marked line: new in this step</span></code></pre></div>
+<span class="hl">const y = next(x);      <span class="c">// a marked line: new in this step</span></span></code></pre></div>
   <!-- Output: pasted from a real run of the example against the pinned commit. -->
   <div class="out"><div class="cap">Output <span>· [[FILL: what the run prints]]</span></div><div class="tw"><table><tbody>
     <tr><td><code>[[FILL: input]]</code></td><td><code>[[FILL: real output]]</code></td></tr>
@@ -299,6 +299,7 @@ const x = make('id');  <span class="c">// a comment span: the highlighter leaves
   <h2>[[FILL: concept: the question it answers]]</h2>
   <ul class="new"><li>New</li><li><code>[[FILL: name]]</code></li></ul>
   <p>[[FILL: what step 1 left open, and how this step closes it]]</p>
+  <!-- From step 2 on, the code view (SKILL.md, "The code view") replaces this block. -->
   <div class="code"><div class="cap"><b>[[FILL: example.ts]]</b><span>continues step 1</span></div><pre><code>[[FILL]]</code></pre></div>
   <!-- Two short side facts: .cols with one .card each. A planned part that does not exist: <span class="pill">sketch · not built</span>. -->
   <div class="cols">
