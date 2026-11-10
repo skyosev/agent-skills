@@ -1,6 +1,6 @@
 ---
 name: pr-description
-description: Write or rewrite a pull request description that gives the overview of the PR in as few words as clarity allows. Opens with a TL;DR (Problem — the cause, then what the user sees; Solution; one Before / After Example), keeps only what a reader cannot get from the diff, and reports what it cut. Use whenever you create a PR or MR, when the user asks to write, rewrite, tighten, shorten or clean up a PR description or body, or says a PR description is too long, vague or hard to scan.
+description: Write or rewrite a pull request description that gives the overview of the PR in as few words as clarity allows. Opens with a TL;DR (Problem — the cause, then what the user sees; Solution; one Before / After Example), keeps only what a reader cannot get from the diff, folds reference that only some reviewers need into a <details> block, and reports what it cut. Use whenever you create a PR or MR, when the user asks to write, rewrite, tighten, shorten or clean up a PR description or body, or says a PR description is too long, vague or hard to scan.
 ---
 
 # PR Description
@@ -35,8 +35,17 @@ Keep the repo's title format (look at its recent merged PRs). Do not change the 
 - Before: …
 - After: …
 
-<optional sections, only those with a reader>
+<visible optional sections>
+
+<details>
+<summary><what the block holds, e.g. "Side effects, known gaps, call tree"></summary>
+
+<folded optional sections>
+
+</details>
 ```
+
+The visible part is the overview: a reviewer who never opens the fold must still know the purpose of the PR and everything they must act on before merge. The `<details>` block holds reference that only some reviewers need. Its summary names the content, so a reviewer can decide whether to open it; never use a model or tool name as the summary. Leave a blank line after `</summary>` and before `</details>`, or GitHub and GitLab show the Markdown inside as raw text. With nothing to fold, leave out the block.
 
 ### TL;DR
 
@@ -48,16 +57,20 @@ Problem and Solution alone must tell the reader the purpose of the PR. The Examp
 
 ### Optional sections
 
-Add a section only when you can name the reader who needs it and the TL;DR does not already serve that reader:
+Add a section only when you can name the reader who needs it and the TL;DR does not already serve that reader. Visible:
 
-- **What else changes**: behaviour the reader would not predict from the Solution: a side effect, a second fix, a case where the rule surprises. One bullet each.
 - **What other repos must do**: the change another service, the front end or another team must make, with the file or field. Check each request against that repo first; drop the ones already done.
 - **Risk**: a change that is hard to undo (migration, deleted data, removed API field), or one that reaches further than the diff suggests (other screens, other consumers).
-- **Known gaps**: what the PR knowingly leaves broken, as the outcome a user sees, and the follow-up.
 - **Screenshots** of a visual change, each with a one-line caption that says what to look at.
 - Any section the repo's PR template or AGENTS.md requires.
 
-Leave out what the diff, the commits or CI already show, and what no reader acts on:
+Folded:
+
+- **What else changes**: behaviour the reader would not predict from the Solution: a side effect, a second fix, a case where the rule surprises. One bullet each.
+- **Known gaps**: what the PR knowingly leaves broken, as the outcome a user sees, and the follow-up.
+- Structural views larger than the TL;DR sketch (writing rule 6).
+
+The fold is for reference, not for what you would otherwise cut. Leave out, in both parts, what the diff, the commits or CI already show, and what no reader acts on:
 - file-by-file change lists, test lists, golden-file names, counts of tests that passed;
 - refactors with no visible effect: one line at most ("`X` moved to `Y`; output unchanged");
 - history: what was tried, how the bug was found, earlier review rounds;
@@ -107,7 +120,7 @@ Three passes, in this order:
 
 1. **Facts.** Check each claim against the diff. Note what you corrected and what you could not verify.
 2. **Clarity.** Read the draft as the reader above. List each sentence the reader could not picture or act on, and rewrite it. A rewrite replaces the sentence; it does not add an explanation beside it. If the fix needs a new term, use a plain word instead. Check the TL;DR first, then each sentence that paraphrases a ticket or spec, then each sentence with a word from writing rule 2.
-3. **Length.** For each sentence, ask: does an earlier sentence or term already say or imply it? Can the reader get it faster from the diff? Would the reader miss it if it went? Cut it unless the answers are no, no, yes. Then apply the Solution to each case the description lists: a case it already predicts is a repeat, so cut it unless it is the Example. If the body is still longer than one screen (about 300 words), check that each optional section names its reader. This is a signal to check, not a limit: a PR with two fixes may need more.
+3. **Length.** For each sentence, ask: does an earlier sentence or term already say or imply it? Can the reader get it faster from the diff? Would the reader miss it if it went? Cut it unless the answers are no, no, yes. Then apply the Solution to each case the description lists: a case it already predicts is a repeat, so cut it unless it is the Example. Then check the fold line: move to the visible part each folded fact that a reviewer must act on before merge, and fold each visible section that only some reviewers need. If the visible part is still longer than one screen (about 300 words), check that each visible optional section names its reader. This is a signal to check, not a limit: a PR with two fixes may need more.
 
 A rewrite of a short description that already passes these checks stays about as long as it was. Each sentence you add must fix a wrong or missing fact, not restate one.
 
@@ -120,6 +133,7 @@ Clarity adds words; length cuts them. The balance is right when the TL;DR alone 
    - the clarity list, one line per sentence (**before → after**);
    - for a rewrite, the cut list: each fact from the old description that you dropped, one line each, with the reason (in the diff, repeats X, history, no reader);
    - any fact you corrected or could not verify;
-   - the word count, old → new;
+   - the word count, old → new, for the visible part and the fold;
    - the path to the draft.
-3. When you create the PR, pass the draft as its body (`gh pr create --body-file <draft>`). Update an existing PR (`gh pr edit <n> --body-file <draft>`) only when the user says so.
+3. The visible part is the user's promise to the reviewer that it is worth their time. Show it to the user word for word and ask them to approve or edit it. Apply their edits to the draft.
+4. Only after the user approves, create the PR with the draft as its body (`gh pr create --body-file <draft>`). Update an existing PR (`gh pr edit <n> --body-file <draft>`) only when the user says so.
