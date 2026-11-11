@@ -158,7 +158,7 @@ Comments explaining *what* confusing code does rather than *why* — masking a d
 **Comment ownership rule:**
 
 - Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
-  construct another hunter audits (a discarded error, a type-system bypass) → that hunter.
+  construct another hunter audits (a discarded error, a zero-value contract) → that hunter.
 - Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
 - Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
   go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
@@ -201,12 +201,12 @@ Fields meaningful only in certain states or operations — set for one code path
 **Action:** Extract them into a separate type used only where needed. If the type represents multiple states, use a
 discriminated pattern — one type per state — or a method-local variable instead of a field.
 
-**Ownership:** the discriminant test with invariant-hunter. **No discriminant exists yet** — optional fields
-meaningful in different states, mutually exclusive optionals, "only valid when X" — is here, and the remedy introduces
-the per-state type. **A discriminant exists** and fields leak across variants, a parallel flag duplicates it, or a
-switch lacks an exhaustiveness arm → invariant-hunter's Leaky Discriminated Unions. The transfer is Python and
-TypeScript only: for Go, where that category is n/a, a tagged struct with fields meaningful only in some states stays
-here whether or not a tag exists.
+**Ownership:** the discriminant test with invariant-hunter. **No discriminant exists yet** — optional fields meaningful
+in different states, mutually exclusive optionals, "only valid when X" — is here, and the remedy introduces the
+per-state type. **A discriminant exists** and fields leak across variants, a parallel flag duplicates it, or an
+`isinstance` chain lacks an exhaustiveness arm → invariant-hunter's Leaky Discriminated Unions. The transfer is Python
+and TypeScript only: for Go, where that category is n/a, a tagged struct with fields meaningful only in some states
+stays here whether or not a tag exists.
 
 **Enumerate the producers before recommending a type split.** When every producer of the type already pairs the field
 correctly and only a hand-built value could reach the bad state, the finding is Low and the remedy is the minimal

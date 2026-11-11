@@ -68,8 +68,7 @@ production type.
   functions per case, an interface the cases implement, or a union constraint (`~int | ~string`) when the cases are
   the union's members and the body's operations are permitted on all of them.
 
-**Precedence with invariant-hunter:** `payload.(map[string]any)` on decoded JSON is invariant-hunter's, not a
-constraint question.
+**Not a constraint question:** `payload.(map[string]any)` on decoded JSON is not covered here.
 
 ### Enum Construct Mechanics — Go forms
 

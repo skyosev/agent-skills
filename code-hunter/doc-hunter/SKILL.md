@@ -16,7 +16,7 @@ true.**
 `TODO` / `FIXME` / `XXX` work items, hedging, and task history in comments (→ slop-hunter); "what" comments over
 non-trivial code (Comments as Deodorant), call order of the project's own API (Temporal Coupling), duration integers,
 floating-point money, and raw status strings, also when a comment states the allowed values (Primitive Obsession),
-stuttering names (→ smell-hunter); comments that justify a type-system bypass or a nil or zero-value contract, an
+stuttering names (→ smell-hunter); comments that justify a nil or zero-value contract, an
 invariant that a runtime check already enforces (→ invariant-hunter); comments that justify a discarded error, Go
 reachable panics and discarded errors, `None` / `undefined` returned for an error (→ exception-hunter); empty catches
 and discarded promises are not covered here; code that needs a "what" comment, intentional complexity whose
@@ -86,7 +86,7 @@ Rules of the standard:
 **Comment ownership rule** (shared with slop-hunter and smell-hunter; the first match wins):
 
 - Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
-  construct another hunter audits (a discarded error, a type-system bypass) → that hunter.
+  construct another hunter audits (a discarded error, a zero-value contract) → that hunter.
 - Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
 - Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
   go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
@@ -280,8 +280,8 @@ on OS, browser, runtime, or library version). A platform branch or a delay that 
 
 **Ownership:** an order of the project's own API is smell-hunter's Temporal Coupling. A workaround for the project's
 own design is smell-hunter's Comments as Deodorant. Vague `TODO` / `FIXME` / `XXX` comments that do not call the code
-a hack or a workaround, and name no defect, are slop-hunter's work items. A `# type: ignore` without a reason is
-invariant-hunter's Type-System Bypasses.
+a hack or a workaround, and name no defect, are slop-hunter's work items. A `# type: ignore` without a reason is not
+covered here.
 
 **Evidence bar:** Missing — the cause, or for `defect` the removal condition — and the Why-search result.
 
@@ -403,7 +403,7 @@ A comment, doc, or name claims what a cited line contradicts.
   and its owner reports it:
   - `// IMPORTANT: do not remove` over code that nothing uses → the unused code's owner (simplicity-hunter,
     boundary-hunter).
-  - a type-system bypass or a zero-value contract → invariant-hunter; a discarded error → exception-hunter.
+  - a zero-value contract → invariant-hunter; a discarded error → exception-hunter.
   - an alias's migration comment → type-hunter.
   - intentional complexity → simplicity-hunter.
 - A vague or generic name → boundary-hunter's Generic Boundary Names (packages), or not a finding.

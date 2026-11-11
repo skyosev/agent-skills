@@ -19,7 +19,7 @@ TypeScript; in Go nobody's); package-level responsibility and change analysis �
 change (→ solid-hunter Responsibility Sprawl); type-level wiring, self-instantiation, and module-level singleton reads
 (→ solid-hunter Concrete Dependency Chains); two hand-written declarations of one shape with a consolidation path
 (→ type-hunter Duplicated Type Declarations); a promoted method set from an embed (→ type-hunter Embedding
-Antipatterns); type-system bypasses at a boundary layer (→ invariant-hunter); content validation at a trust boundary
+Antipatterns); type-system bypasses at a boundary layer (no hunter owns them); content validation at a trust boundary
 (→ security-hunter); message chains inside object design (no hunter owns them). Where ownership is *contested*, the
 category's **Ownership:** note in What to Hunt is authoritative.
 
@@ -336,7 +336,7 @@ a test seam or DI boundary while an injector actually uses it) and solid-hunter'
 consumer receives it from outside); it is not a new exemption. What stays simplicity-hunter's Unnecessary
 Abstractions: a wrapper the inward unit constructs itself, with no external type kept out. A hand-written mirror of a
 generated / ORM / SDK type is never duplication for type-hunter. A type-system bypass with a reason in a boundary
-layer is invariant-hunter's, content validation at a trust boundary is security-hunter's, and whether the external
+layer is no hunter's, content validation at a trust boundary is security-hunter's, and whether the external
 *type* crosses inward is here — different questions on adjacent sites.
 
 ### Generic Boundary Names

@@ -202,8 +202,7 @@ branch stays for now, the Action names the guard form.
 **Ownership:** narrowing on a contract type to special-case an implementor is here, **whatever the guard form** — a
 bare `x.(T)` in that role is one Broken Substitution finding, the guard noted in Action, and the only finding at that
 site. Narrowing on a data variant set, guarded or not, and assertions from `any` / open data (JSON, config,
-`interface{}` payloads) are invariant-hunter's: Leaky Discriminated Unions in Python and TypeScript; in Go, Unguarded
-Type Assertions judges only the guard (see `solid-go.md`).
+`interface{}` payloads) are invariant-hunter's in Python and not covered here in Go and TypeScript (see `solid-go.md`).
 
 ### Fat Interfaces (ISP)
 

@@ -358,7 +358,7 @@ with no second implementation, the Action names simplicity-hunter's Unnecessary 
 **Ownership:** whether a production interface that only a double implements should exist is simplicity-hunter's and
 solid-hunter's question; both count the double as a second implementation. A production unit with too many
 dependencies is solid-hunter's; this hunter reports the divergent or unbound double at the test, and the two
-cross-reference by unit name. invariant-hunter routes `as any` on a mock here.
+cross-reference by unit name. invariant-hunter routes a cast on a mock here.
 
 ### Test Setup Duplication
 

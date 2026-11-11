@@ -1,20 +1,19 @@
 # Invariant Hunter — TypeScript reference
 
-Contents: Applicability of universal categories · Generated-code and test-path eligibility · Per-category TypeScript content · Toolchain · Idiom calibration · Phase 2 — invariant scans · Phase 5 — TypeScript-specific evaluation
+Contents: Applicability of universal categories · Generated-code and test-path eligibility · Per-category TypeScript content · Delegated to tools · Idiom calibration · Phase 2 — invariant scans · Phase 5 — TypeScript-specific evaluation
 
 ## Applicability of universal categories
 
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
-| Unguarded Type Assertions | **yes** | `as T`, `x!`, object-literal `as`, `(await res.json()) as T` |
+| Unguarded Type Assertions | **no** | `as T`, `x!`, object-literal `as`, and `JSON` casts are delegated |
 | Loose Optionality | **yes** | `?:` fields and parameters |
 | Defensive Access in Non-Boundary Code | **yes** | `?.` / `??` on always-present values |
-| Leaky Discriminated Unions | **yes** | discriminated unions, `assertNever`, `?: never` |
+| Leaky Discriminated Unions | **yes** | discriminated unions, `?: never`; `switch` exhaustiveness and casts to a variant are delegated |
 | Runtime Checks Promotable to Types | **yes** | type predicates, assertion functions, validated-state brands, `satisfies`, `as const` (adoption only) |
-| Type-System Bypasses | **yes** | `any`, `as any`, `as unknown as T`, `@ts-ignore`, `@ts-expect-error` |
 
 **No language-only categories.** Catch-block handling — empty catches, catch-and-log, `return null` on error,
-`Error.cause` — is exception-hunter's; only a bypass *inside* a catch (`catch (e) { throw e as any }`) stays here.
+`Error.cause` — is exception-hunter's.
 
 ## Generated-code and test-path eligibility
 
@@ -29,27 +28,6 @@ ineligible.
 **Test paths are ineligible** (see Test-code scope in SKILL.md): `*.test.*`, `*.spec.*`, `*.e2e.*`, `__tests__/`.
 
 ## Per-category TypeScript content
-
-### Unguarded Type Assertions — TypeScript markers
-
-- `as T` with no preceding check, or after a check on a different value
-- `x!` on a value that could be non-optional at its source — the finding is the assertion; the loose type it hides is
-  the Loose Optionality candidate. When that Loose Optionality finding exists, the `!` is cited in its Evidence, not
-  reported separately
-- Object-literal `as T` where `satisfies T` validates the shape without widening — Low
-- `(await res.json()) as T`, `JSON.parse(x) as T` with no schema parse — **never acceptable**. Critical when Evidence
-  traces the unchecked shape into a write or an outbound call; High when it reaches only a rendered response
-
-**Schema validation guards by behaviour, not library name** (the three cases in Terms, SKILL.md):
-
-- `UserSchema.parse(x); use(x as User)` with a non-transforming schema → the throw guards the unchanged input; no
-  finding. The same with `z.coerce`, `.default()`, `.transform()`, or `.catch()` in the schema → finding; the property
-  holds for the discarded output only
-- `UserSchema.safeParse(x)` whose result is not inspected, followed by `x as User` → finding; the validation did not
-  guard. io-ts `decode` folded on both sides with the right value flowing on → no finding
-- A hand-written `assertUser(x): asserts x is User` is judged the same way as a library call
-- A manual type beside a schema (`z.infer<typeof Schema>` derivation) is type-hunter's Duplicated Type Declarations,
-  not a finding here
 
 ### Loose Optionality — TypeScript forms
 
@@ -69,11 +47,7 @@ cited as evidence.
 ### Leaky Discriminated Unions — TypeScript forms
 
 - Parallel flag: `kind` alongside `isLeaf: boolean`
-- A `switch` that must produce a value for every variant, with no `default: assertNever(x)`, no typescript-eslint
-  `switch-exhaustiveness-check` configured, and a return type the compiler does not fail on
 - Fields present on every variant, meaningful on some — missing `?: never` on the other variants
-- A cast to a variant (`s as Leaf`) where narrowing on `kind` would do
-- A `switch` that handles `'a'` and falls to a `default` that logs and continues by design → not a finding
 
 ### Runtime Checks Promotable to Types — TypeScript forms
 
@@ -90,35 +64,19 @@ cited as evidence.
   `Readonly<T>` and `as const` are compile-time only and a `Readonly<T>` is assignable to `T`; a runtime mutation guard
   (`Object.freeze` on a config handed to plugins) is never proposed for replacement by them
 
-### Type-System Bypasses — TypeScript forms
+## Delegated to tools
 
-- `any` as parameter, return, generic argument, or variable type where `unknown` plus narrowing would do
-- `as any`, `<any>`, `as unknown as T`
-- `// @ts-ignore`, `// @ts-expect-error` — with no trailing reason, or in domain code with one. `@ts-expect-error`
-  with a reason in a boundary layer, tracked, is not a finding
-- A bypass inside a catch block stays here; the catch block's handling is exception-hunter's
-
-## Toolchain
-
-**Adoption evidence:** a `typecheck` / `type-check` / `tsc` script in `package.json`, a `tsc` step in CI, or
-`typescript` in `node_modules` with a `tsconfig.json`. Monorepos: the nearest `tsconfig.json` to each eligible file
-is the applicable config; record each one read.
-
-**Execution:** read-only, the project's own script where one exists (`npm run typecheck`, `pnpm typecheck`), else
-`npx --no-install tsc --noEmit -p <tsconfig>` when `typescript` is installed locally; `--no-install` makes `npx` fail
-instead of fetching an unrelated `tsc` package. Read strictness flags from the applicable config regardless of whether the tool ran: `strict`, `strictNullChecks`,
-`exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `noImplicitAny`; and from the ESLint config,
-`@typescript-eslint/switch-exhaustiveness-check`.
-
-Tool output is a nomination list: a `TS2532` ("possibly undefined") is a Loose Optionality or Defensive Access
-candidate, not a finding.
+- ESLint with typescript-eslint (type-aware): an assertion that narrows, `as unknown as T`, and a cast from `any`
+  such as `(await res.json()) as T` (`no-unsafe-type-assertion`); `x!` (`no-non-null-assertion`); an object literal
+  cast with `as` (`consistent-type-assertions` with `objectLiteralTypeAssertions: "never"`); a `switch` over a union
+  with a missing case (`switch-exhaustiveness-check`); `any` (`no-explicit-any`); `@ts-ignore`, `@ts-nocheck`, and
+  `@ts-expect-error` with no description (`ban-ts-comment`).
 
 ## Idiom calibration
 
-`?:` on a public library option object that genuinely serves optional and required callers is the language working
-as designed. Narrowing by control flow (`if ('kind' in x)`, `typeof`, discriminant checks) is the idiom, not a
-finding. `unknown` at a boundary with a predicate is the fix, not a bypass. Propose a parse with a schema library
-already in the project; otherwise a type predicate or assertion function.
+`?:` on a public library option object that genuinely serves optional and required callers is the language working as
+designed. Narrowing by control flow (`if ('kind' in x)`, `typeof`, discriminant checks) is the idiom, not a finding.
+Propose a parse with a schema library already in the project; otherwise a type predicate or assertion function.
 
 ## Phase 2 — invariant scans
 
@@ -127,50 +85,23 @@ already in the project; otherwise a type predicate or assertion function.
 ```bash
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
 
-# Unguarded Type Assertions: `as` census. The filter drops import lines and re-export alias forms only
-# (`import * as fs`, `import { a as b }`, `export * as ns`, `export { a as b }`); it must NOT drop every line that
-# begins with `export` — `export const u = JSON.parse(p) as User;` is a candidate. `as const` is scanned separately.
-rg -H -n --pcre2 '\bas\s+(?!const\b)' --type ts $EXCLUDE -- $TS_FILES | rg -v ':\s*import\b|export \* as|export \{[^}]*\bas\b'
-rg -H -n --pcre2 '[\w\]\)]!(?![=.]?=)' --type ts $EXCLUDE -- $TS_FILES                                   # non-null assertions
-rg -H -n --pcre2 '\.json\(\)\)?\s+as\s|\bJSON\.parse\([^)]*\)\s+as\s' --type ts $EXCLUDE -- $TS_FILES    # cast without parse
-
 # Loose Optionality: optional declarations (then read every producer and later write)
 rg -H -n --pcre2 '^\s*(readonly\s+)?\w+\?\s*:|\|\s*undefined\b|Partial<' --type ts $EXCLUDE -- $TS_FILES
 
 # Defensive Access
 rg -H -n '\?\.|\?\?' --type ts $EXCLUDE -- $TS_FILES
 
-# Leaky Discriminated Unions: discriminants, switches, exhaustiveness adoption, never guards
+# Leaky Discriminated Unions: discriminants and never guards (then look for a parallel flag or a leaking field)
 rg -H -n --pcre2 "\b(kind|type|tag|variant)\s*:\s*['\"]\w+['\"]" --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 'switch\s*\(\s*\w+\.(kind|type|tag|variant)\b' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n 'assertNever|\?\s*:\s*never\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n '\?\s*:\s*never\b' --type ts $EXCLUDE -- $TS_FILES
 
 # Runtime Checks Promotable to Types: boolean validators, predicates, assertion functions, satisfies, as const
 rg -H -n --pcre2 'function\s+(is|has|valid|check)\w*\([^)]*\)\s*:\s*boolean' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '\):\s*\w+\s+is\s+\w+|asserts\s+\w+\s+is\s' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n '\bsatisfies\s|\bas\s+const\b|Object\.freeze\(' --type ts $EXCLUDE -- $TS_FILES
-
-# Type-System Bypasses
-rg -H -n --pcre2 ':\s*any\b|<any>|\bas\s+any\b|as\s+unknown\s+as' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n '@ts-ignore|@ts-expect-error' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 ## Phase 5 — TypeScript-specific evaluation
-
-For each `as T`:
-
-- Is there a preceding check on the same value, and does the union or type definition tie it to the claim
-  (`Extract` on a discriminant)? Yes → not a finding.
-- Is a schema involved? Throwing and non-transforming → guards the input. `safeParse` with the failure branch
-  inspected → guards. Coercing, defaulting, transforming → guards the output only. Uninspected `safeParse` → nothing.
-- Object literal → `satisfies`, Low. `as any` / `as unknown as T` → Type-System Bypasses, not here. A cast to a
-  union variant (`s as Leaf`) on a discriminated union → Leaky Discriminated Unions (`cast past discriminant`).
-
-For each `x!`:
-
-- Could the source be non-optional? Then the `!` is the finding and the loose type is the candidate; when the Loose
-  Optionality finding exists, the `!` is cited in its Evidence instead. Is the value
-  genuinely optional here? Then it is a guard replacement and the Action is a real check.
 
 For each `?:` field:
 
@@ -182,15 +113,6 @@ For each `?.` / `??`:
 
 - Is the type already non-optional? → simplicity-hunter's Dead Code Paths. Optional but always present here → Defensive
   Access. Trust boundary → not a finding.
-
-For each `switch` over a discriminant:
-
-- Must it cover every variant? Is `assertNever` present, `switch-exhaustiveness-check` configured, or the return type
-  failing on a missing case? Any → not a finding. `default: throw` → Low, partial.
-
-For each `@ts-ignore` / `@ts-expect-error`:
-
-- Trailing reason? Confirmed by the code? Boundary layer or domain code? Bare, or in domain code → finding.
 
 For each `as const` / `Readonly<T>` proposal:
 

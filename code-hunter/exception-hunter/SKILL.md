@@ -16,8 +16,9 @@ In this skill, an **exception** is any failure a callee reports: a Go `error` va
 thrown value or promise rejection. Go panics are named panics.
 
 **Not covered (owned by other hunters):** nil dereferences (a result used before its error is checked included),
-zero-value traps, context misuse, races, type-system bypasses (one inside a `catch` included), an unnarrowed catch
-binding, exhaustiveness of a data variant set (a `default` arm that does nothing) (→ invariant-hunter); redundant
+zero-value traps, context misuse, races, exhaustiveness of a data variant set (a `default` arm that does nothing)
+(→ invariant-hunter); type-system bypasses (one inside a `catch` included), an unnarrowed catch binding (no hunter
+owns them); redundant
 wrapping words, linter suppressions (→ slop-hunter); duplicated error-handling code, reinvented `errors.Is` /
 `errors.As` walks, hand-rolled `errors.Join`, scattered `.catch()` calls (→ simplicity-hunter; `if err != nil`
 repetition is never complexity); not-implemented panics, throws, and raises in implementors, silent zero returns in

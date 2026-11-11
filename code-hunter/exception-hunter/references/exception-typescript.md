@@ -102,6 +102,6 @@ subclass (reading, from the boundary pass).
 
 ## Phase 4 — TypeScript-specific evaluation
 
-- For each `catch`: is the binding narrowed before use (an unnarrowed `e.message` is invariant-hunter's)?
+- For each `catch`: is the binding narrowed before use (an unnarrowed `e.message` is not covered here)?
 - For each custom error class that drops `options`: does any call site pass `{ cause }`? None → drop.
 - For each transport error: does a non-request entry point reach the unit that throws it?

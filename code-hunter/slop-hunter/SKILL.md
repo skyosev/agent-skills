@@ -20,7 +20,7 @@ names that the code contradicts (→ doc-hunter, Misleading Comments and Names);
 (→ simplicity-hunter, Dead Code Paths); exported dead symbols
 (→ boundary-hunter, Dead Exports); generic package / module names (→ boundary-hunter, Generic Boundary Names);
 stuttering names as package design (→ smell-hunter); type-checker
-suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (→ invariant-hunter); error-chain correctness and
+suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain correctness and
 discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality
 (→ test-hunter).
 Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
@@ -79,7 +79,7 @@ A comment that restates trivial code, a name, or a language construct.
 **Ownership — the comment ownership rule** (also governs Hedging and Narration):
 
 - Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
-  construct another hunter audits (a discarded error, a type-system bypass) → that hunter.
+  construct another hunter audits (a discarded error, a zero-value contract) → that hunter.
 - Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
 - Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
   go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
@@ -150,8 +150,8 @@ Text and declarations that compile or parse but do nothing, and can be judged in
   or a workaround, or that names a dependency defect the code works around, is doc-hunter's (Unexplained Workarounds)
 - Linter suppression with no stated reason: bare `//nolint`, `// #nosec`; `# noqa`, `# nosec`, `# pylint: disable`;
   `// eslint-disable*`, `// biome-ignore` — each without a trailing reason. Type-checker suppressions
-  (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are invariant-hunter's Type-System
-  Bypasses, with or without a reason
+  (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are not covered here, with or
+  without a reason
 - Go only: `_ = x` silencing a non-error binding the author meant to use
 
 **Action:** Delete. For a suppression: delete it, or state the reason.
@@ -163,8 +163,7 @@ a language idiom the reference's Trivially Dead Code section lists as intentiona
 (guards already guaranteed, stale flags, zero-call helpers), unused functions, and unused constants are
 simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported dead symbols are boundary-hunter's
 Dead Exports.
-Type-checker suppressions, reason or not, are invariant-hunter's Type-System Bypasses — "should this bypass exist?"
-subsumes "does it have a reason?"; one line, one hunter. `_ = f()` where `f` returns an `error` is not covered
+Type-checker suppressions, reason or not, are not covered here. `_ = f()` where `f` returns an `error` is not covered
 here. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
 `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped or focused tests (`t.Skip()`, `@pytest.mark.skip`, `it.skip`,
 `.only`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter.

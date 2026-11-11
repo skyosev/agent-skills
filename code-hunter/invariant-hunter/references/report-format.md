@@ -9,10 +9,6 @@ table, or "none found" line; a thin report is a valid result.
 Go-only categories (Nil Pointer Risks, Zero-Value Traps, Context Misuse, Race Conditions) use the table schemas
 supplied in `invariant-go.md`.
 
-**Toolchain lines.** One per tool per language, in the form `<tool>: ran — <command>, <version>, <coverage>,
-<options that change what it sees>` / `skipped — not configured` / `skipped — configured, not installed` /
-`errored — <message>`, followed by the strictness flags read from the applicable config.
-
 **Policy line.** Present only when repository instructions withdrew a pattern; quotes the instruction and names the
 category and sites it withdrew.
 
@@ -34,7 +30,6 @@ Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as
 - References loaded: {go, python, typescript as present}
 - {excluded — no reference for .<ext>: {count} files — when applicable, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
-- Toolchain: {per language — `go vet ./...: ran — go1.26, ./..., default analyzers` / `golangci-lint (forcetypeassert): skipped — not configured` / `tsc --noEmit: ran — 5.9, tsconfig.json; strict on, exactOptionalPropertyTypes off` / `mypy: errored — <message>`}
 - {Policy: "{quoted instruction}" — withdraws {category} at {sites}}
 - {Limitation: {type} in open unit {unit} permits omission of {field}; Loose Optionality withdrawn}
 - {not read: {n} files — context budget}
@@ -47,8 +42,8 @@ Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as
 
 | # | Location | Assertion | Guard | Severity | Impact | Action |
 | - | -------- | --------- | ----- | -------- | ------ | ------ |
-| 1 | api/users.ts:42 | `(await res.json()) as User` | none | High | High | Parse with `UserSchema` |
-| 2 | store/load.go:88 | `v.(*Config)` | none | High | Medium | `c, ok := v.(*Config)` |
+| 1 | api/users.py:42 | `cast(User, payload)` | none | High | High | Parse `payload` with `User.model_validate` |
+| 2 | render/node.go:31 | `switch n := v.(type)` over `Node` (open) with no `default` | none; the zero `Box` is returned | High | Medium | `default: return Box{}, fmt.Errorf("unknown node %T", v)` |
 
 ### Loose Optionality
 
@@ -66,20 +61,13 @@ Promotable to Types) is `low` / `medium` / `high` on a Promote row; on a Keep-as
 
 | # | Location | Union | Discriminant | Defect | Severity | Impact | Action |
 | - | -------- | ----- | ------------ | ------ | -------- | ------ | ------ |
-| 1 | shapes.ts:30 | `Shape` | `kind` | no exhaustiveness arm | Medium | Medium | `default: assertNever(s)` |
+| 1 | shapes.py:30 | `Shape` | `kind` | no exhaustiveness arm | Medium | Medium | `else: assert_never(s)` |
 
 ### Runtime Checks Promotable to Types
 
 | # | Location | Invariant | Current | Proposed | Complexity | Severity | Impact | Action |
 | - | -------- | --------- | ------- | -------- | ---------- | -------- | ------ | ------ |
 | 1 | mail/send.py:21 | address validated | `validate_email()` re-run per call | `Email` produced only by `parse_email()` | low | Medium | Medium | Promote |
-
-### Type-System Bypasses
-
-| # | Location | Pattern | Justification | Severity | Impact | Action |
-| - | -------- | ------- | ------------- | -------- | ------ | ------ |
-| 1 | core/merge.ts:9 | `as any` | none | Medium | Medium | Type the merge result |
-| 2 | io/ffi.py:14 | `# type: ignore` | bare | Low | Low | Add the error code and reason |
 
 ## Recommendations (Priority Order)
 

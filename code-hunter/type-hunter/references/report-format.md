@@ -7,7 +7,7 @@ lines resolved so far and its `Audit completed` line, nothing else. A category w
 table, or "none found" line; a thin report is a valid result.
 
 **No Toolchain lines.** No checker reports these categories; the Scope block carries none, and no type-checker
-configuration is recorded (that is invariant-hunter's toolchain concern).
+configuration is recorded.
 
 **Enumeration line.** Present when any instantiation or duplicate was found by reading rather than by scan. States
 what was searched (explicit type arguments, call sites read, declaration census) and how the set was closed.
@@ -88,7 +88,7 @@ other reading in one clause.
 | # | Location | Symbol | Declared | Body requires | Severity | Impact | Action |
 | - | -------- | ------ | -------- | ------------- | -------- | ------ | ------ |
 | 1 | util/max.go:5 | `Max[T]` | `T any` | `>` — bridged by `any(a).(int)` at util/max.go:6 | Medium | Medium | `T cmp.Ordered` (Go 1.21+ per `go.mod`) replacing both assertions |
-| 2 | util/get.ts:3 | `get<T>` | `T` (none) | index by string key — bridged by `(o as any)[k]` at util/get.ts:4 | Low | Low | `T extends Record<string, unknown>`; the `as any` is cited here, not scored by invariant-hunter |
+| 2 | util/get.ts:3 | `get<T>` | `T` (none) | index by string key — bridged by `(o as any)[k]` at util/get.ts:4 | Low | Low | `T extends Record<string, unknown>`; the `as any` is cited here, not scored separately |
 
 ### Over-Powered Type Constructs
 

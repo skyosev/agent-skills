@@ -15,10 +15,10 @@ constant group with no named type, an exported struct promoting `Lock` and `Unlo
 yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package
 organization (→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports);
 the *crossing* beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror);
-optionality, unguarded narrowing, `any` / `Any` as a *value* type, exhaustiveness, `as const` adoption for a value with
-no parallel declaration (→ invariant-hunter's Runtime Checks Promotable to Types), `satisfies` in place of an `as T`
-(→ invariant-hunter's Unguarded Type Assertions), validation of external input into an enum, never-checked zero
-sentinels (→ invariant-hunter); repeated logic and repeated runtime values, abstractions with one call site, runtime
+optionality, unguarded narrowing, exhaustiveness, `as const` adoption for a value with no parallel declaration
+(→ invariant-hunter's Runtime Checks Promotable to Types), validation of external input into an enum, never-checked
+zero sentinels (→ invariant-hunter); `any` / `Any` as a *value* type, `satisfies` in place of an `as T` (no hunter
+owns them); repeated logic and repeated runtime values, abstractions with one call site, runtime
 control flow, reinvented runtime primitives (→ simplicity-hunter); a struct embedding an interface it implements only
 partly, interface width (→ solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope,
 see Test-code scope); documentation restating types (→ slop-hunter); content validation at trust boundaries
@@ -210,10 +210,9 @@ TypeScript: add `const` to the parameter (TS 5.0+, read from the lockfile).
 
 **Severity:** Low on a generic with a single caller.
 
-**Ownership:** `any` / `Any` as a *constraint* is here; `any` / `Any` as a *value type* is invariant-hunter's
-Type-System Bypasses (Go `any` / `interface{}` as a value type is nobody's). A bypass inside a generic body
-(`(o as any)[k]`, `cast(T, x)`, `any(v).(X)`) that a tightened constraint removes is **one** Loose Type Parameter
-Constraints finding here; invariant-hunter does not score the same cast.
+**Ownership:** `any` / `Any` as a *constraint* is here; `any` / `Any` as a *value type* is no hunter's. A bypass inside
+a generic body (`(o as any)[k]`, `cast(T, x)`, `any(v).(X)`) that a tightened constraint removes is **one** Loose Type
+Parameter Constraints finding here; invariant-hunter does not score the same cast.
 
 ### Over-Powered Type Constructs *(Python, TypeScript)*
 

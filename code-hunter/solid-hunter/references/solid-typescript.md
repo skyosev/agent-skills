@@ -45,8 +45,8 @@ smallest first: a `Record<Kind, X>` lookup when the arms select a value; one sha
 single call; an interface with one implementation per variant, dispatched through a `Record<Kind, Iface>`, only when
 the arms carry behavior.
 
-Exhaustiveness — `default: assertNever(kind)`, typescript-eslint's `switch-exhaustiveness-check` — is
-invariant-hunter's and never decides openness here. Four sites that each end in `assertNever` are still a finding when
+Exhaustiveness — `default: assertNever(kind)`, typescript-eslint's `switch-exhaustiveness-check` — is not
+covered here and never decides openness. Four sites that each end in `assertNever` are still a finding when
 the set is open.
 
 ### Broken Substitution — TypeScript forms

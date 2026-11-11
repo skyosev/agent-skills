@@ -15,14 +15,14 @@ interpreted, stored, or decided on; no credential lives in a committed file; eve
 every route.**
 
 **Not covered (owned by other hunters):** type-system bypasses (`as any`, `as unknown as T`, `@ts-ignore`,
-`strict: false`, Go bare type assertions), the unguarded type claim at a trust boundary, races on goroutine shared
-state, the unchecked conversion of external input to a named constant type (→ invariant-hunter); the wrong status for
-a failure, the handler shape of a fail-open catch, panics on input (→ exception-hunter); linter suppressions
-(`#nosec`, `# nosec`, `eslint-disable security/…`) and narration (→ slop-hunter); Primitive Obsession for identity
-types (→ smell-hunter); concurrency structure more complex than its workload (→ simplicity-hunter); weak patterns
-inside tests, tests that assert insecure behavior (→ test-hunter). Check-then-act races on persistent state (a
-balance read, then a debit) and request-reachable deadlocks are reported by no hunter. Where ownership is
-*contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+`strict: false`) and Go bare type assertions (no hunter owns them); the unguarded type claim at a trust boundary, races
+on goroutine shared state, the unchecked conversion of external input to a named constant type (→ invariant-hunter); the
+wrong status for a failure, the handler shape of a fail-open catch, panics on input (→ exception-hunter); linter
+suppressions (`#nosec`, `# nosec`, `eslint-disable security/…`) and narration (→ slop-hunter); Primitive Obsession for
+identity types (→ smell-hunter); concurrency structure more complex than its workload (→ simplicity-hunter); weak
+patterns inside tests, tests that assert insecure behavior (→ test-hunter). Check-then-act races on persistent state (a
+balance read, then a debit) and request-reachable deadlocks are reported by no hunter. Where ownership is *contested*,
+the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.

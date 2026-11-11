@@ -78,11 +78,10 @@ decides openness here.
 **Implicit satisfaction** is why the contract must be named from the interface's documentation, its consumers, or a
 doc comment on the method — not from the method name. When the interface is undocumented and the branch merely adds an
 extra (`Vacuum` outside `Store`), there is no finding. The bare single-value form there
-(`store.(*memStore)`) is invariant-hunter's Unguarded Type Assertions; the two-value check belongs to neither hunter.
+(`store.(*memStore)`) is not covered here, and neither is the two-value check.
 
-A bare `store.(*memStore)` in a compensating role is **one** finding here, with the guard form noted in Action;
-invariant-hunter does not also score it. `payload.(map[string]any)` on decoded JSON is invariant-hunter's, not a
-contract type at all.
+A bare `store.(*memStore)` in a compensating role is **one** finding here, with the guard form noted in Action.
+`payload.(map[string]any)` on decoded JSON is not a contract type at all, and is not covered here.
 
 ### Fat Interfaces — Go forms
 
