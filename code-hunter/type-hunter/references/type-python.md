@@ -136,6 +136,7 @@ rg -H -n '\.value\s*(==|!=|in\b)' --type py $EXCLUDE -- $PY_FILES
 
 # Alias vs Named Type Mechanics: aliases (then look for two over one primitive, and their mixing sites)
 rg -H -n --pcre2 'TypeAlias\b|^\s*type\s+\w+\s*=' --type py $EXCLUDE -- $PY_FILES
+rg -H -n '^[A-Z]\w*\s*=\s*(str|int|float|bytes|bool|complex|(dict|list|tuple|set|frozenset|Dict|List|Tuple|Set|Callable|Optional|Union|Mapping|Sequence)\[)' --type py $EXCLUDE -- $PY_FILES
 ```
 
 **Version gate:** `rg -n 'requires-python' pyproject.toml`; a gate not met removes the vocabulary — `StrEnum` 3.11+; PEP 695 and the `type` statement 3.12+;

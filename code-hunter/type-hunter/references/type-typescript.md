@@ -165,8 +165,9 @@ rg -H -n --pcre2 'extends\s+[^?]+\?\s' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '\[\s*\w+\s+in\s+keyof\s+\w+\s+as\s' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '^\s*(export\s+)?type\s+\w+\s*(<[^>]*>)?\s*=\s*`' --type ts $EXCLUDE -- $TS_FILES
 
-# Reinvented Utility Types: mapped types over keyof (then compare with the built-in's definition)
+# Reinvented Utility Types: mapped types over keyof, and over a non-keyof key (hand-rolled Record); then compare with the built-in's definition
 rg -H -n --pcre2 '\[\s*\w+\s+in\s+keyof\s+\w+\s*\]' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\[\s*\w+\s+in\s+(?!keyof\b)[^\]]+\]\s*:' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'infer\s+\w+' --type ts $EXCLUDE -- $TS_FILES
 
 # Enum Construct Mechanics: enum declarations, and comparisons to raw literals near them (read the consumers)

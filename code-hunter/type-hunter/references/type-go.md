@@ -76,6 +76,12 @@ constraint question.
 - **`iota` group with no named type.** `const ( Active = iota; Inactive )` yields untyped integer constants accepted
   anywhere an `int` is. The paying consumer is a function or field that accepts the value — `SetStatus(s int)`,
   `Status: 3`. Action: `type Status int`; the first constant takes the type (`Active Status = iota`).
+- **String constant group with no named type.** `const ( Active = "active"; Inactive = "inactive" )` yields untyped
+  string constants accepted anywhere a `string` is — the string twin of the `iota` form above. The paying consumer
+  is a function or field that accepts the value — `SetStatus(s string)`, `Status: "archived"`. Action:
+  `type Status string`; every constant takes the type (`Active Status = "active"`; a string group has no `iota` to
+  carry it). A single constant, or a block of unrelated strings (a URL, a header name, a default), is a constant,
+  not an enumeration — not a finding.
 - **Named constant type with no `String()`, formatted somewhere.** `type Status int` with `iota` and a
   `log.Printf("%v", s)`, `fmt.Sprint(s)`, `%d` in a user-facing message, or JSON encoding of the raw integer. The
   paying consumer is the formatting or serialization site. Action: a `String()` method; `stringer` is vocabulary
@@ -147,6 +153,8 @@ rg -H -n 'any\(\w+\)\.\(' --type go $EXCLUDE -- $GO_FILES
 
 # Enum Construct Mechanics: iota groups (then read the block for a named type, and the formatting sites)
 rg -H -n 'iota' --type go $EXCLUDE -- $GO_FILES
+# Enum Construct Mechanics: untyped string constant groups (then read the block for a named type, and the accepting consumers)
+rg -H -n '^\s+[A-Z]\w*\s*=\s*"[^"]*"\s*(//.*)?$' --type go $EXCLUDE -- $GO_FILES
 
 # Alias vs Named Type Mechanics: aliases only (no named-composite scan)
 rg -H -n 'type\s+\w+\s*=' --type go $EXCLUDE -- $GO_FILES
