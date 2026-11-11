@@ -1,20 +1,20 @@
 # Security Hunter — Python reference
 
-Contents: Applicability · Generated-code and test-path eligibility · Language facts and version gates · Not a finding on these grounds alone — Python · Boundary inventory · Detectors · Phase 3 — security scans · Phase 5 — Python-specific evaluation
+Contents: Applicability · Generated-code and test-path eligibility · Language facts and version gates · Not a finding on these grounds alone — Python · Boundary inventory · Delegated to tools · Phase 2 — security scans · Phase 4 — Python-specific evaluation
 
 ## Applicability
 
 | Category | Applicable | Python note |
 | -------- | ---------- | ----------- |
-| Hardcoded Secrets | **yes** | `security-common.md` scans; a default argument `def connect(password="…")`; a Pydantic `Settings` field with a secret default; Django `SECRET_KEY` in the deployed settings module |
+| Hardcoded Secrets | **yes** | `security-common.md` scans: connection strings and `Authorization` literals |
 | Injection | **yes, no DOM sinks** | `execute` with formatting, `eval` / `exec`, `pickle` / unsafe `yaml.load`, `lxml` entity resolution, `shell=True`, `open` / `send_file` on input, `mark_safe` / `Markup`, `requests.get(url)`, `redirect(…)` |
 | Unvalidated Boundary Input | **yes** | `request.json[…]` stored with no schema; `Model(**request.json)`; `assert` as the only check |
-| Insecure Configuration | **yes** | Django and Flask settings, CORS, `@csrf_exempt`, `verify=False`, cookie flags, `tempfile.mktemp`, octal modes |
+| Insecure Configuration | **yes** | Django and Flask settings, CORS, `@csrf_exempt`, cookie flags, octal modes on a secret file |
 | Auth Gaps | **yes** | DRF `permission_classes`, FastAPI `Depends`, Flask-Login, PyJWT `decode` options, webhook signatures, fail-open `except` |
 | Sensitive Data Exposure | **yes** | `print` and `logging` calls with credential words or the request; `traceback.format_exc()` and `str(e)` in responses |
-| Weak Cryptography | **yes** | `hashlib.md5` / `sha1`, `random`, `uuid1`, `==` on a MAC, PyCryptodome DES / ARC4 / ECB, the password hasher |
+| Weak Cryptography | **yes** | `hashlib.md5` / `sha1`, `random`, `uuid1`, `==` on a MAC, the password hasher |
 | Resource Exhaustion | **yes** | regex from input and literal nested quantifiers; `request.body()` and upload limits; decompression and `Image.open`; limiters |
-| Dependency and Supply-Chain Risks | **yes** | `requirements*.txt`, `pyproject.toml`, lockfiles, configured `pip-audit` |
+| Dependency and Supply-Chain Risks | **yes** | `requirements*.txt`, `pyproject.toml`, lockfiles |
 
 ## Generated-code and test-path eligibility
 
@@ -35,7 +35,6 @@ The version is `requires-python`, or the lockfile's interpreter; a library versi
 remedy is proposed only when that version supports it; a default is judged by that version.
 
 - `Path.is_relative_to`: 3.9. `hashlib.md5(usedforsecurity=)`: 3.9.
-- `tempfile.mktemp` is deprecated since 2.3 (the name can be taken between the call and the open).
 - PyYAML: `yaml.load` without `Loader` raises `TypeError` from 6.0; from 5.1 to 5.4 it defaulted to `FullLoader` with
   a warning; before 5.1 the default was the unsafe `Loader`. The finding is `Loader=yaml.Loader` / `UnsafeLoader`,
   `yaml.unsafe_load`, or `yaml.load(x)` with PyYAML < 5.1 pinned.
@@ -63,13 +62,11 @@ remedy is proposed only when that version supports it; a default is judged by th
 - **An `lxml` parser or a `yaml.load` call the lxml or PyYAML gate (Language facts) clears** for the pinned version;
   `yaml.safe_load`. Where `yaml.load(x)` raises `TypeError`, the Action still names `safe_load`.
 - **A setting in a Django settings module** when the deployment evidence names a *different* module in
-  `DJANGO_SETTINGS_MODULE` (this one is a dev module), and the generated `django-insecure-…` `SECRET_KEY` in any
-  module the deployment evidence does not name. With no module named anywhere, a setting is still judged, with
+  `DJANGO_SETTINGS_MODULE` (this one is a dev module). With no module named anywhere, a setting is still judged, with
   Effective In `unknown` (SKILL.md Terms).
 - **FastAPI path and query parameters typed in the signature** with constraints (`conint(gt=0, le=100)`,
   `Query(le=…)`); Django forms and serializers with `is_valid()`.
 - **`hashlib.md5(..., usedforsecurity=False)`** or any MD5 / SHA-1 whose role is a checksum.
-- **`tempfile.mkstemp` / `NamedTemporaryFile`**.
 - **`subprocess.run([...])`** in list form with a literal program.
 
 ## Boundary inventory
@@ -82,34 +79,13 @@ remedy is proposed only when that version supports it; a default is judged by th
   `DEFAULT_PERMISSION_CLASSES`; Flask `before_request` and Flask-Login `@login_required`; FastAPI `Depends`,
   `dependencies=` on the router or the app, `app.add_middleware`.
 
-## Detectors
+## Delegated to tools
 
-- **bandit**, when `.bandit`, `bandit.yaml`, or `[tool.bandit]` in `pyproject.toml` exists, or a hook or CI step runs
-  it. The `-x` excludes from the project config apply.
+- ruff: TLS verification off (`S501`, `S323`); an SSL protocol below TLS 1.2 (`S502`); a world-writable mode in
+  `os.chmod` (`S103`); `tempfile.mktemp` (`S306`); a broken cipher or ECB mode (`S304`, `S305`).
+- pip-audit: a known vulnerability in a pinned dependency.
 
-  ```bash
-  bandit -r -q -f json -o <run>/bandit.json [-c <config>] <dirs>
-  ```
-
-  Hand-offs: B101 (`assert`) → Unvalidated Boundary Input only when the asserted value is external; B104 (bind)
-  dropped; B110 / B112 → exception-hunter, cross-reference; the stdlib XML rules (B313–B319, B405–B409) dropped; the
-  lxml hits (B320, B410) stay as `xxe` candidates, gated on the lxml version. Every other hit routes by its title.
-- **ruff**, when the project selects any `S` rule (the flake8-bandit port; the same code numbers after `S`). Keep `S`
-  codes, with the bandit hand-offs; drop every other code. A rule the project does not select cannot appear; its
-  silence is not coverage.
-
-  ```bash
-  ruff check --no-fix --output-format=concise <files>
-  ```
-
-- **pip-audit / safety**, only when the repository's own invocation audits an installed environment (no `-r`), or a
-  requirements file with `--disable-pip` (pip-audit allows it only for a fully hashed file or with `--no-deps`). Every
-  other `-r` run, `--require-hashes` included, creates a virtual environment, installs `pip`, `wheel`, and
-  `setuptools` into it, and runs `pip install` of the file to list what resolved, which breaks the never-install
-  constraint: `skipped — invocation resolves packages`. It needs the network; unreachable → `errored`.
-  → Dependency and Supply-Chain Risks (`cve`).
-
-## Phase 3 — security scans
+## Phase 2 — security scans
 
 `$PY_FILES` is this language's eligible list, restored from `<run>/python.txt` (SKILL.md Phase 1 step 4).
 Generated-code globs in `$EXCLUDE` approximate the authoritative marker. Scans marked *inventory* feed the Boundaries
@@ -136,8 +112,8 @@ rg -H -n --pcre2 '\bredirect\(\s*(request\.|[a-z_]\w*[,)])|RedirectResponse\(\s*
 # Boundary reads (inventory); assert as validation
 rg -H -n --pcre2 'request\.(json|args|form|values|data|files|get_json|POST|GET|FILES|body|query_params|path_params|headers|cookies)\b|await request\.(json|form|body)\(' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 '^\s*assert\s+.*\b(request|data|payload|body|params|args|form)\b' --type py $EXCLUDE -- $PY_FILES
-# Insecure Configuration: debug, hosts, CORS, CSRF, cookies, TLS verification, tmp (then find the loaded settings module)
-rg -H -n --pcre2 '\bDEBUG\s*=\s*True|debug\s*=\s*True|ALLOWED_HOSTS\s*=\s*\[\s*["\x27]\*|CORS_ALLOW_ALL_ORIGINS\s*=\s*True|CORS_ORIGIN_ALLOW_ALL\s*=\s*True|allow_origins\s*=\s*\[\s*["\x27]\*|CORS_ALLOW_CREDENTIALS\s*=\s*True|allow_credentials\s*=\s*True|@csrf_exempt|WTF_CSRF_ENABLED\s*=\s*False|SESSION_COOKIE_SECURE\s*=\s*False|CSRF_COOKIE_SECURE\s*=\s*False|SESSION_COOKIE_HTTPONLY\s*=\s*False|SECURE_SSL_REDIRECT\s*=\s*False|AUTH_PASSWORD_VALIDATORS\s*=\s*\[\s*\]|verify\s*=\s*False|_create_unverified_context|CERT_NONE|check_hostname\s*=\s*False|set_cookie\(|secure\s*=\s*False|httponly\s*=\s*False|mktemp\(' --type py $EXCLUDE -- $PY_FILES
+# Insecure Configuration: debug, hosts, CORS, CSRF, cookies (then find the loaded settings module)
+rg -H -n --pcre2 '\bDEBUG\s*=\s*True|debug\s*=\s*True|ALLOWED_HOSTS\s*=\s*\[\s*["\x27]\*|CORS_ALLOW_ALL_ORIGINS\s*=\s*True|CORS_ORIGIN_ALLOW_ALL\s*=\s*True|allow_origins\s*=\s*\[\s*["\x27]\*|CORS_ALLOW_CREDENTIALS\s*=\s*True|allow_credentials\s*=\s*True|@csrf_exempt|WTF_CSRF_ENABLED\s*=\s*False|SESSION_COOKIE_SECURE\s*=\s*False|CSRF_COOKIE_SECURE\s*=\s*False|SESSION_COOKIE_HTTPONLY\s*=\s*False|SECURE_SSL_REDIRECT\s*=\s*False|AUTH_PASSWORD_VALIDATORS\s*=\s*\[\s*\]|set_cookie\(|secure\s*=\s*False|httponly\s*=\s*False' --type py $EXCLUDE -- $PY_FILES
 # Auth Gaps: routes (inventory), auth markers (inventory), JWT verification, signature checks, client claims and mass assignment, fail-open
 rg -H -n --pcre2 '@(app|router|api|bp|blueprint|\w+_router|\w+_bp)\.(get|post|put|patch|delete|route|api_route|websocket)\(|\b(path|re_path)\(\s*r?["\x27]|\burl\(\s*r["\x27]|add_url_rule\(|@api_view|APIRouter\(|ViewSet\b|APIView\b' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 '@login_required|@permission_required|@permission_classes|permission_classes\s*=|Depends\(\s*\w*(user|auth|token|current|verify)\w*|@jwt_required|login_required|IsAuthenticated|AllowAny|HTTPBearer|OAuth2PasswordBearer|@auth\.' --type py $EXCLUDE -- $PY_FILES
@@ -145,13 +121,13 @@ rg -H -n --pcre2 'jwt\.decode\(|verify_signature["\x27]?\s*[:=]\s*False|algorith
 rg -H -n -i --pcre2 'hmac\.(new|compare_digest)\(|x-hub-signature|stripe-signature|webhook' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -i --pcre2 '\.(role|roles|is_admin|is_staff|is_superuser|admin|owner_id|user_id|tenant_id|org_id|permissions|scopes|verified|is_verified)\s*=\s*(request\.|data\[|payload\[|body\[|json_data\[)|request\.(json|data|POST|args)\[["\x27](role|roles|is_admin|is_staff|is_superuser|admin|owner_id|user_id|tenant_id|org_id)["\x27]\]|\(\*\*(request\.(json|data|POST)|data|payload|body)\)' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -U --pcre2 'except\b[^\n]*:\s*\n\s*(pass|return\s+(True|None|user|request\.user))\b' --type py $EXCLUDE -- $PY_FILES
-# Insecure Configuration (perms/tmp): explicit octal modes with group or other read (then: does the file hold a secret, or personal data?)
+# Insecure Configuration (perms): explicit octal modes with group or other read (then: does the file hold a secret, or personal data?)
 rg -H -n --pcre2 '\b0o[0-7]?[0-7][4-7][4-7]\b' --type py $EXCLUDE -- $PY_FILES
 # Sensitive Data Exposure: credential words in prints and logs; exception text in responses
 rg -H -n -i --pcre2 '\b(print|log\w*\.(info|debug|warning|warn|error|exception|critical))\([^\n]*\b(password|passwd|pw|token|secret|authorization|cookie|api[_-]?key|ssn|card|request\.(json|form|data|headers|body))\b' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 'traceback\.(format_exc|print_exc)\(|["\x27](error|detail|message)["\x27]\s*:\s*(str\(|repr\(|f["\x27][^"\x27]*\{(e|err|exc)\b)|detail\s*=\s*(str\(|repr\(|f["\x27][^"\x27]*\{(e|err|exc)\b)|PROPAGATE_EXCEPTIONS\s*=\s*True' --type py $EXCLUDE -- $PY_FILES
 # Weak Cryptography: primitives (then name the use); secret comparisons; hashing inventory
-rg -H -n -i --pcre2 'hashlib\.(md5|sha1)\(|hashlib\.new\(\s*["\x27](md5|sha1)|Crypto\.Cipher\.(DES|ARC4|Blowfish|XOR)|\b(DES|ARC4|Blowfish)\.new\(|MODE_ECB|\brandom\.(random|randint|choice|choices|randrange|getrandbits|sample|uniform)\(|\buuid\.uuid1\(' --type py $EXCLUDE -- $PY_FILES
+rg -H -n -i --pcre2 'hashlib\.(md5|sha1)\(|hashlib\.new\(\s*["\x27](md5|sha1)|\brandom\.(random|randint|choice|choices|randrange|getrandbits|sample|uniform)\(|\buuid\.uuid1\(' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -i --pcre2 '\b\w*(token|secret|signature|sig|hmac|mac|digest|otp|password_hash)\w*\s*[!=]=\s*\w' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 'make_password\(|check_password\(|\bbcrypt\.|argon2|pbkdf2_hmac\(|scrypt\(|PasswordHasher|CryptContext|PASSWORD_HASHERS' --type py $EXCLUDE -- $PY_FILES
 # Resource Exhaustion: regex from input; literal patterns with a nested or overlapping quantifier (then: run on boundary input?); body reads and their limits; decompression and image decoding; limiters
@@ -163,20 +139,19 @@ rg -H -n -i --pcre2 'ratelimit|limiter|throttle|slowapi' --type py $EXCLUDE -- $
 ```
 
 Blind spots: a query built with `+=` over several lines; Django ORM `.filter(**request.GET)` (mass assignment into a
-filter; reading, from the boundary inventory); `verify=False` is nominated once, by the configuration scan, never by
-the JWT scan; `open(path)` where `path` has a non-matching name (reading, from the boundary inventory); Jinja templates
-in `.html` files (`security-common.md`); a fail-open `except` whose body logs before it passes (the scan wants `pass`
-or a permissive `return` on the next line); a privilege field set through `setattr` or a serializer's `fields =
-"__all__"` (reading, from the mass-assignment hits).
+filter; reading, from the boundary inventory); `open(path)` where `path` has a non-matching name (reading, from the
+boundary inventory); Jinja templates in `.html` files (`security-common.md`); a fail-open `except` whose body logs
+before it passes (the scan wants `pass` or a permissive `return` on the next line); a privilege field set through
+`setattr` or a serializer's `fields = "__all__"` (reading, from the mass-assignment hits).
 
-## Phase 5 — Python-specific evaluation
+## Phase 4 — Python-specific evaluation
 
 - For each `yaml.load`: apply the PyYAML gate (Language facts) to the loader and the pinned version.
 - For each `assert` on request data: is the asserted value external? The finding stands whatever the deployment's
   `-O`: `assert` is not validation.
 - For each `@csrf_exempt`: does the view change state, and does it use cookie (session) auth rather than a token
   header?
-- For each `DEBUG = True` / `ALLOWED_HOSTS = ['*']` / `SECRET_KEY` literal: which settings module does
+- For each `DEBUG = True` / `ALLOWED_HOSTS = ['*']`: which settings module does
   `DJANGO_SETTINGS_MODULE` name in the deployment evidence? This one → effective. A different one → not a finding.
   None named anywhere → Effective In `unknown`.
 - For each `jwt.decode`: is `options={"verify_signature": False}` set, or `algorithms` missing (apply the PyJWT gate,
