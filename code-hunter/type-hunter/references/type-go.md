@@ -8,7 +8,7 @@ Contents: Applicability of the universal categories · Generated-code and test-p
 | -------- | ---------- | ------ |
 | Duplicated Type Declarations | **yes** | Sibling type only. Consolidation is composition or deletion: embed, explicit field, or delete-and-use. Go has no derivation from a runtime value — a hand-written set of constants beside a slice of the same values is not a finding — and no schema library whose type stands in for a struct |
 | Generics That Never Vary | **yes** | Type arguments are almost always inferred at call sites; instantiations are read, not scanned |
-| Loose Type Parameter Constraints | **yes** | `[T any]` with `comparable` or method use inside; the Go form: a generic body that type-switches on `T` |
+| Loose Type Parameter Constraints | **yes** | `[T any]` whose body bridges through `any` to compare, key a map, or call a method; the Go form: a generic body that type-switches on `T` |
 | Over-Powered Type Constructs | **n/a** | Go has no conditional, mapped, or overload constructs. The only type-level power is the constraint, and a type switch inside a generic body is Loose Type Parameter Constraints |
 | Enum Construct Mechanics | **yes** | `iota` group with no named type; a named constant type formatted, logged, or serialized with no `String()` |
 | Alias vs Named Type Mechanics | **yes** | `type X = Y` only. A method-less named type is Not a finding; there is no named-composite signal |
@@ -59,8 +59,10 @@ production type.
 
 ### Loose Type Parameter Constraints — Go forms
 
-- `[T any]` whose body uses `==` or a map key → `comparable`
-- `[T any]` whose body compares with `<` → `cmp.Ordered` (**Go 1.21+**, read `go` directive in `go.mod`; below 1.21,
+- `[T any]` whose body compares or keys a map through `any` (`any(a) == any(b)`, `map[any]V` keyed by `any(v)`):
+  `==` on a `T` itself does not compile → `comparable`
+- `[T any]` whose body orders values through a type switch or a `less` callback, since `<` on a `T` does not compile
+  → `cmp.Ordered` (**Go 1.21+**, read `go` directive in `go.mod`; below 1.21,
   `golang.org/x/exp/constraints.Ordered` if already a dependency, else a hand-written union constraint)
 - `[T any]` whose body calls a method through `any(v).(fmt.Stringer)` or `any(v).(X)` → the interface as the constraint
 - **The type-switch form**: `func Encode[T any](v T)` whose body is `switch any(v).(type)` over concrete cases. The
@@ -136,8 +138,9 @@ Every scan takes the eligible Go list.
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
-# Duplicated Type Declarations: struct census (then compare field sets by concept, project-wide)
-rg -H -n 'type\s+\w+\s+struct' --type go $EXCLUDE -- $GO_FILES
+# Duplicated Type Declarations: struct and interface census (then compare field and method sets by concept,
+# project-wide)
+rg -H -n 'type\s+\w+\s+(struct|interface)' --type go $EXCLUDE -- $GO_FILES
 
 # Duplicated Type Declarations: repeated func types written inline
 rg -H -n --pcre2 '\bfunc\([^)]*\)\s*(\(?[\w.*\[\], ]+\)?)?\s*[,)\]{]' --type go $EXCLUDE -- $GO_FILES
@@ -185,7 +188,8 @@ For each type parameter:
 - Enumerate instantiations from call sites and declarations, tests marked. One production type, set closed → Generics
   That Never Vary; the Action names the test fake's replacement. Exported and published outside the tree → withdraw
   with a `Limitation`.
-- What does the body do with `T`? Opaque → no Loose finding. `==`, `<`, a method through `any(v).(X)`, a type switch
+- What does the body do with `T`? Opaque → no Loose finding. `any(a) == any(b)`, a `map[any]` key, an ordering through a
+  type switch or callback, a method through `any(v).(X)`, a type switch
   → Loose, with the tightest constraint every instantiation satisfies and the `go.mod` gate checked for
   `cmp.Ordered`.
 

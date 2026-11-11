@@ -6,7 +6,8 @@ line appears only when its condition holds. A run that stops early (empty scope,
 lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
 table, or "none found" line; a thin report is a valid result.
 
-**No Toolchain lines.** No checker reports these categories; the Scope block carries none, and no type-checker
+**No Toolchain lines.** Linters report only two narrow forms of these categories (SKILL.md, No toolchain step); the
+Scope block carries none, and no type-checker
 configuration is recorded.
 
 **Enumeration line.** Present when any instantiation or duplicate was found by reading rather than by scan. States

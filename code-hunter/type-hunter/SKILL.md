@@ -186,7 +186,8 @@ A constraint that does not express what the body does with `T`.
 
 **Signals:**
 
-- `[T any]` with `comparable` or method use inside; `switch any(v).(type)` inside `func F[T any]`
+- `[T any]` whose body bridges through `any` to compare or call a method (`any(a) == any(b)`, `any(v).(X)`);
+  `switch any(v).(type)` inside `func F[T any]`
 - `<T>` / `<T extends unknown>` / `<T extends any>` used as an object
 - `TypeVar("T")` where only `int | str` is passed (constraints) or a base class is assumed (`bound=`); PEP 695 `[T]`
   with the same defects
@@ -425,7 +426,9 @@ every handler imports is High impact at Medium severity; a phantom parameter on 
 6. **Read the version gates** each loaded reference names. A gate the project does not meet removes the Action that
    needs it; the reference says what replaces it.
 
-**No toolchain step.** Run no type checker or linter: none reports these categories.
+**No toolchain step.** Run no type checker or linter. Linters report two narrow forms only — identical interfaces
+(golangci-lint `iface`) and an enum member compared with a raw literal (`@typescript-eslint/no-unsafe-enum-comparison`)
+— and none reports the rest of these categories.
 
 ### Phase 2: Scan for Candidates
 
