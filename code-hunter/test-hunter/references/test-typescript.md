@@ -48,13 +48,14 @@ printf '%s\n' $TS_FILES | grep -Ev "$TEST_RE" > <run>/typescript-prod.txt || ech
 
 - ESLint with eslint-plugin-jest or @vitest/eslint-plugin, typescript-eslint, eslint-plugin-testing-library and
   eslint-plugin-playwright, or Biome where a rule is named: a test with no assertion (`expect-expect`, with
-  `assertFunctionNames` for the project's assertion helpers); an un-awaited `.resolves` or `.rejects`
-  (`valid-expect`); an `expect` under a condition or in a `catch` (`no-conditional-expect`); an unconditional skip
-  (`no-disabled-tests`, Playwright `no-skipped-test` with `allowConditional: true`, or Biome `noSkippedTests`); `.only`
-  (`no-focused-tests`, or Biome `noFocusedTests`); an un-awaited assertion, setup promise or async callback
-  (`@typescript-eslint/no-floating-promises`, `no-misused-promises`); an un-awaited query (testing-library
-  `await-async-queries`); an un-awaited Playwright assertion (`missing-playwright-await`); a comparison of a value with
-  itself (`no-self-compare`, or Biome `noSelfCompare`).
+  `assertFunctionNames` for the project's assertion helpers); an un-awaited `.resolves` or `.rejects` (`valid-expect`);
+  an `expect` under a condition or in a `catch` (`no-conditional-expect`); an unconditional skip outside a skip the diff
+  added, which stays here as Weakened in diff (`no-disabled-tests`, Playwright `no-skipped-test` with
+  `allowConditional: true`, or Biome `noSkippedTests`); `.only` (`no-focused-tests`, or Biome `noFocusedTests`); an
+  un-awaited assertion, setup promise or async callback (`@typescript-eslint/no-floating-promises`,
+  `no-misused-promises`); an un-awaited query (testing-library `await-async-queries`); an un-awaited Playwright
+  assertion (`missing-playwright-await`); a comparison of a value with itself (`no-self-compare`, or Biome
+  `noSelfCompare`).
 
 ## Config-gated signals
 

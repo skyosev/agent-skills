@@ -14,11 +14,12 @@ hold throughout downstream code, consumers narrow without casts, and invalid sta
 **Not covered (owned by other hunters):** type *structure* — Duplicated Type Declarations (a sibling type, a runtime
 value, or a schema as source), Generics That Never Vary, Loose Type Parameter Constraints, Over-Powered Type Constructs,
 Enum Construct Mechanics, Alias vs Named Type Mechanics (→ type-hunter); how failures are handled, matched, wrapped, and
-converted — Go discarded errors, error chains, and panics included (→ exception-hunter); trust-boundary *content*
-validation and exploitability (→ security-hunter); a guard the type already rules out (no hunter owns it); optional
-fields with no discriminant yet, method call order, identity and unit types with no validation boundary (→
-smell-hunter); linter suppressions and wrapping-message redundancy (→ slop-hunter); test quality (→ test-hunter). Where
-ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+converted — Go swallowed errors, error chains, and panics included (→ exception-hunter); a Go error discarded by `_ =`
+(no hunter owns it); trust-boundary *content* validation and exploitability (→ security-hunter); a guard the type
+already rules out (no hunter owns it); optional fields with no discriminant yet, method call order, identity and unit
+types with no validation boundary (→ smell-hunter); linter suppressions and wrapping-message redundancy (→ slop-hunter);
+test quality (→ test-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is
+authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.

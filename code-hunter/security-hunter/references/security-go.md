@@ -102,7 +102,7 @@ rg -H -n --pcre2 '\br\.(URL\.Query\(\)|FormValue|PostFormValue|Body|Header\.Get|
 # Insecure Configuration: CORS, cookies, permissions
 rg -H -n --pcre2 'Access-Control-Allow-Origin|AllowedOrigins|AllowOrigins|AllowAllOrigins|AllowOriginFunc|AllowCredentials' --type go $EXCLUDE -- $GO_FILES
 rg -H -n --pcre2 '&?http\.Cookie\{|SetCookie\(|sessions\.Options\{' --type go $EXCLUDE -- $GO_FILES
-rg -H -n --pcre2 '(WriteFile|OpenFile|Create|Chmod|Mkdir(All|Temp)?|CreateTemp)\([^\n]*\b0o?[0-7]?[0-7][4-7][4-7]\b|os\.ModePerm' --type go $EXCLUDE -- $GO_FILES
+rg -H -n --pcre2 '(WriteFile|OpenFile|Create|Chmod|Mkdir(All|Temp)?|CreateTemp)\([^\n]*\b0o?[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b|os\.ModePerm' --type go $EXCLUDE -- $GO_FILES
 # Auth Gaps: route registrations (inventory; Go 1.22 method patterns; both quote forms), fail-open chains, client claims, JWT parsing, signature checks
 rg -H -n --pcre2 '\.(Handle|HandleFunc|GET|POST|PUT|PATCH|DELETE|Get|Post|Put|Patch|Delete|Any|Group|Route|Mount|Use|Method|Add)\(\s*["`](/|(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS) /)|Register\w+Server\(' --type go $EXCLUDE -- $GO_FILES
 rg -H -n -U --pcre2 'err\s*!=\s*nil\s*\{\s*\n\s*(next(\.ServeHTTP)?\(|h(\.ServeHTTP)?\(|c\.Next\(\)|return next)' --type go $EXCLUDE -- $GO_FILES

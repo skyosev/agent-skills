@@ -13,7 +13,7 @@ Contents: Applicability of universal categories · Generated-code and test-path 
 | Runtime Checks Promotable to Types | **yes, narrowed** | validated-state named types only — see Per-category Go content |
 
 **Language-only categories added below:** Nil Pointer Risks, Zero-Value Traps, Context Misuse, Race Conditions.
-Failure handling — discarded errors, error chains, panic and recover — is exception-hunter's in every language.
+Failure handling — swallowed errors, error chains, panic and recover — is exception-hunter's in every language.
 
 ## Generated-code and test-path eligibility
 
@@ -198,6 +198,9 @@ rg -H -n -U --pcre2 'type\s+[A-Z]\w*\s+struct\s*\{[^}]*\b(map\[|chan\s|func\()' 
 rg -H -n --pcre2 '^\s*\w+\s+[A-Z]\w*\s*=\s*iota\b' --type go $EXCLUDE -- $GO_FILES
 
 
+# Context Misuse: functions that receive a context (then read their loops and blocking calls for a ctx check)
+rg -H -n --pcre2 'func\s+(\([^)]*\)\s*)?\w+\(\s*ctx\s+context\.Context' --type go $EXCLUDE -- $GO_FILES
+
 # Race Conditions: goroutine launches and sync primitives (then map shared state to its accessors)
 rg -H -n '^\s*go\s+(func|\w+)' --type go $EXCLUDE -- $GO_FILES
 rg -H -n 'sync\.(Mutex|RWMutex|WaitGroup)|atomic\.' --type go $EXCLUDE -- $GO_FILES
@@ -223,6 +226,10 @@ For each typed `iota` zero member and each `T(n)` conversion into a named consta
   consumer that treats it as a valid member → finding.
 - Does `n` come from external input with no range check before or after the conversion? → finding; content →
   security-hunter. Internal, provably in range → not a finding.
+
+For each function that receives a `ctx`:
+
+- Does a loop over client-sized or unbounded work, or a blocking call, run without consulting `ctx`? → finding.
 
 For each shared variable touched by more than one goroutine:
 

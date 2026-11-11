@@ -81,8 +81,9 @@ remedy is proposed only when that version supports it; a default is judged by th
 
 ## Delegated to tools
 
-- ruff: TLS verification off (`S501`, `S323`); an SSL protocol below TLS 1.2 (`S502`); a world-writable mode in
-  `os.chmod` (`S103`); `tempfile.mktemp` (`S306`); a broken cipher or ECB mode (`S304`, `S305`).
+- ruff: TLS verification off (`S501`, `S323`); an SSL protocol below TLS 1.2 passed as `ssl_version` (`S502`); a
+  world-writable mode in `os.chmod` (`S103`); `tempfile.mktemp` (`S306`); a broken cipher or ECB mode from the
+  `cryptography` package, and PyCryptodome DES (`S304`, `S305`).
 - pip-audit: a known vulnerability in a pinned dependency.
 
 ## Phase 2 — security scans
@@ -122,7 +123,7 @@ rg -H -n -i --pcre2 'hmac\.(new|compare_digest)\(|x-hub-signature|stripe-signatu
 rg -H -n -i --pcre2 '\.(role|roles|is_admin|is_staff|is_superuser|admin|owner_id|user_id|tenant_id|org_id|permissions|scopes|verified|is_verified)\s*=\s*(request\.|data\[|payload\[|body\[|json_data\[)|request\.(json|data|POST|args)\[["\x27](role|roles|is_admin|is_staff|is_superuser|admin|owner_id|user_id|tenant_id|org_id)["\x27]\]|\(\*\*(request\.(json|data|POST)|data|payload|body)\)' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -U --pcre2 'except\b[^\n]*:\s*\n\s*(pass|return\s+(True|None|user|request\.user))\b' --type py $EXCLUDE -- $PY_FILES
 # Insecure Configuration (perms): explicit octal modes with group or other read (then: does the file hold a secret, or personal data?)
-rg -H -n --pcre2 '\b0o[0-7]?[0-7][4-7][4-7]\b' --type py $EXCLUDE -- $PY_FILES
+rg -H -n --pcre2 '\b0o[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b' --type py $EXCLUDE -- $PY_FILES
 # Sensitive Data Exposure: credential words in prints and logs; exception text in responses
 rg -H -n -i --pcre2 '\b(print|log\w*\.(info|debug|warning|warn|error|exception|critical))\([^\n]*\b(password|passwd|pw|token|secret|authorization|cookie|api[_-]?key|ssn|card|request\.(json|form|data|headers|body))\b' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 'traceback\.(format_exc|print_exc)\(|["\x27](error|detail|message)["\x27]\s*:\s*(str\(|repr\(|f["\x27][^"\x27]*\{(e|err|exc)\b)|detail\s*=\s*(str\(|repr\(|f["\x27][^"\x27]*\{(e|err|exc)\b)|PROPAGATE_EXCEPTIONS\s*=\s*True' --type py $EXCLUDE -- $PY_FILES

@@ -85,7 +85,7 @@ judged by that version.
 
 ## Delegated to tools
 
-- ESLint with eslint-plugin-sonarjs: TLS verification off (`sonarjs/unverified-certificate`); a TLS minimum or
+- ESLint with eslint-plugin-sonarjs: `rejectUnauthorized: false` (`sonarjs/unverified-certificate`); a TLS minimum or
   protocol below 1.2 (`sonarjs/weak-ssl`); DES and RC4 (`sonarjs/no-weak-cipher`).
 - `npm audit` (`pnpm audit`, `yarn npm audit`): a known vulnerability in a locked dependency.
 
@@ -122,7 +122,7 @@ rg -H -n --pcre2 '\.(parse|parseAsync|safeParse|safeParseAsync|validate|validate
 rg -H -n --pcre2 '\bcors\(\s*\)|\bcors\(\s*\{[^}\n]*origin\s*:\s*(true|["\x27]\*["\x27]|\(|/|\[|[a-z_])|Access-Control-Allow-Origin["\x27]?\s*[,:]\s*["\x27`]\*|Access-Control-Allow-Origin["\x27]?\s*[,:]\s*(req\.headers|origin)|credentials\s*:\s*true|enableCors\(|allowedOrigins|verifyClient|origin\s*:\s*\(' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'res\.cookie\(|cookies\(\)\.set\(|setCookie\(|cookie\s*:\s*\{|httpOnly\s*:\s*false|secure\s*:\s*false|sameSite\s*:\s*["\x27]?none|\bsession\(\s*\{|cookieSession\(' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'contentSecurityPolicy\s*:\s*false|["\x27]unsafe-inline["\x27]|["\x27]unsafe-eval["\x27]|\bcsrf|csurf|X-Frame-Options|frameguard|hsts' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 '\bmode\s*:\s*0o?[0-7]?[0-7][4-7][4-7]\b|\.chmod(Sync)?\(\s*[^,]+,\s*0o?[0-7]?[0-7][4-7][4-7]\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\bmode\s*:\s*0o?[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b|\.chmod(Sync)?\(\s*[^,]+,\s*0o?[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'introspection\s*:\s*true|playground\s*:\s*true|graphiql\s*:\s*true|\bdebug\s*:\s*true|NODE_ENV\s*[!=]==?\s*["\x27]production|app\.set\(\s*["\x27]trust proxy["\x27]\s*,\s*true|maskedErrors\s*:\s*false|includeStacktraceInErrorResponses\s*:\s*true' --type ts $EXCLUDE -- $TS_FILES
 # Auth Gaps: routes (inventory), auth markers (inventory), JWT verification, webhook signatures, privilege fields and mass assignment
 rg -H -n --pcre2 '\b(app|router|server|fastify|hono|api|r)\.(get|post|put|patch|delete|all|use|route|register|ws)\(\s*["\x27`/]|@(Get|Post|Put|Patch|Delete|All|Query|Mutation|Subscription|SubscribeMessage|MessagePattern|EventPattern|WebSocketGateway)\(|export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b|export\s+const\s+(GET|POST|PUT|PATCH|DELETE)\b|export\s+(async\s+)?function\s+middleware\b|export\s+const\s+middleware\b|\.(query|mutation|subscription)\(\s*(async\s*)?\(|publicProcedure|protectedProcedure|export\s+const\s+handler\s*[:=]|"use server"' --type ts $EXCLUDE -- $TS_FILES

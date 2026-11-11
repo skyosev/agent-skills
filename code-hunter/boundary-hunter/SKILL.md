@@ -14,14 +14,14 @@ entry alone.**
 
 **Not covered (owned by other hunters):** unreachable branches (→ simplicity-hunter Dead Code Paths); unused
 non-exported functions and constants, and any Python public name with no importers at all (no hunter owns them); unused
-imports and bindings (→ slop-hunter); a generic-named *file* and file placement inside a unit (→ smell-hunter God Module
-in Python and TypeScript; in Go nobody's); package-level responsibility and change analysis — named actors, independent
-reasons to change (→ solid-hunter Responsibility Sprawl); type-level wiring, self-instantiation, and module-level
-singleton reads (→ solid-hunter Concrete Dependency Chains); two hand-written declarations of one shape with a
-consolidation path (→ type-hunter Duplicated Type Declarations); a promoted method set from an embed (→ type-hunter
-Embedding Antipatterns); type-system bypasses at a boundary layer (no hunter owns them); content validation at a trust
-boundary (→ security-hunter); message chains inside object design (no hunter owns them). Where ownership is *contested*,
-the category's **Ownership:** note in What to Hunt is authoritative.
+imports and bindings (no hunter owns them); a generic-named *file* and file placement inside a unit (→ smell-hunter God
+Module in Python and TypeScript; in Go nobody's); package-level responsibility and change analysis — named actors,
+independent reasons to change (→ solid-hunter Responsibility Sprawl); type-level wiring, self-instantiation, and
+module-level singleton reads (→ solid-hunter Concrete Dependency Chains); two hand-written declarations of one shape
+with a consolidation path (→ type-hunter Duplicated Type Declarations); a promoted method set from an embed (→
+type-hunter Embedding Antipatterns); type-system bypasses at a boundary layer (no hunter owns them); content validation
+at a trust boundary (→ security-hunter); message chains inside object design (no hunter owns them). Where ownership is
+*contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -167,8 +167,7 @@ analogue, an exported identifier used only package-locally, *is* the `package-lo
 
 **Action:** unexport; remove from `__all__`; replace the wildcard with named re-exports of the public API. Test-only:
 the export exists for the test alone, and the Action names the public behavior the test should assert after
-unexporting. After unexporting, a symbol with no callers at all becomes simplicity-hunter's next audit — sequential,
-not double.
+unexporting. After unexporting, a symbol with no callers at all is reported by the unused-code tools, not by a hunter.
 
 **Ownership:** an *exported* symbol with no external consumer is here. An unused *unexported* function or constant, and
 a Python non-`__all__` name with no importers anywhere, are no hunter's; unused imports and bindings are not covered

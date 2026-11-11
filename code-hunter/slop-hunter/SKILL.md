@@ -20,8 +20,9 @@ Comments as Deodorant); live but unreachable logic (→ simplicity-hunter, Dead 
 constants (no hunter owns them); exported dead symbols (→ boundary-hunter, Dead Exports); generic package / module names
 (→ boundary-hunter, Generic Boundary Names); stuttering names as package design (no hunter owns them); type-checker
 suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain correctness and
-discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality (→
-test-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+swallowed errors (→ exception-hunter); discarded error returns (no hunter owns them); narration that leaks secrets (→
+security-hunter); test quality (→ test-hunter). Where ownership is *contested*, the category's **Ownership:** note in
+What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -163,7 +164,7 @@ Exported dead symbols are boundary-hunter's Dead Exports. Type-checker suppressi
 here. `_ = f()` where `f` returns an `error` is not covered here. Coverage pragmas (`# pragma: no cover`,
 `/* istanbul ignore … */`, `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped tests (`t.Skip()`,
 `@pytest.mark.skip`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter. TypeScript
-skips and `.only` are no hunter's.
+skips outside a diff and `.only` are no hunter's.
 
 ### Hedging and Narration
 
@@ -213,9 +214,9 @@ inside them.
 
 ## Test-code scope
 
-Test files are **fully in scope** for every category. Noise inside a test — comments, docs, style — is slop; whether a test can fail — its assertions, skips, focused tests, and coverage pragmas — is
-test-hunter's.
-Test paths are listed in each language reference.
+Test files are **fully in scope** for every category. Noise inside a test — comments, docs, style — is slop; whether a
+test can fail — its assertions, skips, and coverage pragmas — is test-hunter's, except a TypeScript skip or `.only`
+outside a diff, which is no hunter's. Test paths are listed in each language reference.
 
 ## Severity and Impact
 

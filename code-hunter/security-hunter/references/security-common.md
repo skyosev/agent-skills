@@ -30,7 +30,7 @@ matches nothing, so in that form an `rg` error shows only on stderr.
 ## Delegated to tools
 
 - gitleaks: a committed secret in a known key format (cloud, payment, and code-host tokens), a private key, a JWT, or a
-  quoted or `.env` value under a secret name (`generic-api-key`).
+  high-entropy quoted or `.env` value under a secret name (`generic-api-key`).
 - OpenSSF Scorecard `Pinned-Dependencies`: a piped installer (`curl … | sh`) in a Dockerfile, a shell script, or a
   GitHub workflow (its `downloadThenRun` entries).
 

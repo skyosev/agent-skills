@@ -10,7 +10,7 @@ Contents: Applicability · Generated-code and test-path eligibility · Doc-comme
 | Non-Obvious Algorithms | **yes** | `RegExp` constructors and regex literals; bit operations are found by reading |
 | Unexplained Workarounds | **yes** | `setTimeout`, `requestAnimationFrame`, `queueMicrotask`; `navigator.userAgent` and `process.platform` branches |
 | Undocumented Contracts | **yes** | A `throw` that callers catch (`@throws`); `process.env` reads outside entry files. `undefined` returned for an error is exception-hunter's (Swallowed Errors) |
-| Misleading Comments and Names | **yes** | `@see` to removed symbols; mapping objects as mapping sites |
+| Misleading Comments and Names | **yes** | `@see` to removed symbols; mapping objects as mapping sites; expiry against the lockfile |
 
 ## Generated-code and test-path eligibility
 
@@ -51,7 +51,7 @@ Read each open package's `exports`, `main`, and `types`, and its tsconfig's `out
 - ESLint with typescript-eslint, eslint-plugin-jsdoc and eslint-plugin-unicorn, or Biome where a rule is named: a
   numeric literal with no name (`@typescript-eslint/no-magic-numbers` with `ignore: [-1, 0, 1]`, or Biome
   `noMagicNumbers`); a `@param` name the signature lacks (`jsdoc/check-param-names`); a `TODO [>=version]` or
-  `TODO [date]` whose condition has passed (`unicorn/expiring-todo-comments`).
+  `TODO [date]` in the rule's bracket syntax whose condition has passed (`unicorn/expiring-todo-comments`).
 - ESLint's `jsdoc/require-jsdoc`, only when a Library unit is in scope (SKILL.md Terms): an exported function, arrow
   function, class, or method with no doc comment (`publicOnly: true`, and `require` on for `FunctionDeclaration`,
   `ArrowFunctionExpression`, `ClassDeclaration`, `MethodDefinition`).
@@ -78,9 +78,15 @@ rg -H -n 'new RegExp\(|\.(match|matchAll|replace|replaceAll|split|search)\(\s*/'
 # Undocumented Contracts: hidden inputs
 rg -H -n 'process\.env\.' --type ts $EXCLUDE -- $TS_FILES
 
-# Misleading Comments and Names: @see references (resolve each name)
+# Misleading Comments and Names: @see references (resolve each name); expiry conditions in prose
 rg -H -n '@see\s+(\w+)' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n '(//|/?\*).*(?i)\b(until|after|once|remove|drop|when)\b.*(\bv?\d+\.\d+(\.\d+)?\b|\b\d{4}-\d{2}(-\d{2})?\b)' --type ts $EXCLUDE -- $TS_FILES
 ```
+
+**Expiry.** A comment needs a condition word and a version or a date. A version is compared with the lockfile
+(`package-lock.json`, `pnpm-lock.yaml`, `yarn.lock`, `bun.lock`); a version the lockfile does not pin is unresolved:
+no finding. A date is compared with today's date. A `TODO [..]` in the bracket syntax of `expiring-todo-comments` is
+delegated.
 
 **Blind spots:**
 

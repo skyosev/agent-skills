@@ -56,10 +56,11 @@ it.
 
 ## Delegated to tools
 
-- ruff: an `except` that only passes or continues (`S110`, `S112`, with `check-typed-exception = true`); a bare or
-  blind `except` (`E722`, `BLE001`); a jump in `finally` (`B012`); an exception built and not raised (`PLW0133`); a
-  task created and not kept (`RUF006`); a traceback dropped at a log call (`TRY400`); an `except` that only re-raises
-  (`TRY203`); an interpolated log message (`G004`). `RUF006` and `G004` are not in ruff's default set.
+- ruff: an `except` that only passes or continues (`S110`, `S112`, with `check-typed-exception = true`); a bare or blind
+  `except` as such (`E722`, `BLE001`; what the handler does with the failure stays here); a jump in `finally` (`B012`);
+  an exception built and not raised (`PLW0133`); a task created and not kept (`RUF006`); a traceback dropped at a log
+  call (`TRY400`); an `except` that only re-raises (`TRY203`); an interpolated log message (`G004`). `RUF006` and `G004`
+  are not in ruff's default set.
 
 ## Phase 2 — exception scans
 

@@ -11,13 +11,13 @@ Audit tests for **whether they can fail** — a refund branch no test drives, `w
 `ErrNotFound`, a `time.Sleep` waiting for a goroutine. Goal: **every critical behavior has a test that turns red when
 the behavior breaks and stays green when it does not.**
 
-**Not covered (owned by other hunters):** noise inside a test — comments, docs, style, commented-out test code (→
-slop-hunter); unused test helpers and deep nesting in test bodies (no hunter owns them); whether a production interface
-that only a double implements should exist (→ simplicity-hunter, solid-hunter); temporal coupling in a test helper,
-feature envy in a fixture builder, unrelated responsibilities collected in one test-support module (→ smell-hunter); a
-production unit with too many dependencies (→ solid-hunter); production races (→ invariant-hunter); a dead export whose
-only consumers are tests (→ boundary-hunter); real credentials or secrets in fixtures (→ security-hunter). Where
-ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+**Not covered (owned by other hunters):** noise inside a test — comments, docs, style (→ slop-hunter); commented-out
+test code (no hunter owns it); unused test helpers and deep nesting in test bodies (no hunter owns them); whether a
+production interface that only a double implements should exist (→ simplicity-hunter, solid-hunter); temporal coupling
+in a test helper, feature envy in a fixture builder, unrelated responsibilities collected in one test-support module (→
+smell-hunter); a production unit with too many dependencies (→ solid-hunter); production races (→ invariant-hunter); a
+dead export whose only consumers are tests (→ boundary-hunter); real credentials or secrets in fixtures (→
+security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -266,8 +266,8 @@ checks it.
 **Action:** assert the specific outcome; un-skip, or delete
 the test and name the test that replaces it.
 
-**Ownership:** skipped tests are here, with or without a reason; slop-hunter does not report them.
-exception-hunter routes an ignored error in a test here.
+**Ownership:** Go and Python skipped tests, and a skip a diff added in any language, are here, with or without a reason;
+slop-hunter does not report them.
 
 ### Brittle Tests
 

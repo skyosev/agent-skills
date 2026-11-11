@@ -42,8 +42,8 @@ vocabulary, smallest first: a `dict[Kind, X]` lookup when the arms select a valu
 differ by a single call; a Protocol with one implementation per variant, dispatched through a `dict[Kind, Protocol]`,
 only when the arms carry behavior.
 
-Exhaustiveness — `case _: assert_never(x)`, pyright's `reportMatchNotExhaustive` — is invariant-hunter's and never
-decides openness here.
+Exhaustiveness — `case _: assert_never(x)`, pyright's `reportMatchNotExhaustive` — is not covered here and never
+decides openness.
 
 ### Broken Substitution — Python forms
 

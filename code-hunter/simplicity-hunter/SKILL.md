@@ -29,7 +29,7 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 | Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback |
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline |
-| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence |
+| Dead Code Paths | Unreachable branch, stale flag, guard the preceding logic already guarantees | Delete, with liveness evidence |
 | Over-Parameterized APIs | 4+ params, boolean flags, constant arguments, mostly-unused config objects | Split by use case |
 | Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator |
 | Coexisting Generations | Two or more **live**, structurally different solutions to one concern | Name the survivor, give a retirement plan |
@@ -196,8 +196,7 @@ should go, the finding is here; when only its form changes, it is Class Abuse.
 
 ### Dead Code Paths
 
-Unreachable branches, unused internal helpers, stale feature flags, guards already guaranteed by preceding logic or
-by the type.
+Unreachable branches, stale feature flags, guards already guaranteed by preceding logic.
 
 **Signals:** impossible branches given call sites; flags always on/off, shown by evidence in the repository — a
 constant, a config file, or a default nothing overrides (a flag whose value lives outside the repository, such as in a
@@ -287,8 +286,8 @@ One finding per site. The reported finding's row note (report format) names the 
   Extracting the concerns usually flattens it.
 - **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
   Concerns, not an Unnecessary Abstraction.
-- **Strata:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
-  Generations. A copy with zero live sites is Dead Code Paths too.
+- **Strata:** zero live sites → not covered here (unused code is in each reference's Delegated to tools); near-identical
+  bodies → Duplication; otherwise Coexisting Generations.
 - **Feature flags:** always on or always off → Dead Code Paths; both branches live with no removal plan → Coexisting
   Generations.
 - **Constant arguments:** a parameter that every caller passes with one value, or leaves at its default →
@@ -446,7 +445,7 @@ candidate.
 3. **Compare.** Open every hit's enclosing body and compare after normalizing names and values. Cite only the region
    that matches (see Duplication: Scope the claim to the shared region).
 
-A clone check in the project's lint run (Phase 2) nominates too. Record
+Record
 `Duplication coverage: {searched} of {total} seed functions searched` in Scope; Duplication findings claim only the
 searched seeds. Done when every seed function has been searched and every hit's body compared, or the coverage line
 records where the search stopped.
