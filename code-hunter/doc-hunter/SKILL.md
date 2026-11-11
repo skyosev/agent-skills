@@ -18,8 +18,8 @@ non-trivial code (Comments as Deodorant), call order of the project's own API (T
 floating-point money, and raw status strings, also when a comment states the allowed values (Primitive Obsession),
 stuttering names (→ smell-hunter); comments that justify a type-system bypass or a nil or zero-value contract, an
 invariant that a runtime check already enforces (→ invariant-hunter); comments that justify a discarded error, Go
-reachable panics and discarded errors, empty catches, `None` / `undefined` returned for an error, justifying comments
-on discarded promises (→ exception-hunter); code that needs a "what" comment, intentional complexity whose
+reachable panics and discarded errors, `None` / `undefined` returned for an error (→ exception-hunter); empty catches
+and discarded promises are not covered here; code that needs a "what" comment, intentional complexity whose
 stated reason is stale, unused code under `// IMPORTANT: do not remove` (→ simplicity-hunter; boundary-hunter for an
 export); an implementation that breaks a *documented* interface contract (→ solid-hunter); Go aliases without a
 migration comment (→ type-hunter); generic package names (→ boundary-hunter); doctests and Go `Example` functions

@@ -8,8 +8,8 @@ disable-model-invocation: true
 
 Audit code for **failure handling that hides, misreports, or loses failures** — a failure that is raised,
 propagated, caught, or converted by accident instead of on purpose: `except Exception: return None` in a `find_order`
-whose caller then creates a second order, `_ = tx.Commit()`, a floating `save()` promise in a handler that returns
-200, `fmt.Errorf("load %s: %v", p, err)` under a caller that matches with `errors.Is`. Goal: **every failure reaches
+whose caller then creates a second order, an `ErrOrderNotFound` that the transport boundary maps to 500, a panic on
+request input in a goroutine that a handler spawns. Goal: **every failure reaches
 code that acts on it, keeps the cause and the identity its readers need, and gets the status its kind calls for.**
 
 In this skill, an **exception** is any failure a callee reports: a Go `error` value, a Python exception, a TypeScript
@@ -34,14 +34,14 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 ## Quick Reference
 
 Category names are canonical: the heading here, in What to Hunt, and in the report are identical. Each language
-reference holds its scans, detectors, version gates, and transport frameworks.
+reference holds its scans, version gates, transport frameworks, and the classes it leaves to tools.
 
 | Category | Core signal | Required evidence | Action |
 | -------- | ----------- | ----------------- | ------ |
 | Swallowed Errors | A received failure that no code acts on | The failure dropped, and what the caller gets instead | Propagate, or recover with a stated reason |
 | Orphaned Async Failures | Async work whose failure has no observer | The spawn site, and that no await, result read, or handler exists | Await, keep and read the task or future, or use a group |
 | Overbroad Handling | A handler that acts on failures it was not written for | The expected failure, and one other failure that reaches the handler | Narrow the catch to the expected failure; let the rest propagate |
-| Broken Error Chains | Wrapping or reporting that drops the cause, stack, or traceback | What is lost; for Go `%v`, the caller that matches the chain | `%w`, `Unwrap`, `{ cause }`, `from`, `logger.exception` |
+| Broken Error Chains | Wrapping or reporting that drops the cause, stack, or traceback | What is lost | `%w`, `Unwrap`, `{ cause }`, `from`, `logger.exception` |
 | Unmatchable Failures | A caller must tell a failure apart and cannot, except by text or a wrong type | The consumer and how it matches | Sentinel or typed failure; `errors.Is` / `errors.As`; a specific exception class |
 | Untranslated Boundary Errors | A failure crosses a layer in the wrong vocabulary | Direction, the failure, the boundary; for `outward`, the status produced and the status its kind calls for | Translate in the adapter; map at the transport boundary |
 | Double Handling | One failure handled at more than one layer | Both handling sites | Log at the boundary or return; not both |
@@ -50,7 +50,7 @@ reference holds its scans, detectors, version gates, and transport frameworks.
 
 ## Core Principles
 
-1. **Scans and detectors nominate; reading decides.** Nothing is a finding until Phase 4 has read the handler, the
+1. **Scans nominate; reading decides.** Nothing is a finding until Phase 3 has read the handler, the
    failure's source, and the path to the boundary.
 2. **Every handler has a job.** Recover, translate, add context, or report at a boundary. A handler that does none of
    these is the finding. A handler that does its job for failures it was not written for is Overbroad Handling.
@@ -86,11 +86,8 @@ reference holds its scans, detectors, version gates, and transport frameworks.
 - **Message event** — a Sentry event with a message and no stack trace or exception, so Sentry groups it by message.
   Sentry groups an event by its stack trace first, then by exception type and value, and by message only when
   neither exists; the message fallback uses the text without its parameters when it has them (Sentry event-grouping
-  docs). Python: a `logger.error` / `logger.critical` record without `exc_info`, which the default logging
-  integration (`event_level=ERROR`) turns into an event, in a project with `sentry-sdk` whose `sentry_sdk.init` does
-  not set `attach_stacktrace=True` or replace `event_level`. TypeScript: `Sentry.captureMessage` with `@sentry/*` and
-  no `attachStacktrace: true`. `logger.exception` and `exc_info=True` attach a stack and are never message events. Go
-  has no message-event check.
+  docs). TypeScript: `Sentry.captureMessage` with `@sentry/*` and no `attachStacktrace: true`. Go and Python have no
+  message-event check.
 - **Cancellation** — a stop the caller asked for, not a failure: Go `context.Canceled`, and `DeadlineExceeded` from a
   deadline the caller set (the incoming request's context); Python `asyncio.CancelledError` of the current task;
   TypeScript `AbortError` / `signal.aborted`; an HTTP client disconnect. A timeout this code sets for its own
@@ -107,39 +104,31 @@ propagated, nor reported. The caller gets a success-shaped result.
 
 **Kinds** (the report's Kind column):
 
-- `dropped` — nothing happens: `except: pass`, `catch {}`, `if err != nil {}`, `_ = f()` on an error, a Go call whose
-  error return is ignored by arity, `.catch(() => {})`.
+- `dropped` — nothing happens: `with suppress(Exception)`, `.catch(() => {})`, a Go `err` that is checked and then
+  used on no branch.
 - `logged-only` — logged, then the code continues as on success.
-- `defaulted` — replaced by `None`, `[]`, `{}`, `0`, `false`, a nil error (`if err != nil { return nil }`).
+- `defaulted` — replaced by `None`, `[]`, `{}`, `0`, `false`, or a zero value.
 - `skipped` — `continue` in a loop; only the first of several collected errors returned; `gather(...,
-  return_exceptions=True)` or `Promise.allSettled` whose failures are never read; Go `rows.Err()` / `scanner.Err()`
-  not read after the loop.
-- `overridden` — a later statement replaces it: `return`, `break`, or `continue` in `finally`; a named `err` result
-  overwritten in a `defer`; an `err` assigned again before it is read (`err = foo(); err = bar()`; ineffassign
-  nominates, errcheck does not, because the first error was assigned); `recover()` whose value is discarded.
-- `never-raised` — an exception or error built and never raised or returned: `ValueError("x")` as a statement,
-  `new Error("x");`, `errors.New("x")` with the result unused.
+  return_exceptions=True)` or `Promise.allSettled` whose failures are never read; Go `scanner.Err()` not read after
+  the loop.
+- `overridden` — a later statement replaces it: a named `err` result overwritten in a `defer`; `recover()` whose
+  value is discarded.
+- `never-raised` — an error built and never thrown: `new Error("x");` as a statement.
 
-**Signals:** the kinds above; each language reference's scans carry the markers. Go also: `defer f.Close()` on a
-write path; `if err != nil` checked but the error is not used on any branch.
+**Signals:** the kinds above; each language reference's scans carry the markers.
 
 **Not a finding:**
 
-- A best-effort operation whose comment states why the failure is safe to drop, and the code confirms it: `Close` on a
-  file opened read-only, a logger flush, a metrics or telemetry emit, a cache fill. The comment is a claim to verify.
+- A best-effort operation whose comment states why the failure is safe to drop, and the code confirms it: a logger
+  flush, a metrics or telemetry emit, a cache fill. The comment is a claim to verify.
   It is a finding on a write path whatever the comment says, and with no comment.
 - A degraded fallback that logs at warn level and says why in a comment (a stale cache served while the origin is
   down).
 - Loop termination by contract: `io.EOF`, `StopIteration`, `StopAsyncIteration`.
 - `contextlib.suppress(FileNotFoundError)` around a delete-if-exists, and other single, named failures whose
   suppression is the intent.
-- Writes that cannot fail by contract: `bytes.Buffer`, `strings.Builder`, `hash.Hash` `Write`. errcheck excludes them
-  by default.
 - A process-boundary catch-all that logs once and continues the loop with the next independent item (a queue
   consumer that nacks the message).
-- A dropped error from writing an HTTP response body (`fmt.Fprintf(w, …)`, `w.Write(…)`). The first write has
-  committed the status, so the handler cannot repair the response; a streaming handler that keeps writing after a
-  failed write is accepted. This reason covers response writes only, never a file write or a publish.
 - `CancelledError` caught while joining a task this code cancelled itself (`task.cancel()`, then `await task`), when
   the join still re-raises the current task's own cancellation (`if asyncio.current_task().cancelling(): raise`,
   3.11+). `with suppress(CancelledError): await task` also swallows a cancellation of the current task that arrives
@@ -149,10 +138,9 @@ write path; `if err != nil` checked but the error is not used on any branch.
 names what the caller does with the default (`None` → caller creates a new order). For a justifying comment, it names
 the code that confirms or contradicts it.
 
-**Action:** propagate; or recover with a comment that states why the failure is safe; on a Go write path, capture the
-`Close` error in a named result.
+**Action:** propagate; or recover with a comment that states why the failure is safe.
 
-**Ownership:** `_ = x` on a non-error binding is slop-hunter's Trivially Dead Code. Suppressing the current task's
+**Ownership:** suppressing the current task's
 own cancellation (`CancelledError` caught and not re-raised) is here: it breaks the caller's cancellation. A Go
 `return nil, nil` with no error received is not here: it is an absence contract (doc-hunter's Undocumented
 Contracts; a nil dereference that follows is invariant-hunter's Nil Pointer Risks). A `return nil, nil` in one
@@ -162,36 +150,17 @@ implementor of an interface whose contract promises a value or an error is solid
 
 Async work started with no path for its failure to reach code that acts on it.
 
-**Signals:**
+**Signals** (Python): a kept task or future that is never awaited or read; `executor.submit()` whose future's
+`.result()` / `.exception()` is never read; a `threading.Thread` target that can raise, with no path back to the
+spawner.
 
-- TypeScript: a floating promise (an un-awaited call to an `async` function, a `.then()` chain with no terminal
-  handler); an `async` callback passed where the caller ignores the returned promise (`forEach(async …)`,
-  `setTimeout(async …)`, an emitter `.on(…, async …)`); an `async` Express 4 route handler in a package with no
-  async wrapper (Express 5 forwards the rejection, so it is not a finding there); `void promise` whose callee can
-  reject (`void` changes nothing about the rejection; typescript-eslint's docs say so).
-- Python: `asyncio.create_task` / `ensure_future` whose result is not kept (the event loop holds only a weak reference,
-  so the task can also vanish mid-run); a kept task or future that is never awaited or read; `executor.submit()`
-  whose future's `.result()` / `.exception()` is never read; a `threading.Thread` target that can raise, with no path
-  back to the spawner.
-- Go: `go f(…)` where `f` returns an error (the `go` statement discards it); an `errgroup.Group` whose `Wait()` result
-  is discarded.
+**Not a finding:** a task kept in a set and drained by a supervisor that logs its failures.
 
-**Not a finding:** a discarded promise (`void` or not) whose callee catches every failure itself and does not
-rethrow, confirmed by reading the callee, not by a comment; a promise with a terminal `.catch` that handles it; a
-task kept in a set and drained by a supervisor that logs its failures; a goroutine whose body handles its own error
-(the body's handling is judged by the other categories); `go f()` where `f`'s error is one errcheck excludes by
-default (`go fmt.Println(…)`).
+**Evidence bar:** the spawn site, and the search that found no await, result read, or supervisor. The Consequence
+cell names what is lost: the task's, future's, or thread's failure.
 
-**Evidence bar:** the spawn site, and the search that found no await, result read, terminal handler, or group. For a
-discarded promise, the callee line that can reject. The Consequence cell names what happens: a crash (Node ≥ 15
-default), the recorded listener's action or `--unhandled-rejections` mode (Phase 1 step 5), a lost task, or a
-goroutine's dropped error.
-
-**Action:** await it; keep the task and read its result; use a task group (`asyncio.TaskGroup`, `errgroup`); for an
-intentional discard, a `.catch` that handles the failure, or a supervisor that logs.
-
-**Ownership:** a goroutine body that receives an error and drops it is Swallowed Errors; `go f()` that discards the
-error by construction is here. A panic in a spawned goroutine is Panic and Exit Misuse.
+**Action:** await it; keep the task and read its result; use `asyncio.TaskGroup`; for an intentional discard, a
+supervisor that logs.
 
 ### Overbroad Handling
 
@@ -204,8 +173,6 @@ A handler written for one failure that also catches others and treats them the s
   `findById`. A lost connection becomes a missing record.
 - A `try` body with several calls whose failures need different handling, under one handler. The line count is not
   evidence.
-- Bare `except:` or `except BaseException` that catches `KeyboardInterrupt`, `SystemExit`, or (since Python 3.8)
-  `asyncio.CancelledError`.
 - A retry that catches failures it cannot fix by retrying: `autoretry_for=(Exception,)`, tenacity `@retry` with no
   `retry=` (its default retries every exception), `retryIf: () => true`, a retry around a non-idempotent write.
   Attempt limits, backoff, and jitter are not judged.
@@ -239,33 +206,26 @@ converted, or reported.
 
 **Signals:**
 
-- Go: `fmt.Errorf` with `%v` (or no verb) where a caller matches the chain with `errors.Is` / `errors.As`; a custom
-  error type that wraps another error and has no `Unwrap()`; `errors.New(err.Error())`.
+- Go: a custom error type that wraps another error and has no `Unwrap()`; `errors.New(err.Error())`.
 - Python: `raise X(str(e))` outside the `except` block that caught `e` (a stored error raised later); `raise X from
-  None` with no reason; `logger.error(str(e))` / `logger.error(f"… {e}")` at the site that handles the failure (the
-  traceback is gone).
-- TypeScript: `throw new X(…)` inside `catch` without `{ cause }`; a custom error class whose constructor does not pass
-  `options` to `super`, when a call site passes `{ cause }` to it; `throw "string"` or `Promise.reject(nonError)` (no
-  stack is captured); `console.error(e.message)` / `logger.error(e.message)` at the handling site (stack and cause
+  None` with no reason.
+- TypeScript: a custom error class whose constructor does not pass `options` to `super`, when a call site passes
+  `{ cause }` to it; `console.error(e.message)` / `logger.error(e.message)` at the handling site (stack and cause
   dropped).
 - Every language: a failure converted into a Result or error object without its cause
   (`catch (e) { return err(new AppError("Database error")) }`).
 
 **Not a finding:**
 
-- A deliberate break at a published boundary (Go: `fmt.Errorf("%w: %v", ErrPublic, err)` keeps callers off internal
-  types); `from None` with a reason.
-- Go `%v` with no caller that matches the chain. Go's guidance is to wrap with `%w` only to expose the cause to
-  callers; withholding it keeps an abstraction boundary.
+- `raise … from None` with a reason.
 - Python `raise X` inside `except` without `from`, unless a caller reads `__cause__`. Python keeps the original as
   `__context__` and prints its traceback; only `__cause__` and the joining sentence differ.
 - A custom error class that drops `options` while no call site passes `{ cause }` to it.
 
-**Evidence bar:** the Lost cell names what is gone (`cause`, `stack`, `traceback`, `Is/As match`). For Go `%v`, the
-Matching Caller cell names the caller that matches the chain; none → no finding.
+**Evidence bar:** the Lost cell names what is gone (`cause`, `stack`, `traceback`).
 
-**Action:** `%w`; implement `Unwrap`; `{ cause: e }` and forward `options` to `super`; `raise … from e`;
-`logger.exception` or `exc_info=True`; throw `Error` instances only.
+**Action:** `%w`; implement `Unwrap`; forward `options` to `super`; `raise … from e`; log the error itself, not its
+message.
 
 **Ownership:** wrapping-message *redundancy* (`fmt.Errorf("error: %w", err)`, a wrap at every layer) is slop-hunter's
 Unnecessary Error Wrapping. Matching (`==`, string comparison) is Unmatchable Failures. The three compose: wrap with
@@ -280,13 +240,8 @@ identity check that wrapping breaks.
 
 - Matching by text: Go `err.Error() == "…"`, `strings.Contains(err.Error(), …)`; Python `"duplicate" in str(e)`,
   `e.args[0] == …`; TypeScript `e.message.includes(…)`, `e.message === …`.
-- Go identity checks that wrapping breaks: `err == ErrX`, `err.(*T)`, `switch err.(type)` on an error a callee wraps
-  (errorlint nominates); an `errors.As` target whose pointer or value form does not match the error's receiver (vet's
-  `errorsas` catches only a non-pointer target).
-- Go success that looks like failure, or failure that looks like success, with no consumer needed (every
-  `err != nil` check is one): a nil sentinel (`var ErrX error`, never set, so `return ErrX` reports success); a
-  typed nil returned as `error` (`var e *MyErr; return e`, so `err != nil` is always true). staticcheck SA4023
-  nominates the typed nil through a caller's comparison; there is no scan (the Go reference's Detectors).
+- Go success that looks like failure, with no consumer needed (every `err != nil` check is one): a nil sentinel
+  (`var ErrX error`, never set, so `return ErrX` reports success).
 - Go `var ErrX = "…"` (a string): callers can match it only as text, so it is consumer-gated like any text match.
   `var ErrX = fmt.Errorf("…")` with no `%w` is a valid sentinel: `==` and `errors.Is` match it. Not a finding.
 - A generic failure (`raise Exception(…)`, `throw new Error(…)`, an inline `errors.New(…)`) at a site whose caller
@@ -299,18 +254,15 @@ identity check that wrapping breaks.
 
 - A documented code field: Node `err.code === 'ENOENT'`, Python `e.errno`, gRPC `status.Code(err)`, an HTTP status on a
   response error. Matching a library's code outside its adapter is Untranslated Boundary Errors.
-- `err == io.EOF` from a direct `io.Reader.Read`: the `io.Reader` contract returns `io.EOF` unwrapped.
 - A generic failure that no caller branches on. Not every failure needs a class.
 
 **Evidence bar:** the Consumer cell names the caller that branches on the failure, or the boundary that cannot map it
-and so returns 500. No consumer → no finding. For a nil sentinel or a typed nil, the Consumer cell names one
-`err != nil` check that gets the wrong answer. Location is the consumer's match site; a nil sentinel or a typed nil
-is filed at the failure site's `return` and cites one consumer. Only the Location must be in the target scope; the
+and so returns 500. No consumer → no finding. For a nil sentinel, the Consumer cell names one `err != nil` check
+that gets the wrong answer. Location is the consumer's match site; a nil sentinel is filed at the failure site's `return` and cites one consumer. Only the Location must be in the target scope; the
 other site is read as context.
 
 **Action:** a sentinel (`errors.New`) or a typed error with `errors.Is` / `errors.As` (`errors.AsType` from Go 1.26); a
-specific exception class; `except*` for exception groups; Go: initialize the sentinel with `errors.New`, and return
-a literal `nil` on success instead of a typed pointer.
+specific exception class; `except*` for exception groups; Go: initialize the sentinel with `errors.New`.
 
 **Ownership:** documenting which failures callers match is doc-hunter's Undocumented Contracts; doc-hunter reports it
 only when the design is sound. A sibling hand-rolling an `errors.Unwrap` walk is simplicity-hunter's Reinvented
@@ -363,20 +315,17 @@ One failure handled at more than one layer, so it is logged several times or cau
 **Signals:**
 
 - Log and propagate: `log.Printf(…, err); return err`; `logger.exception(…); raise`; `console.error(e); throw e`.
-- A catch that only re-raises the same failure: `catch (e) { throw e }`, `except X: raise` (ruff TRY203, ESLint
-  `no-useless-catch`).
 
 **Not a finding:**
 
 - A log line that records a different event: a retry attempt at debug or warn level, a degraded fallback.
 - A log at a process boundary where returning is impossible (a goroutine's top function, a thread target).
-- A re-raise after a cleanup the handler does first (rollback, release).
 
 **Evidence bar:** the First Handling and Second Handling cells. For log-and-propagate, the second site is the layer
 that logs the same failure again: the boundary handler, or the framework's documented default (Uvicorn logs an
 unhandled exception; Go `net/http` does not log a returned error, because handlers return none).
 
-**Action:** return (with context) or log at the boundary; not both. Delete a catch that only re-raises.
+**Action:** return (with context) or log at the boundary; not both.
 
 **Ownership:** duplicated error-handling code across functions is simplicity-hunter's.
 
@@ -389,11 +338,8 @@ tracker needs fixed text.
 
 - A message that names no input: `errors.New("failed to parse")`, `raise ValueError("invalid input")`,
   `throw new Error("invalid")`.
-- Go: an error returned unchanged across a package boundary, when the caller holds an identifying input that the
-  callee's message lacks (`u, err := s.repo.Find(ctx, id)` then `return nil, err`). wrapcheck nominates.
 - Two return sites in one function or module with the same message text.
-- A message event (Terms) whose message is interpolated: `logger.error(f"job {job_id} failed")`,
-  ``Sentry.captureMessage(`job ${id} failed`)``. Under default message grouping, interpolated ids can split one
+- A message event (Terms) whose message is interpolated: ``Sentry.captureMessage(`job ${id} failed`)``. Under default message grouping, interpolated ids can split one
   failure into many Sentry issues. A fingerprint set where the code shows it (the call's scope, a `before_send` in
   the init) overrides that grouping: not a finding. Grouping rules configured in Sentry itself are not checked.
 
@@ -405,17 +351,14 @@ tracker needs fixed text.
 - An error that must stay unwrapped by contract: `io.EOF` from an `io.Reader`.
 - A missing step in Python and TypeScript: the traceback or stack names it. There, `input` and `fixed text` (a
   message event) are the only Missing values.
-- Interpolated values in an error value (`fmt.Errorf("load %s: %w", id, err)`), or in a log call that attaches a
-  stack (`logger.exception`, `exc_info=True`): Sentry groups those by stack.
-- `logger.error("job %s failed", job_id)`: Sentry groups by the unformatted text.
+- Interpolated values in an error value (`fmt.Errorf("load %s: %w", id, err)`): Sentry groups those by stack.
 
 **Evidence bar:** the Missing cell names what is missing (`input`, `step`, `distinct text`, `fixed text`) and who holds
 it (the caller's variable). For a message event, the Scope's Tracker line.
 
 **Action:** add the operation and the identifying input once, at the layer that holds it
 (`fmt.Errorf("load order %s: %w", id, err)`; Python 3.11+ `e.add_note(…)` then a bare `raise`; a custom error with the
-field a reader uses); for a message event, Python `%`-style arguments (`logger.error("job %s failed", job_id)`), and
-TypeScript fixed text with the values in `extra`.
+field a reader uses); for a message event, fixed text with the values in `extra`.
 
 **Ownership:** words that add nothing (`fmt.Errorf("error: %w", err)`, `"failed to X: failed to Y"`) are slop-hunter's
 Unnecessary Error Wrapping. Here: information that is missing.
@@ -428,13 +371,12 @@ on.
 **Signals:**
 
 - Go: `panic` on input validation or an I/O, DB, or network failure; `panic` in library code on a failure that a
-  caller's input can cause; `log.Fatal` / `os.Exit` outside `main` and `init`; a `Must*` helper on runtime input;
+  caller's input can cause; a `Must*` helper on runtime input;
   `recover` that continues normal execution; a panic in a goroutine that a handler spawns, with no `recover` in it;
   a `recover` in HTTP middleware that does not re-panic `http.ErrAbortHandler` (net/http uses that panic to abort a
   response on purpose; swallowing it logs a false panic and writes to an aborted response).
 - Python: `sys.exit` / `os._exit` outside the entry point (`__main__`, a `[project.scripts]` target, a CLI command
   function).
-- TypeScript: `process.exit` outside the entry point (`bin`, `main`, a CLI command).
 
 **Not a finding:**
 
@@ -449,7 +391,7 @@ on.
 `internal only`. The Recovered By cell names the `recover` between the panic and the process boundary, or `none`.
 `net/http` recovers handler panics on the serving goroutine (it logs `http: panic serving` and drops the connection),
 so a panic is Critical only on a goroutine the handler spawns, or under a server with no built-in recovery (gRPC
-without a recovery interceptor, a custom listener). Nothing recovers `log.Fatal` or `os.Exit`.
+without a recovery interceptor, a custom listener).
 
 **Action:** return an error for anything external callers reach; keep `panic` for unreachable code and violated
 internal invariants, with a message that names what was found; limit `recover` to goroutine tops and request
@@ -477,36 +419,29 @@ One site, one finding. The rules, in order:
    Action also moves the translation into the adapter. Untranslated Boundary Errors (`inward`) takes the handler only
    when it is otherwise correct.
 4. **A dropped cause or stack wins over Poor Error Context.** A wrap that drops the cause and names no input →
-   Broken Error Chains; the Action also adds the input. A log call that drops the traceback or stack and is a message
-   event with an interpolated message, in a handler that is otherwise correct (rule 9 decides the others) → Broken
-   Error Chains; the Action logs with the stack and fixed text (`logger.exception("job %s failed", job_id)`), which
-   also ends the message event.
-5. **Go goroutines.** `go f()` discarding `f`'s error → Orphaned Async Failures. A goroutine body that drops an error
-   it received → Swallowed Errors. A panic in a spawned goroutine → Panic and Exit Misuse.
+   Broken Error Chains; the Action also adds the input.
+5. **Go goroutines.** A goroutine body that drops an error it received → Swallowed Errors. A panic in a spawned
+   goroutine → Panic and Exit Misuse.
 6. **Cancellation** (Terms: the current task's own, or the caller's deadline). Caught and not re-raised →
    Swallowed Errors. Logged at error level, then propagated or handled → Overbroad Handling.
 7. **A justifying comment** is judged with its site, in the category of the site. It is never a separate finding.
-8. **A `catch` that cannot run** (TypeScript `return promise` without `await` inside its `try`; return-await
-   nominates). The caller gets the rejection untouched. File it at the `return`, in the category of what the catch
-   does: translation → Untranslated Boundary Errors; added context → Poor Error Context. A catch that logs or
-   recovers is a finding only where the escaped rejection causes a defect at the caller, in that defect's category.
-   Action: `return await`.
-9. **A log call that drops the traceback or stack** (`logger.error(str(e))`, `logger.error(e.message)`), or a
-   message event with an interpolated message (`logger.error(f"job {job_id} failed")`), in a handler that is a
+8. **A log call that drops the stack** (`logger.error(e.message)`), or a message event with an interpolated message
+   (``Sentry.captureMessage(`job ${id} failed`)``), in a handler that is a
    Swallowed Errors or Double Handling finding → that category; its Action also logs the error with its stack, which
    also ends the message event. Broken Error Chains or Poor Error Context takes the log call only when the handler is
    otherwise correct.
-10. **A `recover()` that carries on.** Its value discarded (`defer func() { recover() }()`) → Swallowed Errors
+9. **A `recover()` that carries on.** Its value discarded (`defer func() { recover() }()`) → Swallowed Errors
     (`overridden`). Its value read, then normal execution continues → Panic and Exit Misuse.
-11. **A catch-all that converts every failure into one narrower failure without its cause**
+10. **A catch-all that converts every failure into one narrower failure without its cause**
     (`catch (e) { throw new NotFoundError(id) }`, `return err(new NotFound())`) → Overbroad Handling; its Action also
     keeps the cause. Broken Error Chains takes the conversion only when the catch claims no narrower meaning (an
     adapter catch-all that throws the adapter's own failure).
 
 ## Applicability
 
-All nine categories apply in Go, Python, and TypeScript. Each language reference's Applicability table states the
-language's markers; Panic and Exit Misuse in Python and TypeScript covers exit calls only.
+Seven categories apply in Go, Python, and TypeScript. Orphaned Async Failures applies in Python only, and Panic and
+Exit Misuse in Go and Python only; in Python it covers exit calls only. Each language reference's Applicability
+table states the language's markers.
 
 ## Test-code scope
 
@@ -525,18 +460,16 @@ Every finding carries **both**. They answer different questions and routinely di
   state; success reported for a failed write; a process crash from external input), and why nothing contains it.
   Examples: `_ = tx.Commit()` or `defer f.Close()` on a write path whose caller reports success;
   `except Exception: return None` in `find_order` whose caller creates a new order on `None`, so a DB outage creates
-  duplicates; a floating `save()` promise in a handler that returns 200; a panic on request input in a goroutine the
-  handler spawns.
+  duplicates; a panic on request input in a goroutine the handler spawns.
 - **High** — a silent wrong result or a wrong status awaiting the first failure: a read path that swallows a failure
-  and returns empty; any error mapped to not-found or 404; `%v` where a caller matches with `errors.Is`; a swallowed
+  and returns empty; any error mapped to not-found or 404; a swallowed
   `CancelledError` (the task can no longer be cancelled); an expected domain failure that reaches the generic 500; an
-  Orphaned Async Failure off the write path; a typed nil or nil sentinel returned as `error`.
+  Orphaned Async Failure off the write path; a nil sentinel returned as `error`.
 - **Medium** — the failure is handled correctly, and diagnosing it costs more than it should: a cause, stack, or
-  traceback lost (TypeScript without `cause`, `logger.error(str(e))`, a thrown string); a failure logged twice; a
+  traceback lost (`errors.New(err.Error())`, `logger.error(e.message)`); a failure logged twice; a
   message with no input crossing a module boundary; an untranslated external failure with correct behavior today; a
   transport error raised in a unit that a worker or CLI also reaches.
-- **Low** — hygiene and adoption: a cancellation logged at error level; an interpolated message event; adopting
-  `errcheck` or `no-floating-promises`.
+- **Low** — hygiene: a cancellation logged at error level; an interpolated message event.
 
 Critical needs the caller's behavior. A caller outside the target scope is read as context; when it cannot be found,
 the finding states the consequence as unknown and takes High at most.
@@ -632,20 +565,12 @@ Contextual; never derived from occurrence count.
 5. **Record the failure-handling context** per language (report-format.md says which Scope lines print):
    - **Language versions** that gate a remedy or a consequence: the `go` directive in `go.mod`; `requires-python`
      (or the lockfile's interpreter); tsconfig `target` and `lib`; the Node major from `engines.node` or `.nvmrc`,
-     else `unknown`. Per `package.json` that depends on `express`: its major version and whether it loads an async
-     wrapper (`express-async-errors`, or a local wrapper applied to the routes). A remedy is proposed only when the
+     else `unknown`. A remedy is proposed only when the
      recorded version supports it (each reference's version gates). With a version `unknown`, the Action names the
      version the remedy needs.
-   - **Rejection handling** (TypeScript): a process-level `unhandledRejection` listener, and a
-     `--unhandled-rejections` mode set where the repository shows it (package scripts, `NODE_OPTIONS` in a
-     Dockerfile or deploy file): `rg -n -- '--unhandled-rejections'` over the repository. Both decide an orphaned
-     rejection's consequence: `warn`, `warn-with-error-code`, and `none` continue without a listener, `strict`
-     crashes even with one, and otherwise a listener replaces the crash with whatever it does. The Consequence cell
-     says which. Deployment settings outside the repository are not searched; with none visible, the cell names the
-     default and says the deploy may override it.
    - **Transport boundaries:** the transport frameworks and their boundary files (handlers, middleware, registered
      exception handlers; each reference's Transport frameworks section), and the non-request entry points (workers,
-     CLI commands, scheduled jobs) from which Phase 4 traces transport errors. With no entry point recorded, every
+     CLI commands, scheduled jobs) from which Phase 3 traces transport errors. With no entry point recorded, every
      transport-error candidate closes at once.
    - **Tracker:** the Sentry setup that decides message events (Terms), or none.
 
@@ -654,52 +579,34 @@ Contextual; never derived from occurrence count.
    that withdraws a pattern is named in the report's `Policy:` line. Only a panic policy has an override: a panic
    that external input reaches is a finding whatever the policy says (Panic and Exit Misuse).
 
-### Phase 2: Run Detectors
+### Phase 2: Scan for Candidates
 
-Run each detector the loaded reference's Detectors section names, under the condition that section states (for
-most detectors: the project configures it), with the reference's read-only command and the project's own config. A
-detector is never installed, fetched, or reconfigured. Its output nominates. Keep only diagnostics whose file is
-in the language's eligible list; in codebase mode, where the list is `.`, drop diagnostics on test paths and on
-paths the reference's `$EXCLUDE` globs match. Record one entry per detector on the Scope's Detectors line:
-
-- `ran — <command>`. A run that printed its diagnostics is `ran`, whatever its exit code.
-- `ran — new issues only — <command>`, when the project config limits the run to new issues. Its silence is not
-  coverage.
-- `skipped — not configured`, `skipped — no error-relevant rules enabled`, or `skipped — configured, not installed`.
-- `errored — <message>`, when the detector stopped before analysis (a config, load, or option error). Its output is
-  not used.
-
-Done when every detector the loaded references name has its Detectors entry, and every kept diagnostic is listed as a
-candidate.
-
-### Phase 3: Scan for Candidates
-
-For each language that has a `<run>/<lang>.txt`, run the loaded reference's Phase 3 scan block over that list,
+For each language that has a `<run>/<lang>.txt`, run the loaded reference's Phase 2 scan block over that list,
 restored in the same call (Phase 1 step 4). Every hit is a candidate. Diff mode nominates from the working tree of
 the manifest files, not from added lines: error handling is a property of the current code.
 
 **Boundary pass.** Each recorded transport boundary's error mapping (the registered handler or mapping function;
 with none, each handler's error branch) is also one candidate, so a wrong status needs no regex hit.
 
-Done when every scan in each loaded reference's Phase 3 block has run, every boundary mapping is listed, and every
+Done when every scan in each loaded reference's Phase 2 block has run, every boundary mapping is listed, and every
 hit is listed as a candidate.
 
-### Phase 4: Trace Each Candidate
+### Phase 3: Trace Each Candidate
 
 For each candidate, read the handler, the `try` body or the callee, and the path to the boundary: who calls it, where
 the failure is logged, what status it produces. This is where Overbroad Handling finds the second failure, Double
 Handling finds the second handling site, Unmatchable Failures finds its consumer, and Untranslated Boundary Errors
 finds its boundary. Tracing reads beyond the manifest in every mode.
 
-Done when every candidate is either dismissed at its site by a named Not-a-finding case or reference Phase 5
+Done when every candidate is either dismissed at its site by a named Not-a-finding case or reference Phase 4
 question, or has its handler, its failure's source, and its path to the boundary read.
 
-### Phase 5: Evaluate Each Candidate
+### Phase 4: Evaluate Each Candidate
 
 For each candidate: apply the category's **Not a finding:** lines and the loaded reference's Not-a-finding list;
 apply the within-skill routing (if it moved the candidate, apply the routed category's lines too); cross-reference a
 candidate that an **Ownership:** note gives to another hunter; clear the category's evidence bar; check repository
-policy (Phase 1 step 6). Run each loaded reference's Phase 5 block.
+policy (Phase 1 step 6). Run each loaded reference's Phase 4 block.
 
 Assign **Severity and Impact** to every finding. Nothing is held back; `Audit completed: N findings` counts every
 reported finding.
@@ -707,7 +614,7 @@ reported finding.
 Done when every candidate is a reported finding, dismissed by a named Not-a-finding case, or handed off to its
 owning hunter.
 
-### Phase 6: Produce Report
+### Phase 5: Produce Report
 
 Save as `YYYY-MM-DD-exception-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
 (e.g. `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). A caller-specified output path or
@@ -715,16 +622,23 @@ return mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
+of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
+only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
+(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
+bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
+sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
+only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
+with a rule off, and naming the rule costs one line.
+
 ## Operating Constraints
 
-- **Report only.** The audit report is the deliverable; source files stay untouched. Every detector runs with its
-  read-only flags, so `git status` shows only the report file after the run.
+- **Report only.** The audit report is the deliverable; source files stay untouched, so `git status` shows only the
+  report file after the run.
 - **Evidence required.** Every finding cites `file:line` with the exact code, and the category's evidence cells,
   named in `references/report-format.md`, are filled from code read, never inferred.
 - **Comments are claims; the code is evidence.** A justifying comment (`// read-only; close error carries nothing`)
   is checked against the code — here, the open mode — never trusted.
 - **One site, one finding.** When two categories describe the same code, the within-skill routing picks one, and the
   other is cross-referenced.
-- **Never install.** Run only tools the project already has; a tool that is configured but absent is `skipped`,
-  never fetched.
 - **Hand off.** A candidate another hunter owns is cross-referenced to that hunter and not scored here.

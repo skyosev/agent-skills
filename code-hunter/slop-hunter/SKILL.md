@@ -193,8 +193,8 @@ a language idiom the reference's Trivially Dead Code section lists as intentiona
 simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported dead symbols are boundary-hunter's
 Dead Exports.
 Type-checker suppressions, reason or not, are invariant-hunter's Type-System Bypasses — "should this bypass exist?"
-subsumes "does it have a reason?"; one line, one hunter. `_ = f()` where `f` returns an `error` is
-exception-hunter's Swallowed Errors. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
+subsumes "does it have a reason?"; one line, one hunter. `_ = f()` where `f` returns an `error` is not covered
+here. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
 `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped or focused tests (`t.Skip()`, `@pytest.mark.skip`, `it.skip`,
 `.only`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter.
 

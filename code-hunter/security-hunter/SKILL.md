@@ -327,8 +327,8 @@ site and the missing field.
 the record's owner or tenant with the session; deny on error; `jwt.verify` with pinned `algorithms`; the provider's
 signature verification with a constant-time compare; `expiresIn`; session regeneration at login.
 
-**Ownership:** the handler shape of a fail-open catch (`except Exception: pass`) is exception-hunter's Swallowed
-Errors; the access it grants is here. A check-then-act race on auth or account state is reported by no hunter.
+**Ownership:** the handler shape of a fail-open catch (`except Exception: pass`) is not covered here; the access it
+grants is. A check-then-act race on auth or account state is reported by no hunter.
 
 ### Sensitive Data Exposure
 

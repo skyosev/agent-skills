@@ -158,8 +158,7 @@ For each `fmt.Errorf` candidate:
 - Does the message add something the caller cannot infer — the operation, the resource, an identifier? If it only
   says "error" or "failed", it is redundant.
 - Is the inner error already wrapped with the same context one frame down? Report the outer wrap.
-- Is `%v` used where a caller matches the chain? That is exception-hunter's Broken Error Chains — cross-reference,
-  do not score.
+- Is `%v` used where a caller matches the chain? That is not covered here; do not score.
 
 For each `//nolint` or `#nosec`:
 
