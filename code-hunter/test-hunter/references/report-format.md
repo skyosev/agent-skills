@@ -13,13 +13,14 @@ A deletions-only run's Scope holds the lines of Phase 1 steps 1 to 3, `Reference
 source, and the `go` line for Go; `Doubles` lists, per language, the double library. An unknown version names the
 signals it skipped: `pytest version: unknown — skipped: async test that no plugin handles`.
 
-**Detectors line.** One entry per delegated detector the language reference names: `<detector>: ran — <command>` /
-`skipped — not configured` / `skipped — configured, not installed` / `errored — <message>`. Output of an errored
-detector is not used.
-
 **Test execution line.** `not requested` / `ran — <command>` / `ran — <command>: <n> failed` / `skipped — no test
 command` / `skipped — command updates snapshots` / `errored — timed out` / `errored — <message>`. After a run,
 every path whose status or content changed is listed.
+
+**Coverage recommendation.** When no command or configuration in the repository collects coverage, one Low entry
+under Recommendations, with no table row, names a coverage tool with branch counts: coverage.py with `--branch`
+(Python), Vitest or Jest coverage (TypeScript), and `go test -coverprofile` for Go, which counts statements only.
+Coverage Gaps stay with this hunter.
 
 **Evidence cells** follow each category's evidence bar in SKILL.md. Location is `file:line`; a deleted test is
 `<path> (deleted)`. Test names the test in the language reference's evidence path form; the missing `-race` row gives
@@ -44,7 +45,6 @@ Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never execute
 - Doubles: {per language — `go: hand-written fakes, gomock` / `python: unittest.mock` / `typescript: vi.fn`}
 - {Type-check of tests: {typescript, per group of test files — `src/**/*.test.ts: yes — tsc --noEmit -p tsconfig.test.json (package.json "typecheck")` / `e2e/**: no`}}
 - {<framework> version: unknown — skipped: {gated signals}}
-- Detectors: {per language — `go vet -testinggoroutine: ran — GOPROXY=off go vet -testinggoroutine ./...` / `golangci-lint testifylint: skipped — not configured` / `ruff: errored — <message>`}
 - Critical units: {count} — {names}
 - Test execution: {not requested / ran — <command> / ran — <command>: <n> failed / skipped — no test command / skipped — command updates snapshots / errored — timed out / errored — <message>}
 - {Paths changed by the test run: {list}}
@@ -56,7 +56,6 @@ Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never execute
 - {coverage profile not used: {reason}}
 - {unbound doubles without drift: {n} files — {dir} ({n}), … — per language}
 - {suite-wide retry: {setting} at {file:line}}
-- {focused test under {runner}: {file:line} — runner not covered; no finding}
 - {not assessed: {n} tests, {m} units — context budget}
 - {not read: {n} files — context budget}
 - {Read split: {n} agents by {unit} — merged by this session}
@@ -81,7 +80,7 @@ Oracle Trace ends with the kind in parentheses. Kind is `Absent`, `Never execute
 
 | # | Location | Test | Kind | Accepted Defect | Severity | Impact | Action |
 | - | -------- | ---- | ---- | --------------- | -------- | ------ | ------ |
-| 1 | user.test.ts:30 | `user › loads profile` | Never executes | `expect(load()).resolves` without `await` under Jest: the test ends before the assertion runs | Medium | Low | `await expect(load()).resolves.toEqual(profile)` |
+| 1 | order_test.go:30 | `TestTotal` | Never executes | `if got != nil { if got.Total != 1750 { t.Errorf(…) } }`: `Total` returning `nil` skips the check | Medium | Low | `require.NotNil(t, got)`, then `assert.Equal(t, 1750, got.Total)` |
 | 2 | auth_test.go (deleted) | `TestRefundRequiresScope` | Weakened in diff | `ErrorIs(err, ErrForbidden)` at merge base auth_test.go:31; the deny path is still at auth/policy.go:58 (authorization decision: a wrong allow lets a viewer issue refunds); `rg -w Authorize`: policy_test.go:12, allow path only; route `"/v1/refunds"`: none | High | High | Restore the test, or name the test that replaces it |
 
 ### Brittle Tests

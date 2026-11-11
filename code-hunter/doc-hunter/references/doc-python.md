@@ -1,18 +1,16 @@
 # Doc Hunter — Python reference
 
-Contents: Applicability · Generated-code and test-path eligibility · Doc-comment form · Public symbol and Library unit · Detectors · Phase 2 — doc scans · Diff mode — removed symbols · Remedies · Evidence path form
+Contents: Applicability · Generated-code and test-path eligibility · Doc-comment form · Public symbol and Library unit · Delegated to tools · Phase 2 — doc scans · Diff mode — removed symbols · Remedies · Evidence path form
 
 ## Applicability
 
 | Category | Applicable | Python note |
 | -------- | ---------- | ----------- |
 | Unexplained Business Rules | **yes** | Thresholds in comparisons and in module constants; a source comment on the constant covers its uses |
-| Magic Numbers | **yes** | Module constants with `typing.Final` carry the role; PLR2004 nominates comparisons only |
 | Non-Obvious Algorithms | **yes** | `re` patterns and bit operations (`<<`, `>>`, `^`, `~`) |
 | Unexplained Workarounds | **yes** | `time.sleep`, `asyncio.sleep`, `timeout=`; `sys.version_info` and `sys.platform` branches |
 | Undocumented Contracts | **yes** | Exceptions that callers catch (`Raises:`); a class used from threads; `os.environ` and `contextvars` reads. `None` returned for an error is exception-hunter's (Swallowed Errors) |
-| Misleading Comments and Names | **yes** | `Args:` entries the signature lacks; Sphinx roles to removed symbols; pydantic `alias=` and SQLAlchemy `Column("…")` as mapping sites; expiry against the lockfile |
-| Missing Public Docs | **yes** | No Library unit: only a configured rule opens the gate (ruff D100–D107, pylint C0114–C0116) |
+| Misleading Comments and Names | **yes** | Pydantic `alias=` and SQLAlchemy `Column("…")` as mapping sites; expiry against the lockfile |
 
 ## Generated-code and test-path eligibility
 
@@ -33,55 +31,18 @@ Markdown-only inputs are also ineligible.
   in `pyproject.toml` / `ruff.toml` / `.ruff.toml` — then from the dominant style in nearby docstrings (Google, NumPy,
   Sphinx).
 - **Parameters and exceptions:** Google `Args:` / `Raises:`, NumPy `Parameters` / `Raises` sections, Sphinx
-  `:param name:` / `:raises X:`. A documented parameter or exception the code does not have is a Misleading Comments
-  and Names signal.
-- **References:** a Sphinx role (`:func:`, `:class:`, `:meth:`, `:attr:`, `:mod:`) names a symbol. A bare
-  `` `name` `` is a code span, not a reference.
+  `:param name:` / `:raises X:`.
 
 ## Public symbol and Library unit
 
-A public symbol has no leading underscore, on its name or on any enclosing module or package. `__all__` decides when
-present.
+Python has no Library unit (SKILL.md Terms).
 
-Python has no Library unit (SKILL.md Terms): only a configured rule opens the Missing Public Docs gate.
+## Delegated to tools
 
-## Detectors
-
-**ruff** runs when the project configures it (`[tool.ruff]` in `pyproject.toml`, `ruff.toml`, `.ruff.toml`). Checked
-on ruff 0.17.2. Ruff is fast enough that the project's full rule set runs, and the output is filtered:
-
-```bash
-cd "$(git rev-parse --show-toplevel)" || exit 1
-PY_FILES=$(cat <run>/python.txt); [ -n "$PY_FILES" ] || exit 1      # STOP: empty restore
-ruff check --no-fix --output-format=concise -- $PY_FILES | rg -w 'D10[0-7]|D417|DOC(102|201|202|402|403|501|502)|PLR2004'
-```
-
-`--no-fix` is required: a config with `fix = true` makes `ruff check` rewrite files. The kept codes:
-
-- D100–D107: missing docstrings.
-- D417: `Args` entries missing. It only checks docstrings with an `Args` section; the `google` convention enables it.
-- DOC102, DOC201, DOC202, DOC402, DOC403, DOC501, DOC502: pydoclint. Preview rules: they run only when the project
-  both enables preview and selects them.
-- PLR2004: magic values, in comparisons only. It exempts `0`, `1`, `-1`, `0.0`, `1.0`, `-1.0`, `""`, `"__main__"`.
-
-**pylint** runs when the project runs it (a pre-commit hook, a Makefile target, a CI step). Keep C0114–C0116:
-
-```bash
-cd "$(git rev-parse --show-toplevel)" || exit 1
-PY_FILES=$(cat <run>/python.txt); [ -n "$PY_FILES" ] || exit 1      # STOP: empty restore
-EXCLUDE='--glob !**/venv/** --glob !**/.venv/** --glob !**/dist/** --glob !**/build/** --glob !**/__pycache__/** --glob !**/*.egg-info/** --glob !**/*_pb2.py --glob !**/*_pb2_grpc.py --glob !**/test_*.py --glob !**/*_test.py --glob !**/tests/** --glob !**/conftest.py'
-[ "$PY_FILES" = . ] && PY_FILES=$(rg --files --type py $EXCLUDE -- .)   # codebase mode: enumerate
-pylint $PY_FILES | rg -w 'C011[4-6]'
-```
-
-**What each code nominates.** A code is filed by this list, not by the category it sounds like:
-
-- Missing Public Docs, through the gate: D100–D107, C0114–C0116.
-- Misleading Comments and Names: the extraneous pydoclint codes (DOC102, DOC202, DOC403, DOC502).
-- Undocumented Contracts, only when the missing text would state something the signature does not: D417, the missing
-  pydoclint codes (DOC201, DOC402, DOC501). A missing `Returns:` that restates the annotation is the section
-  slop-hunter deletes.
-- Magic Numbers: PLR2004.
+- ruff: a magic value in a comparison (`PLR2004`); with `preview = true`, in Google or NumPy docstrings, a documented
+  parameter, return, yield, or exception the function does not have (`DOC102`, `DOC202`, `DOC403`, `DOC502`).
+- Sphinx, only when the project builds its docs with Sphinx autodoc: a cross-reference role (`:func:`, `:class:`) to
+  a symbol that does not exist (`nitpicky = True`).
 
 ## Phase 2 — doc scans
 
@@ -91,9 +52,6 @@ pylint $PY_FILES | rg -w 'C011[4-6]'
 cd "$(git rev-parse --show-toplevel)" || exit 1
 PY_FILES=$(cat <run>/python.txt); [ -n "$PY_FILES" ] || exit 1      # STOP: empty restore
 EXCLUDE='--glob !**/venv/** --glob !**/.venv/** --glob !**/dist/** --glob !**/build/** --glob !**/__pycache__/** --glob !**/*.egg-info/** --glob !**/*_pb2.py --glob !**/*_pb2_grpc.py --glob !**/test_*.py --glob !**/*_test.py --glob !**/tests/** --glob !**/conftest.py'
-
-# Magic Numbers: decimals, multi-digit and prefixed literals (the Go regex; it catches 10, 100, and 1_000_000)
-rg -H -n --pcre2 '(?<![\w.])(\d[\d_]*\.\d[\d_]*|\d[\d_]+|0[xXoObB][0-9a-fA-F_]+)(?![\w.])' --type py $EXCLUDE -- $PY_FILES
 
 # Non-Obvious Algorithms: regular expressions, bit operations
 rg -H -n 're\.(compile|search|match|fullmatch|findall|finditer|sub|subn|split)\(' --type py $EXCLUDE -- $PY_FILES
@@ -108,8 +66,7 @@ rg -H -n '#.*(?i)\b(hack|work ?around)\b' --type py $EXCLUDE -- $PY_FILES
 # Undocumented Contracts: hidden inputs
 rg -H -n 'os\.(environ|getenv)|contextvars' --type py $EXCLUDE -- $PY_FILES
 
-# Misleading Comments and Names: Sphinx roles (resolve each name); expiry conditions
-rg -H -n ':(func|class|meth|attr|mod):`~?([\w.]+)`' --type py $EXCLUDE -- $PY_FILES
+# Misleading Comments and Names: expiry conditions
 rg -H -n '#.*(?i)\b(until|after|once|remove|drop|when)\b.*(\bv?\d+\.\d+(\.\d+)?\b|\b\d{4}-\d{2}(-\d{2})?\b)' --type py $EXCLUDE -- $PY_FILES
 ```
 
@@ -119,12 +76,8 @@ is unresolved: no finding. A date is compared with today's date.
 
 **Blind spots:**
 
-- The number scan matches inside comments and strings, and misses single digits on purpose.
 - `|` is not scanned: it matches PEP 604 unions (`int | None`). `&` is not scanned: its hits are plain flag checks
-  (not findings), set intersections, and pandas or Django `Q` masks. A mask with a hex literal is nominated by the
-  number scan.
-- Docstring references are scanned as Sphinx roles only. A bare `` `name` `` is a code span; resolving each one
-  would nominate every parameter and literal.
+  (not findings), set intersections, and pandas or Django `Q` masks.
 - No scan nominates a defect comment without the words "hack" or "workaround", a business rule, a comparator (a
   `key=` function with tie-breaks), a third-party call order, a side effect, a class used from threads, or a name that
   the body contradicts. Reading finds them.
@@ -143,10 +96,8 @@ PY_FILES=$(cat <run>/python.txt 2>/dev/null)                        # none in a 
 git show "$MB:<deleted path>" | rg -n '^\s*(async\s+)?(def|class)\s+(\w+)'   # once per deleted .py path
 
 # References to one removed name in the repository's Python comments and docstrings. NAME is the name, or
-# Class\.method for a method.
-rg -H -n --type py ":(func|class|meth|attr|mod):\`~?([\w.]*\.)?$NAME\`" -- .
-# A bare word counts only when the name has an inner capital, an underscore, or a digit; keep the hits in comments
-# and docstrings
+# Class\.method for a method. A bare word counts only when the name has an inner capital, an underscore, or a digit;
+# keep the hits in comments and docstrings
 rg -H -n --type py -w "$NAME" -- .
 ```
 

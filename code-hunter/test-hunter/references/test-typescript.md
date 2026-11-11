@@ -1,6 +1,6 @@
 # Test Hunter — TypeScript reference
 
-Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated detectors · Config-gated signals · Language-specific signals · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
+Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated to tools · Config-gated signals · Language-specific signals · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
 
 ## Generated-code eligibility
 
@@ -44,46 +44,21 @@ printf '%s\n' $TS_FILES | grep -Ev "$TEST_RE" > <run>/typescript-prod.txt || ech
     `**/*.{test,spec}-d.?(c|m)[jt]s?(x)`; with no match no compiler runs), a tsconfig that includes the files, and no
     `typecheck.ignoreSourceErrors`.
 
-## Delegated detectors
+## Delegated to tools
 
-**ESLint** runs only when the project's ESLint config enables at least one of these rules, through the project's own
-installation:
-
-```bash
-cd "$(git rev-parse --show-toplevel)" || exit 1
-TS_TESTS=$(cat <run>/typescript-tests.txt); [ -n "$TS_TESTS" ] || exit 1   # STOP: empty restore
-[ "$TS_TESTS" = /dev/null ] || npx --no-install eslint $TS_TESTS | rg 'no-self-compare|expect-expect|valid-expect|no-conditional-expect|no-disabled-tests|no-focused-tests|no-floating-promises|no-misused-promises|await-async-(queries|utils|events)|no-node-access|no-container|missing-playwright-await|prefer-web-first-assertions|require-mock-type-parameters|^/'
-```
-
-`--no-install` makes `npx` fail instead of fetching a package; without `--fix` and `--cache`, ESLint writes nothing.
-The `^/` lines are stylish's file headers.
-
-- Core `no-self-compare` → Tautological Tests (subject on both sides). It checks binary comparisons only.
-- `eslint-plugin-jest` / `@vitest/eslint-plugin`: `expect-expect` → an Absent candidate. It also reports a test whose
-  only assertion is a throwing query or a request expectation (supertest `.expect(201)`), unless the project's
-  `assertFunctionNames` names it; reading decides with the Assertion definition. `valid-expect` → Never executes (its
-  default already requires an async assertion to be awaited or returned; an `alwaysAwait` warning on a returned
-  assertion is not a finding); `valid-expect-in-promise` (an `expect` inside a `.then()` that is neither returned nor
-  awaited) → Never executes; `no-conditional-expect` → Never executes; `no-disabled-tests` and `no-focused-tests` →
-  Never executes, judged under the config gates below. `require-mock-type-parameters` (an untyped `vi.fn()`) →
-  unbound double.
-- `@typescript-eslint/no-floating-promises` → an un-awaited assertion or setup promise (Never executes, Weak).
-  `@typescript-eslint/no-misused-promises` (`items.forEach(async x => { … expect … })`, not awaited) → Never executes.
-- `eslint-plugin-testing-library`: `await-async-queries`, `await-async-utils`, `await-async-events` → Never executes;
-  `no-node-access`, `no-container` → Brittle Tests.
-- `eslint-plugin-playwright`: `missing-playwright-await` → Never executes. `prefer-web-first-assertions`: a positive
-  hit (`expect(await loc.isVisible()).toBe(true)`, which samples once and never retries) → Flaky Test Indicators; a
-  negative hit is a candidate for an absence check before an async effect, in either form.
+- ESLint with eslint-plugin-jest or @vitest/eslint-plugin, typescript-eslint, eslint-plugin-testing-library and
+  eslint-plugin-playwright, or Biome where a rule is named: a test with no assertion (`expect-expect`, with
+  `assertFunctionNames` for the project's assertion helpers); an un-awaited `.resolves` or `.rejects` (`valid-expect`);
+  an `expect` under a condition or in a `catch` (`no-conditional-expect`); an unconditional skip outside a skip the diff
+  added, which stays here as Weakened in diff (`no-disabled-tests`, Playwright `no-skipped-test` with
+  `allowConditional: true`, or Biome `noSkippedTests`); `.only` (`no-focused-tests`, or Biome `noFocusedTests`); an
+  un-awaited assertion, setup promise or async callback (`@typescript-eslint/no-floating-promises`,
+  `no-misused-promises`); an un-awaited query (testing-library `await-async-queries`); an un-awaited Playwright
+  assertion (`missing-playwright-await`); a comparison of a value with itself (`no-self-compare`, or Biome
+  `noSelfCompare`).
 
 ## Config-gated signals
 
-- **`.only`** (Never executes): Jest, always a finding. Mocha, a finding unless `forbidOnly` is set (`--forbid-only`,
-  or `forbid-only: true` in `.mocharc.*`). Playwright, a finding unless `forbidOnly` is set in `playwright.config.*`.
-  A value set only under CI (`forbidOnly: !!process.env.CI`) counts as set. Vitest, a finding only with
-  `allowOnly: true`; the default fails the run under CI.
-- **Un-awaited `.resolves` / `.rejects`** (Never executes): a finding under Jest; under Vitest 4 only when
-  `dangerouslyIgnoreUnhandledErrors` is set in the config or the command, since otherwise the unhandled rejection
-  fails the run. Vitest 5 fails the test whatever the setting.
 - **Mock cleanup settings** (Flaky, shared state): a setting clears a candidate only for the constructs it covers.
   `mockReset` (Vitest) or `resetMocks` (Jest) resets the implementation and the queued one-time values of a `vi.fn()`
   or `jest.fn()`; `clearMocks` clears only call history (Vitest 5 sets it by default; Jest and Vitest 4 do not).
@@ -99,7 +74,7 @@ The `^/` lines are stylish's file headers.
 
 ## Language-specific signals
 
-- **Skips** (Never executes): Playwright `test.fixme()` and Mocha `this.skip()`, unconditional, like `it.skip`.
+- **Skips** (Never executes): Playwright `test.fixme()` and Mocha `this.skip()`, when unconditional.
 - **Expected failures:** Playwright `test.fail()` fails the run when the test passes, so it is not a finding. Phase 3
   counts it as no coverage: until the test passes, any failure counts as expected.
 - **Absence before an async effect** (Weak): `expect(screen.queryByText("Error")).not.toBeInTheDocument()` or
@@ -175,11 +150,10 @@ rg -H -n --pcre2 '\b(expected|want|exp)\w*\s*=\s*(await\s+)?[\w.]+\(' -- $TS_TES
 rg -H -n --pcre2 '\.(toBe|toEqual|toStrictEqual)\(\s*(await\s+)?(?!expect\.)[\w.]+\(' -- $TS_TESTS
 rg -H -n 'mock(Return|Resolved|Rejected)Value(Once)?\(|mockImplementation(Once)?\(' -- $TS_TESTS
 
-# Inert and Weak Tests: test functions (read each body for its checks), skips, focused tests, expected failures,
-# un-awaited async assertions, swallowing handlers
+# Inert and Weak Tests: test functions (read each body for its checks), fixme and Mocha skips, expected failures,
+# swallowing handlers
 rg -H -n --pcre2 '^\s*(it|test)\b' -- $TS_TESTS
-rg -H -n --pcre2 '\b(it|test|describe)\.(skip|only|fixme|fail)\b|\b(xit|xdescribe|xtest|fit|fdescribe)\(|\bthis\.skip\(' -- $TS_TESTS
-rg -H -n --pcre2 '^\s*expect\(.*\)\.(resolves|rejects)\b' -- $TS_TESTS
+rg -H -n --pcre2 '\b(it|test|describe)\.(fixme|fail)\b|\bthis\.skip\(' -- $TS_TESTS
 rg -H -n --pcre2 '\bcatch\s*(\([^)]*\))?\s*\{|\.catch\(' -- $TS_TESTS
 # Weak: existence, truthiness, and type-only checks; bare throws; argument-free interaction checks; absence checks
 rg -H -n 'toBeDefined\(\)|toBeTruthy\(\)|not\.toBeNull\(\)|not\.toBeUndefined\(\)|toBeInstanceOf\(|toThrow\(\)|toHaveBeenCalled\(\)|expect\.anything\(\)' -- $TS_TESTS
@@ -213,7 +187,7 @@ rg -H -n --pcre2 '\b(fetch|axios\.\w+)\(\s*["\x27\x60]https?://' -- $TS_TESTS
 rg -H -n 'listen\(|createServer\(|new PrismaClient\(|new Redis\(' -- $TS_TESTS
 rg -H -n 'retryTimes\(|\.retries\(|retry:\s*\d|retries:\s*\d' -- $TS_TESTS
 
-# Config: .only gates, retries, update switches, collection and coverage excludes, mock cleanup, concurrency,
-# unhandled errors, type-checking (also read each tsconfig a type-check command names), test scripts
-rg -H -n --hidden -e 'allowOnly|forbidOnly|forbid-only|retry|retries|update|\bci\b|exclude|testPathIgnorePatterns|testIgnore|coveragePathIgnorePatterns|Mocks|unstub|concurrent|dangerouslyIgnoreUnhandledErrors|typecheck|isolatedModules|diagnostics|tsc\b|"test"\s*:' --glob '**/vitest.config.*' --glob '**/vite.config.*' --glob '**/vitest.workspace.*' --glob '**/playwright.config.*' --glob '**/.mocharc*' --glob '**/jest.config.*' --glob '**/package.json' --glob '.github/workflows/**' -- .
+# Config: retries, update switches, collection and coverage excludes, mock cleanup, concurrency,
+# type-checking (also read each tsconfig a type-check command names), test scripts
+rg -H -n --hidden -e 'retry|retries|update|\bci\b|exclude|testPathIgnorePatterns|testIgnore|coveragePathIgnorePatterns|Mocks|unstub|concurrent|typecheck|isolatedModules|diagnostics|tsc\b|"test"\s*:' --glob '**/vitest.config.*' --glob '**/vite.config.*' --glob '**/vitest.workspace.*' --glob '**/playwright.config.*' --glob '**/.mocharc*' --glob '**/jest.config.*' --glob '**/package.json' --glob '.github/workflows/**' -- .
 ```

@@ -1,6 +1,6 @@
 # Slop Hunter — Python reference
 
-Contents: Generated-code eligibility · Per-category Python markers · Formatter · Idiom calibration · Phase 2 — slop scans · Phase 5 — Python-specific evaluation
+Contents: Generated-code eligibility · Per-category Python markers · Delegated to tools · Idiom calibration · Phase 2 — slop scans · Phase 3 — Python-specific evaluation
 
 ## Generated-code eligibility
 
@@ -38,48 +38,26 @@ Sphinx). Markers:
 - `__init__` docstrings listing the parameters assigned to `self`
 - A block where every section is present and none adds anything beyond the signature
 
-### Style Drift
-
-- `camelCase` where the project uses `snake_case`, or the reverse
-- f-strings where the project uses `.format()` / `%`, or the reverse
-- `pathlib` where the project uses `os.path`, or the reverse
-- A loop where the project idiom is a comprehension, or the reverse
-- Import ordering or grouping that breaks the project's (stdlib → third-party → local, or isort/Ruff `I` config)
-- A different exception-handling pattern than established code (bare `except:`, `except Exception: pass`)
-- Formatter output on touched lines (see Formatter)
-
 ### Trivially Dead Code
 
-- `import X` / `from m import X` where `X` has no use in the file (Python compiles it)
-- `x = …` inside a function body, never referenced, with a side-effect-free initializer. A module-level name can be
-  imported by other files: an unused one is simplicity-hunter's Dead Code Paths
-- Leftover `pass` in a non-empty body
-- Commented-out code (`# old_result = …`); `TODO` / `FIXME` without owner, ticket, or condition
+- `TODO` / `FIXME` without owner, ticket, or condition
 - Bare `# noqa`, `# nosec`, `# pylint: disable=…` with no trailing reason
 
-Not a finding: an import in `__init__.py` (a re-export); `# noqa: F401` on such a re-export with a stated reason or
-an `__all__` entry.
-
-A public name with no importers anywhere →
-simplicity-hunter Dead Code Paths; a public name imported only inside its own package → boundary-hunter Dead Exports.
+A public name with no importers anywhere is no hunter's; a public name imported only inside its
+own package → boundary-hunter Dead Exports.
 
 ### Hedging and Narration
 
-Narration: `print(` in library code; `logger.debug("entering …")`, `logger.info("starting …")`, `logging.*("here")`.
+Narration: `logger.debug("entering …")`, `logger.info("starting …")`, `logging.*("here")`.
 
-## Formatter
+## Delegated to tools
 
-**Adoption:** the project invokes `ruff format` or `black` — in `Makefile`, `tox.ini`, `noxfile.py`, `justfile`,
-`.pre-commit-config.yaml`, CI workflows, or a documented command. A `[tool.ruff]` or `[tool.black]` table alone is
-**not** adoption: Ruff lint without Ruff format is common.
-
-**Execution:** `ruff format --check $PY_FILES` or `black --check $PY_FILES`. A syntax error or bad config is
-`errored`.
-
-In diff mode, `ruff format --diff <file>` / `black --diff <file>` gives the violating lines. Convention cell:
-`ruff format, touched line`.
-
-Config resolution: Ruff uses the nearest `pyproject.toml` / `ruff.toml` / `.ruff.toml` up the tree.
+- ruff: unformatted code (`ruff format`, or black); import order (`I001`); naming case (pep8-naming `N`); `%` or
+  `.format()` where an f-string fits (`UP031`, `UP032`); `os.path` where `pathlib` fits (`PTH`); a loop that builds a
+  transformed list (`PERF401`); a bare or blind `except`, and `except: pass` (`E722`, `BLE001`, `S110`); commented-out
+  code (`ERA001`); a leftover `pass` (`PIE790`); unused imports and locals (`F401`, `F841`); `print` (`T201`, with a
+  per-file ignore for CLI modules); a `# noqa` that suppresses nothing (`RUF100`). Of these, only `E722`, `F401` and
+  `F841` are in ruff's default set.
 
 ## Idiom calibration
 
@@ -101,13 +79,8 @@ D '\s*#'                                                       # comments (class
 D '.*("""|:param |:returns?:|Args:|Returns:)'                    # docstrings and tags
 D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
 D '.*#\s*(noqa|nosec|pylint:\s*disable)'                     # linter suppressions (check for a reason)
-D '\s*pass\s*$'                                                # leftover pass (then read the body)
-D '\s*(import |from \S+ import )'                              # added imports (check uses in the file)
-D '.*(print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here))'   # narration
+D '.*logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)'   # narration
 D '.*(?i)(might need|for safety|new, improved|improved version)'                                  # hedging
-
-# Removed lines, with file and hunk headers: a removed use of a still-imported name nominates a Phase 4 candidate
-git diff -U0 "$MB" -- $PY_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
 
 # ---- Whole-file scans ----
 # path / codebase: F=$PY_FILES    diff (untracked files): F=$(git ls-files --others --exclude-standard -- $PY_FILES)
@@ -117,18 +90,11 @@ W '"""'                                                        # docstring block
 W -A1 '^\s*def\s+_'                                            # docstrings on private helpers
 W '\b(TODO|FIXME|XXX)\b'
 W '#\s*(noqa|nosec|pylint:\s*disable)'
-W '^\s*pass\s*$'
-W 'print\(|logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)'
+W 'logg(er|ing)\.\w+\(\s*["\x27](entering|exiting|starting|finished|begin|end|here)'
 W -i 'might need|for safety|new, improved|improved version'
-
-# Unused-import nomination (path mode): for each imported name, count uses outside the import line
-# rg -c '\bNAME\b' FILE   → 1 means the import is the only mention
-
-# ---- Formatter (Phase 3), only when adopted and installed ----
-ruff format --check $PY_FILES      # or: black --check $PY_FILES
 ```
 
-## Phase 5 — Python-specific evaluation
+## Phase 3 — Python-specific evaluation
 
 For each docstring candidate:
 
@@ -137,23 +103,7 @@ For each docstring candidate:
 - Would stripping it leave the body with no statement (the docstring is the only one, or other Actions delete the
   rest)? Then the Action puts `pass` in its place: an empty body does not parse.
 
-For each unused-import candidate in diff mode:
-
-- Is the name used anywhere in the working-tree file (string references, `__all__`, decorators, type comments)?
-- Unused in the working tree → apply the Phase 4 proof.
-
 For each suppression:
 
 - Is there a trailing reason or an error code with a reason? Bare → Trivially Dead Code. Is the suppressed rule
   reporting something real? Then the noise hides a finding (SKILL.md Severity).
-
-For each `pass`:
-
-- Is it the sole statement of a deliberately empty body (protocol method, exception class, abstract stub), or the
-  only statement besides a docstring? Keep: the docstring may be stripped (Verbose Documentation), and `pass` keeps
-  the body valid. Does the body hold a statement other than `pass` and a docstring? Delete.
-
-For each `print(`:
-
-- Is this a CLI entry point, a script, or a `__main__` block whose output *is* stdout? Then it is the interface, not
-  narration.

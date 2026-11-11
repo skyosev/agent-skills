@@ -104,11 +104,11 @@ named actors can change independently.
 
 **Ownership:** split by unit. A class (and, in Go, a package or struct) serving two actors is here. A *file*
 accumulating unrelated responsibilities is smell-hunter's God Module. A class that should be a function is
-smell-hunter's Class Abuse; the placement of entity transitions is smell-hunter's Anemic Domain Model. A *function
-body* mixing fetch, transform and persist is simplicity-hunter's Mixed Concerns. Package *naming and directory
-legibility* (`util`, `common`, name/directory mismatch, `models` of unrelated domains) is boundary-hunter's Generic
-Boundary Names; Go package-level responsibility analysis, including multiple files in a package spanning unrelated
-concerns, stays here.
+smell-hunter's Class Abuse; the placement of entity transitions is smell-hunter's Anemic Domain Model. A *function body*
+mixing fetch, transform and persist is simplicity-hunter's Mixed Concerns. Package *naming and directory legibility*
+(`util`, `common`, `models` of unrelated domains) is boundary-hunter's Generic Boundary Names, and a Go name/directory
+mismatch is no hunter's; Go package-level responsibility analysis, including multiple files in a package spanning
+unrelated concerns, stays here.
 
 ### Rigid Extension Points (OCP)
 
@@ -202,8 +202,7 @@ branch stays for now, the Action names the guard form.
 **Ownership:** narrowing on a contract type to special-case an implementor is here, **whatever the guard form** — a
 bare `x.(T)` in that role is one Broken Substitution finding, the guard noted in Action, and the only finding at that
 site. Narrowing on a data variant set, guarded or not, and assertions from `any` / open data (JSON, config,
-`interface{}` payloads) are invariant-hunter's: Leaky Discriminated Unions in Python and TypeScript; in Go, Unguarded
-Type Assertions judges only the guard (see `solid-go.md`).
+`interface{}` payloads) are invariant-hunter's in Python and not covered here in Go and TypeScript (see `solid-go.md`).
 
 ### Fat Interfaces (ISP)
 

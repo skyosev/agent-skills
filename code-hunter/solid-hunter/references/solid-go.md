@@ -47,8 +47,8 @@ Two units, evaluated separately:
 - **Struct.** Methods spanning unrelated concepts, a `New*` with many collaborators, methods that never touch the
   struct's fields. A cohesive aggregate whose methods all mutate one entity through one workflow is not a finding.
 
-**Boundary with boundary-hunter.** A generic package name with two or more unrelated capabilities, and a package
-clause that differs from its directory, are boundary-hunter's Generic Boundary Names. Responsibility and change
+**Boundary with boundary-hunter.** A generic package name with two or more unrelated capabilities is boundary-hunter's
+Generic Boundary Names; a package clause that differs from its directory is not covered here. Responsibility and change
 analysis — named actors, independent reasons to change, multiple files in a package spanning unrelated concerns — is
 here.
 
@@ -62,7 +62,8 @@ when the arms differ by a single call; an interface with one implementation per 
 keep the core package ignorant of variants — recommend it only when the map itself is the remedy.
 
 Go has **no compile-time exhaustiveness** for type switches or string kinds: a sealed set's missing arm is scored by
-no hunter, and `default: panic("unreachable")` is the best available and never a finding of any hunter. Neither
+no hunter (invariant-hunter scores only a type switch over an *open* interface that neither rejects nor falls back),
+and `default: panic("unreachable")` is the best available and never a finding of any hunter. Neither
 decides openness here.
 
 ### Broken Substitution — Go forms
@@ -78,11 +79,10 @@ decides openness here.
 **Implicit satisfaction** is why the contract must be named from the interface's documentation, its consumers, or a
 doc comment on the method — not from the method name. When the interface is undocumented and the branch merely adds an
 extra (`Vacuum` outside `Store`), there is no finding. The bare single-value form there
-(`store.(*memStore)`) is invariant-hunter's Unguarded Type Assertions; the two-value check belongs to neither hunter.
+(`store.(*memStore)`) is not covered here, and neither is the two-value check.
 
-A bare `store.(*memStore)` in a compensating role is **one** finding here, with the guard form noted in Action;
-invariant-hunter does not also score it. `payload.(map[string]any)` on decoded JSON is invariant-hunter's, not a
-contract type at all.
+A bare `store.(*memStore)` in a compensating role is **one** finding here, with the guard form noted in Action.
+`payload.(map[string]any)` on decoded JSON is not a contract type at all, and is not covered here.
 
 ### Fat Interfaces — Go forms
 
@@ -150,7 +150,7 @@ rg -H -n 'switch\s+\w' --type go $EXCLUDE -- $GO_FILES
 rg -H -n 'switch\s+(\w+\s*:=\s*)?\w+\.\(type\)' --type go $EXCLUDE -- $GO_FILES
 
 # Rigid Extension Points: boolean parameters (a two-member discriminant; same bar as any other)
-rg -H -n --pcre2 '^func\s+(\([^)]*\)\s*)?\w+\([^)]*\bbool\b' --type go $EXCLUDE -- $GO_FILES
+rg -H -n -U --pcre2 '^func\s+(\([^)]*\)\s*)?\w+\([^)]*\bbool\b' --type go $EXCLUDE -- $GO_FILES
 
 # Broken Substitution: not-implemented implementors, and consumer branches on a concrete type
 rg -H -n -i 'not.?implemented|unsupported' --type go $EXCLUDE -- $GO_FILES
@@ -166,8 +166,9 @@ rg -H -n 'New\w+\(' --type go $EXCLUDE -- $GO_FILES
 # Concrete Dependency Chains: a clock or random source read inside logic (the Low form)
 rg -H -n 'time\.Now\(\)|rand\.\w+\(' --type go $EXCLUDE -- $GO_FILES
 
-# Concrete Dependency Chains: package-level services (then find the methods that read them)
-rg -H -n --pcre2 '^var\s+\w+\s+\*?(sql|http|redis|kafka|s3|grpc)\.' --type go $EXCLUDE -- $GO_FILES
+# Concrete Dependency Chains: package-level services, alone or in a `var ( … )` block (then find the methods that
+# read them)
+rg -H -n -U --pcre2 '^var\s+(\(\n(?:(?!\)).*\n)*?\s*)?\w+\s+\*?(sql|http|redis|kafka|s3|grpc)\.' --type go $EXCLUDE -- $GO_FILES
 
 # Composition-root nomination (behavior decides; these only point the search)
 rg -H -n 'func\s+main\(\)|wire\.Build|fx\.(Provide|Invoke|New)' --type go $EXCLUDE -- $GO_FILES

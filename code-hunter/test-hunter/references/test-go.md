@@ -1,6 +1,6 @@
 # Test Hunter — Go reference
 
-Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated detectors · Version-gated signals · Language-specific signals · Ginkgo and Gomega · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
+Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated to tools · Language-specific signals · Ginkgo and Gomega · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
 
 ## Generated-code eligibility
 
@@ -40,37 +40,14 @@ rg -H -n '^go\s+[0-9]' --glob '**/go.mod' -- .
 rg -H -n --pcre2 '(stretchr/testify|gotest\.tools|google/go-cmp|onsi/ginkgo/v2|onsi/gomega|go\.uber\.org/mock|golang/mock|vektra/mockery|maxbrunsfeld/counterfeiter|go\.uber\.org/goleak|jonboulle/clockwork)(?!.*// indirect)' --glob '**/go.mod' -- .
 ```
 
-## Delegated detectors
+## Delegated to tools
 
-- **`go vet`** ships with the toolchain and always runs, in each module directory (each `go.mod`):
-  `GOPROXY=off go vet -testinggoroutine ./...`. `GOPROXY=off`
-  stops a module download; a load failure is `errored`. `testinggoroutine` flags `t.Fatal` called from a goroutine the
-  test starts: an Inert and Weak Tests candidate (an assertion in a goroutine), a finding only when the test does not
-  wait for that goroutine.
-- **golangci-lint** runs only when its config (`.golangci.yml`, `.yaml`, `.toml`, `.json`) enables `testifylint`,
-  `tparallel`, or `ginkgolinter`, in each module directory:
-  `golangci-lint run --fix=false --allow-serial-runners ./... | rg '\((testifylint|tparallel|ginkgolinter)\)$'`. Only
-  these outputs are used:
-  - `testifylint` `useless-assert` (`assert.Equal(t, x, x)`) → Tautological Tests (subject on both sides).
-  - `testifylint` `error-is-as` (`assert.Error(t, err, ErrX)`) → Inert and Weak Tests (Weak, the error-kind case).
-  - `testifylint` `go-require` (`require` in a goroutine) nominates an assertion in a goroutine; a finding only when
-    the test does not join that goroutine. A failing `require` in a joined goroutine fails the test.
-  - `testifylint` `suite-broken-parallel` (`t.Parallel()` in a testify suite) nominates suite shared state; a finding
-    only when tests change suite fields.
-  - `tparallel`'s `defer`-teardown check → Flaky Test Indicators. Its "`t.Parallel()` at one level only" check is not a
-    finding.
-  - `ginkgolinter`: a missing assertion method (`Expect(x)` with no `To`) → Absent. A negated assertion that compares
-    a pointer with a value, or values of different types, always passes → Weak. An async assertion on a function call
-    (`Eventually(f())`, `Consistently(f())`) samples one value: a candidate for an absence check before an async
-    effect. The opt-in `forbid-spec-pollution` nominates container-node initialization (Ginkgo and Gomega). Its style
-    rules are not used.
-
-## Version-gated signals
-
-- **Loop-variable capture** (Inert and Weak Tests, Never executes): a `go` line below 1.22, and a `for … range` loop
-  whose body calls `t.Run` with a closure that calls `t.Parallel()` and reads the loop variable without a
-  per-iteration copy (`tc := tc`). Every subtest runs the last row. From 1.22 each iteration has its own variable: no
-  finding.
+- golangci-lint: `assert.Equal(t, x, x)` (testifylint `useless-assert`); an expected error passed to `assert.Error`,
+  where testify reads it as a message (testifylint `error-is-as`); an ignored setup error, `x, _ := setup()`
+  (`errcheck` with `check-blank: true`); Gomega `Expect(x)` with no matcher, and a negated comparison of a pointer
+  with a value (`ginkgolinter`).
+- `go vet` (default analyzers), or golangci-lint's `govet`: in a module whose `go` line is below 1.22, a parallel
+  subtest that reads the loop variable (`loopclosure`).
 
 ## Language-specific signals
 
@@ -204,11 +181,9 @@ rg -H -n '\bt\.Skip(f|Now)?\(' -- $GO_TESTS
 rg -H -n '^//go:build' -- $GO_TESTS
 rg -H -n '\bgo\s+(func\b|\w+\()' -- $GO_TESTS
 rg -H -n --pcre2 '^\s*if\s+(?!err\b)\w+\s*!=\s*nil\s*\{' -- $GO_TESTS
-# Weak: existence-only checks, any-argument matchers, ignored results and ignored setup errors
+# Weak: existence-only checks, any-argument matchers, ignored results
 rg -H -n '(assert|require)\.(NotNil|NotEmpty|True|Error)\(|mock\.Anything|gomock\.Any\(\)' -- $GO_TESTS
-rg -H -n --pcre2 '^\s*(_,\s*err|\w+,\s*_)\s*:?=' -- $GO_TESTS
-# Loop-variable capture: parallel subtests (then read the go line and the loop)
-rg -H -n '\bt\.Parallel\(\)' -- $GO_TESTS
+rg -H -n --pcre2 '^\s*_,\s*err\s*:?=' -- $GO_TESTS
 
 # Brittle Tests: message compares, private-state reads, call counts and order, SQL text, change detectors
 rg -H -n --pcre2 '\.Error\(\)\s*(==|!=)|EqualError\(|ErrorContains\(|strings\.Contains\(\w+\.Error\(\)' -- $GO_TESTS

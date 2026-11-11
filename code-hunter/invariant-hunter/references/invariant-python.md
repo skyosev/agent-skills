@@ -1,6 +1,6 @@
 # Invariant Hunter — Python reference
 
-Contents: Applicability of universal categories · Generated-code and test-path eligibility · Per-category Python content · Toolchain · Idiom calibration · Phase 2 — invariant scans · Phase 5 — Python-specific evaluation
+Contents: Applicability of universal categories · Generated-code and test-path eligibility · Per-category Python content · Delegated to tools · Idiom calibration · Phase 2 — invariant scans · Phase 5 — Python-specific evaluation
 
 ## Applicability of universal categories
 
@@ -11,7 +11,6 @@ Contents: Applicability of universal categories · Generated-code and test-path 
 | Defensive Access in Non-Boundary Code | **yes** | `is not None` / `or default` on always-present values |
 | Leaky Discriminated Unions | **yes** | `Literal` discriminant over dataclass variants; a **variant hierarchy** (dataclass or sealed data classes with no overridable behavior) narrowed by `isinstance`; `match`. A hierarchy whose base declares abstract or overridable behavior the consumer calls is a *contract type* → solid-hunter |
 | Runtime Checks Promotable to Types | **yes** | `TypeGuard` / `TypeIs`, validated-state `NewType`, `frozen=True`, `tuple` / `frozenset` config |
-| Type-System Bypasses | **yes** | `Any`, `# type: ignore`, `# pyright: ignore`, `# mypy: ignore-errors` |
 
 **No language-only categories.** Exception handling — bare `except`, catch-and-log, silent fallbacks, `raise from`
 chaining — is exception-hunter's; route, do not evaluate here.
@@ -50,14 +49,14 @@ container are named in Action.
 
 ### Leaky Discriminated Unions — Python forms
 
-- `Literal` discriminant over `@dataclass` variants, consumed by `match` on the field or `if x.kind == …` chains
+- `Literal` discriminant over `@dataclass` variants, consumed by `if x.kind == …` chains
 - A **variant hierarchy** — dataclass or sealed data classes with no overridable behavior — narrowed by `isinstance`,
-  consumed by `isinstance` chains or `match` class patterns. When the base declares abstract or overridable behavior
+  consumed by `isinstance` chains. When the base declares abstract or overridable behavior
   the consumer calls, it is a contract type, and a branch compensating for one implementor is solid-hunter's Broken
   Substitution
 - Parallel flag: `kind` alongside `is_leaf: bool`
-- Exhaustiveness enforcement counts when present: a `case _: assert_never(x)` arm, pyright `reportMatchNotExhaustive`
-  enabled, or a return type that makes mypy / pyright fail on a missing case.
+- Exhaustiveness enforcement counts when present: an `else: assert_never(x)` arm, or a return type that makes mypy /
+  pyright fail on a missing case. `match` exhaustiveness is delegated.
 
 ### Runtime Checks Promotable to Types — Python forms
 
@@ -71,33 +70,18 @@ container are named in Action.
   nested `list` or `dict` stays mutable; the Proposed cell names it. Frozen replaces a guard only against
   reassignment of the field or element itself
 
-### Type-System Bypasses — Python forms
+## Delegated to tools
 
-- `Any` as parameter, return, or variable annotation where a concrete type, a `Protocol`, or `object` plus narrowing
-  would do
-- `# type: ignore` with no error code (`# type: ignore[attr-defined]` is scoped; still bare without a reason)
-- `# pyright: ignore`, `# mypy: ignore-errors`, `# pyright: basic` file directives
-- `cast(Any, x)` is a bypass; `cast(T, x)` is an assertion — within-skill routing in SKILL.md
-
-## Toolchain
-
-**Adoption evidence:** a `[tool.mypy]` table in `pyproject.toml`, a `mypy.ini` / `setup.cfg` mypy section, a
-`pyrightconfig.json` or `[tool.pyright]` table, or a typecheck step in the project's task runner or CI. Config alone
-is adoption for a type checker.
-
-**Execution:** read-only, the project's own invocation where one exists (a `make typecheck`, a `tox` / `nox` env, a
-`pre-commit` hook), else `mypy .` / `pyright` from the repository root when installed in the active environment.
-Read strictness flags from the config regardless of whether the tool ran: `strict`, `disallow_any_generics`, `disallow_untyped_defs`, `warn_return_any`,
-`reportMatchNotExhaustive`, `reportOptionalMemberAccess`.
-
-Tool output is a nomination list: a `union-attr` or `reportOptionalMemberAccess` error is a Loose Optionality or
-Defensive Access candidate, not a finding.
+- mypy (`enable_error_code = ["exhaustive-match"]`), or pyright (`reportMatchNotExhaustive`): a `match` with no arm
+  for a variant.
+- mypy (`disallow_any_explicit = true`, `enable_error_code = ["ignore-without-code"]`), or ruff (`PGH003`): an
+  explicit `Any`, `cast(Any, x)` included; a `# type: ignore` with no error code.
 
 ## Idiom calibration
 
 `Optional` on a public library parameter that genuinely serves optional and required callers is the language working
 as designed. `if x is None: raise` at a trust boundary is validation, not defensive access. `assert` used for a real
-runtime check in a `__post_init__` is a guard. `Protocol` and duck typing are not bypasses; `Any` is.
+runtime check in a `__post_init__` is a guard.
 
 ## Phase 2 — invariant scans
 
@@ -116,18 +100,14 @@ rg -H -n --pcre2 'Optional\[|:\s*[\w\[\], ]+\|\s*None\b|\|\s*None\s*=|field\(def
 # Defensive Access: None checks and defaults (then locate the boundary)
 rg -H -n 'is not None|is None|\bor\s+["\x27\[\{0]|getattr\([^,]+,[^,]+,\s*None\)' --type py $EXCLUDE -- $PY_FILES
 
-# Leaky Discriminated Unions: discriminants, match, isinstance chains, exhaustiveness adoption
+# Leaky Discriminated Unions: discriminants, isinstance chains, exhaustiveness adoption
 rg -H -n 'Literal\[' --type py $EXCLUDE -- $PY_FILES
-rg -H -n '^\s*match\s+\w|^\s*case\s+_\s*:|isinstance\(' --type py $EXCLUDE -- $PY_FILES
+rg -H -n 'isinstance\(' --type py $EXCLUDE -- $PY_FILES
 rg -H -n 'assert_never|TypeGuard|TypeIs' --type py $EXCLUDE -- $PY_FILES
 
 # Runtime Checks Promotable to Types: validators returning bool, NewType, frozen, Annotated
 rg -H -n --pcre2 'def\s+(is_|has_|valid|check)\w*\([^)]*\)\s*->\s*bool' --type py $EXCLUDE -- $PY_FILES
 rg -H -n 'NewType\(|frozen=True|Annotated\[' --type py $EXCLUDE -- $PY_FILES
-
-# Type-System Bypasses
-rg -H -n ':\s*Any\b|->\s*Any\b|\[Any\]|cast\(Any,' --type py $EXCLUDE -- $PY_FILES
-rg -H -n '#\s*type:\s*ignore|#\s*(pyright|mypy):\s*(ignore|basic)' --type py $EXCLUDE -- $PY_FILES
 ```
 
 ## Phase 5 — Python-specific evaluation
@@ -137,7 +117,7 @@ For each `cast()`:
 - Is there a preceding check on the same value, and does the type definition tie it to the claim (variant class,
   `Literal`-discriminated dataclass)? Yes → not a finding. Check on a different value, or one class with `kind: str`
   → finding.
-- `cast(Any, …)` → Type-System Bypasses, not here. `cast(Leaf, s)` to a variant of a `Literal`-discriminated
+- `cast(Any, …)` is not covered here. `cast(Leaf, s)` to a variant of a `Literal`-discriminated
   union → Leaky Discriminated Unions (`cast past discriminant`).
 
 For each `assert x is not None`:
@@ -155,21 +135,16 @@ For each `Optional` / `| None` field:
 For each `is not None` / `or default`:
 
 - Is the value already resolved at the construction boundary? Then Defensive Access. Is the type already
-  non-optional? Then simplicity-hunter's Dead Code Paths. At a trust boundary → not a finding.
+  non-optional? Then it is not covered here. At a trust boundary → not a finding.
 
-For each `match` / `isinstance` chain over a union:
+For each `isinstance` / `if`-`elif` chain over a union:
 
 - Is it a union of data shapes, or a **contract type** whose base declares overridable behavior the consumer calls?
   Contract type, with a branch compensating for one implementor → solid-hunter's Broken Substitution;
   cross-reference, do not score.
 - Must the consumer cover every variant, or does it handle a subset by design?
-- Is `assert_never` present, or `reportMatchNotExhaustive` enabled, or does the return type force the checker? Any →
-  not a finding. `else: raise` → Low, partial.
-
-For each `# type: ignore` / `# pyright: ignore`:
-
-- Error code present? Reason present and confirmed by the code? Boundary layer or domain code? Bare, or in domain
-  code → finding.
+- Is `assert_never` present, or does the return type force the checker? Either → not a finding. `else: raise` → Low,
+  partial.
 
 For each `frozen=True` / `tuple` proposal:
 

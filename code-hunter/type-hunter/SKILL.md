@@ -12,18 +12,17 @@ a type parameter every instantiation binds to the same type, a constraint that h
 constant group with no named type, an exported struct promoting `Lock` and `Unlock` to every importer.
 
 **Not covered (owned by other hunters):** primitives standing in for domain concepts where no named construct exists
-yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package
-organization (→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports);
-the *crossing* beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror);
-optionality, unguarded narrowing, `any` / `Any` as a *value* type, exhaustiveness, `as const` adoption for a value with
-no parallel declaration (→ invariant-hunter's Runtime Checks Promotable to Types), `satisfies` in place of an `as T`
-(→ invariant-hunter's Unguarded Type Assertions), validation of external input into an enum, never-checked zero
-sentinels (→ invariant-hunter); repeated logic and repeated runtime values, abstractions with one call site, runtime
-control flow, reinvented runtime primitives (→ simplicity-hunter); a struct embedding an interface it implements only
-partly, interface width (→ solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope,
-see Test-code scope); documentation restating types (→ slop-hunter); content validation at trust boundaries
-(→ security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is
-authoritative.
+yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package organization
+(→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports); the *crossing*
+beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror); optionality, unguarded
+narrowing, exhaustiveness, `as const` adoption for a value with no parallel declaration (→ invariant-hunter's Runtime
+Checks Promotable to Types), validation of external input into an enum, never-checked zero sentinels (→
+invariant-hunter); `any` / `Any` as a *value* type, `satisfies` in place of an `as T` (no hunter owns them); repeated
+logic and repeated runtime values, abstractions with one call site, reinvented runtime primitives (→ simplicity-hunter);
+runtime control flow (no hunter owns it); a struct embedding an interface it implements only partly, interface width (→
+solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope, see Test-code scope);
+documentation restating types (→ slop-hunter); content validation at trust boundaries (→ security-hunter). Where
+ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -187,7 +186,8 @@ A constraint that does not express what the body does with `T`.
 
 **Signals:**
 
-- `[T any]` with `comparable` or method use inside; `switch any(v).(type)` inside `func F[T any]`
+- `[T any]` whose body bridges through `any` to compare or call a method (`any(a) == any(b)`, `any(v).(X)`);
+  `switch any(v).(type)` inside `func F[T any]`
 - `<T>` / `<T extends unknown>` / `<T extends any>` used as an object
 - `TypeVar("T")` where only `int | str` is passed (constraints) or a base class is assumed (`bound=`); PEP 695 `[T]`
   with the same defects
@@ -210,10 +210,9 @@ TypeScript: add `const` to the parameter (TS 5.0+, read from the lockfile).
 
 **Severity:** Low on a generic with a single caller.
 
-**Ownership:** `any` / `Any` as a *constraint* is here; `any` / `Any` as a *value type* is invariant-hunter's
-Type-System Bypasses (Go `any` / `interface{}` as a value type is nobody's). A bypass inside a generic body
-(`(o as any)[k]`, `cast(T, x)`, `any(v).(X)`) that a tightened constraint removes is **one** Loose Type Parameter
-Constraints finding here; invariant-hunter does not score the same cast.
+**Ownership:** `any` / `Any` as a *constraint* is here; `any` / `Any` as a *value type* is no hunter's. A bypass inside
+a generic body (`(o as any)[k]`, `cast(T, x)`, `any(v).(X)`) that a tightened constraint removes is **one** Loose Type
+Parameter Constraints finding here; invariant-hunter does not score the same cast.
 
 ### Over-Powered Type Constructs *(Python, TypeScript)*
 
@@ -234,7 +233,7 @@ boundaries often do.
 
 **Action:** replace with the simpler construct.
 
-**Ownership:** type-level only; simplicity-hunter's Complex Control Flow and Reinvented Primitives are runtime code.
+**Ownership:** type-level only; simplicity-hunter's Reinvented Primitives is runtime code.
 Template literal *overuse* is here; a template literal type *missing* for a structured string domain is
 smell-hunter's Primitive Obsession.
 
@@ -427,7 +426,9 @@ every handler imports is High impact at Medium severity; a phantom parameter on 
 6. **Read the version gates** each loaded reference names. A gate the project does not meet removes the Action that
    needs it; the reference says what replaces it.
 
-**No toolchain step.** Run no type checker or linter: none reports these categories.
+**No toolchain step.** Run no type checker or linter. Linters report two narrow forms only — identical interfaces
+(golangci-lint `iface`) and an enum member compared with a raw literal (`@typescript-eslint/no-unsafe-enum-comparison`)
+— and none reports the rest of these categories.
 
 ### Phase 2: Scan for Candidates
 

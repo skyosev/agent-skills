@@ -14,6 +14,7 @@ setup found to --out, for review.
 import argparse, json, pathlib, re, sys
 
 ANCHOR = re.compile(r"([\w./@+-]+\.\w+):(\d+)")
+LOC = re.compile(r"([\w./@+-]+):(\d+)")
 CELL = re.compile(r"(?<!\\)\|")
 COMPLETED = re.compile(r"Audit completed:\s*(\d+)")
 
@@ -32,7 +33,7 @@ def parse(text):
             if len(cells) < 4 or cells[1].strip() == "#" or set(cells[1].strip()) <= set("-: "):
                 continue
             loc = cells[2].replace("`", "")
-            m = ANCHOR.search(loc) or ANCHOR.search(line)
+            m = LOC.search(loc) or ANCHOR.search(line)
             rows.append((category, m.group(1) if m else loc.strip(), int(m.group(2)) if m else 0, line.strip()))
     return rows
 
@@ -106,10 +107,10 @@ def disagreements(only, setups):
 
 def selftest():
     a = "## Scope\n- Audit completed: 2 findings\n\n## Findings\n\n### Magic Numbers\n\n| # | Location | Value |\n|---|---|---|\n" \
-        "| 1 | `internal/a.go:10` | `x \\| y` |\n| 2 | internal/b.go:5, internal/c.go:7 | 3 |\n\n### Coexisting Generations\n\n" \
+        "| 1 | `internal/a.go:10` | `x \\| y` |\n| 2 | internal/b.go:5, internal/c.go:7 | 3 |\n| 3 | Dockerfile:12 | 1 |\n\n### Coexisting Generations\n\n" \
         "| # | Concern | Strata |\n|---|---|---|\n| 1 | HTTP | `lib/old.go:3` and `lib/new.go:8` |\n\n## Recommendations\n| 1 | z.go:1 |\n"
     rows = parse(a)
-    assert [(r[0], r[1], r[2]) for r in rows] == [("Magic Numbers", "internal/a.go", 10), ("Magic Numbers", "internal/b.go", 5),
+    assert [(r[0], r[1], r[2]) for r in rows] == [("Magic Numbers", "internal/a.go", 10), ("Magic Numbers", "internal/b.go", 5), ("Magic Numbers", "Dockerfile", 12),
                                                 ("Coexisting Generations", "lib/old.go", 3)], rows
     fs = [("S", "1", "M", "a.go", 10, ""), ("W", "1", "M", "a.go", 12, ""), ("W", "1", "M", "a.go", 20, ""), ("S", "1", "N", "a.go", 10, ""),
           ("S", "1", "M", "b.go", 11, "")]

@@ -45,8 +45,8 @@ smallest first: a `Record<Kind, X>` lookup when the arms select a value; one sha
 single call; an interface with one implementation per variant, dispatched through a `Record<Kind, Iface>`, only when
 the arms carry behavior.
 
-Exhaustiveness — `default: assertNever(kind)`, typescript-eslint's `switch-exhaustiveness-check` — is
-invariant-hunter's and never decides openness here. Four sites that each end in `assertNever` are still a finding when
+Exhaustiveness — `default: assertNever(kind)`, typescript-eslint's `switch-exhaustiveness-check` — is not
+covered here and never decides openness. Four sites that each end in `assertNever` are still a finding when
 the set is open.
 
 ### Broken Substitution — TypeScript forms
@@ -118,11 +118,14 @@ rg -H -n 'instanceof\s+\w+' --type ts $EXCLUDE -- $TS_FILES
 
 # Rigid Extension Points: discriminant switches, literal unions, boolean parameters
 rg -H -n 'switch\s*\(' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 "type\s+\w+\s*=\s*'[^']+'\s*\|" --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 '\(\s*[^)]*\b\w+\s*:\s*boolean\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 "type\s+\w+\s*=\s*(['\"])[^'\"]+\1\s*\|" --type ts $EXCLUDE -- $TS_FILES
+rg -H -n -U --pcre2 '\(\s*[^)]*\b\w+\s*:\s*boolean\b' --type ts $EXCLUDE -- $TS_FILES
 
 # Concrete Dependency Chains: construction sites (fires on value types too — filter while reading)
 rg -H -n 'new\s+[A-Z]\w*\(' --type ts $EXCLUDE -- $TS_FILES
+
+# Concrete Dependency Chains: a clock or random source read inside logic (the Low form)
+rg -H -n 'new Date\(\)|Date\.now\(\)|Math\.random\(\)' --type ts $EXCLUDE -- $TS_FILES
 
 # Concrete Dependency Chains: module-level clients (then find the methods that read them)
 rg -H -n --pcre2 '^(export\s+)?const\s+\w+\s*=\s*new\s+[A-Z]\w*\(' --type ts $EXCLUDE -- $TS_FILES

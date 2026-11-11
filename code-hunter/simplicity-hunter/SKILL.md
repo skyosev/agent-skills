@@ -1,18 +1,18 @@
 ---
 name: simplicity-hunter
-description: Audit Go, Python, or TypeScript code for over-engineering — duplication, reinvented primitives, unnecessary abstractions, dead code paths, over-parameterized APIs, mixed concerns, complex control flow, coexisting generations. Defaults to the codebase.
+description: Audit Go, Python, or TypeScript code for over-engineering — duplication, reinvented primitives, unnecessary abstractions, dead code paths, over-parameterized APIs, mixed concerns, coexisting generations. Defaults to the codebase.
 disable-model-invocation: true
 ---
 
 # Simplicity Hunter
 
-Audit code for **structural complexity** — duplicated logic, abstractions that don't earn their keep, control flow
-deeper than needed, mixed concerns. Goal: **the simplest code that preserves intended behavior** — default to delete.
+Audit code for **structural complexity** — duplicated logic, abstractions that don't earn their keep, mixed
+concerns. Goal: **the simplest code that preserves intended behavior** — default to delete.
 
 **Not covered (owned by other hunters):** class and interface *design* (→ solid-hunter; Go interface pollution stays
 here); invariant enforcement (→ invariant-hunter); type structure (→ type-hunter); module boundaries and exports
 (→ boundary-hunter); documentation (→ doc-hunter); security (→ security-hunter); test quality and test-code
-duplication (→ test-hunter); cosmetic style and commented-out code, in every mode (→ slop-hunter); broader
+duplication (→ test-hunter); cosmetic style (→ slop-hunter); commented-out code is not covered here; broader
 non-idiomatic patterns (→ smell-hunter); performance — over-engineered code is here, under-optimized code is
 perf-hunter's; error-handling policy — what to catch, how to convert and propagate (→ exception-hunter; duplicated
 error-handling code stays here). A finding that doesn't answer "is this simpler than it could be?" belongs
@@ -29,10 +29,9 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 | Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback |
 | Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline |
-| Dead Code Paths | Unreachable branch, zero-call helper, stale flag, guard already guaranteed | Delete, with liveness evidence |
+| Dead Code Paths | Unreachable branch, stale flag, guard the preceding logic already guarantees | Delete, with liveness evidence |
 | Over-Parameterized APIs | 4+ params, boolean flags, constant arguments, mostly-unused config objects | Split by use case |
 | Mixed Concerns | One body fetches AND transforms AND persists/renders | Extract named helpers; parent becomes coordinator |
-| Complex Control Flow | 3+ nesting levels, 4+ branch chains, nested ternaries, dense expressions | Guard clauses, early returns, lookup tables, named steps |
 | Coexisting Generations | Two or more **live**, structurally different solutions to one concern | Name the survivor, give a retirement plan |
 
 ## Terms
@@ -40,7 +39,7 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 - **Live seam** — an abstraction a production consumer receives from outside (handwritten wiring or a container, the
   mechanism is irrelevant), or that a second implementation or a test double uses. An interface only ever constructed
   or returned by the code that implements it, never held as another unit's parameter or field, has **no live seam**.
-- **Nomination** — scan or linter output, a name, a count, or dependency coexistence. It selects code to open; it is
+- **Nomination** — scan output, a name, a count, or dependency coexistence. It selects code to open; it is
   never evidence. A finding cites what the opened code shows.
 - **Stratum** — one generation of a solution to a concern (Coexisting Generations). Live when at least one production
   site uses it.
@@ -197,22 +196,21 @@ should go, the finding is here; when only its form changes, it is Class Abuse.
 
 ### Dead Code Paths
 
-Unreachable branches, unused internal helpers, stale feature flags, guards already guaranteed by preceding logic or
-by the type.
+Unreachable branches, stale feature flags, guards already guaranteed by preceding logic.
 
-**Signals:** impossible branches given types/call sites; internal helpers with zero call sites after liveness checks;
-flags always on/off, shown by evidence in the repository — a constant, a config file, or a default nothing overrides
-(a flag whose value lives outside the repository, such as in a remote flag service, is withdrawn); `nil` / `None` /
-`undefined` checks already guaranteed (see Guard ownership); default/`else` arms already ruled out.
+**Signals:** impossible branches given call sites; flags always on/off, shown by evidence in the repository — a
+constant, a config file, or a default nothing overrides (a flag whose value lives outside the repository, such as in a
+remote flag service, is withdrawn); `nil` / `None` / `undefined` checks the preceding logic already guarantees (see
+Guard ownership); default/`else` arms already ruled out.
 
-**Ownership:** commented-out code is slop-hunter's Trivially Dead Code, unconditionally — text is not a code path and
-has no liveness question. This category owns *live* code that cannot execute or is never called: unused functions and
-constants. Exported dead symbols → boundary-hunter's Dead Exports. The language reference's Dead code section splits
-unused bindings, parameters, and fields, and names the exported dead symbols that stay here.
+**Ownership:** commented-out code is not covered here — text is not a code path and has no liveness question. This
+category owns *live* code that cannot execute. Unused functions and constants are in each reference's Delegated to
+tools; exported dead symbols → boundary-hunter's Dead Exports.
 
-**Guard ownership with invariant-hunter.** A null / nil / None check the *type already rules out* is here — delete the
-guard. A check compensating for an optional type whose value is always present is invariant-hunter's Defensive Access
-in Non-Boundary Code — tighten the type; the guard falls away afterwards.
+**Guard ownership with invariant-hunter.** A null / nil / None check the *preceding logic already guarantees* is here —
+delete the guard. A check the *type* already rules out is in each reference's Delegated to tools. A check compensating
+for an optional type whose value is always present is invariant-hunter's Defensive Access in Non-Boundary Code — tighten
+the type; the guard falls away afterwards.
 
 **Not a finding:** exhaustiveness arms — `default: assertNever(x)`, `case _: assert_never(x)`,
 `default: panic("unreachable")` never execute by design. They are compile-time or convention guards; keep them.
@@ -260,18 +258,6 @@ logic. A long function with one concern: length only nominates.
 
 **Action:** Extract each concern into a named helper; the parent becomes a coordinator.
 
-### Complex Control Flow
-
-Deep nesting, nested conditionals/ternaries, long branch chains, convoluted loops. Async/promise signals → TypeScript
-reference.
-
-**Signals:** 3+ nesting levels; `if`/`else if`/`elif` chains with 4+ branches; loop bodies with two or more
-conditionals; nested ternaries or conditional expressions; dense expressions — a `reduce` with a spread accumulator, a
-long chain of inline lambdas, plus the forms the language reference adds.
-
-**Action:** Flatten with guard clauses and early returns; prefer switch/map lookups or explicit branches; extract
-complex loop bodies; split dense expressions into named intermediate steps.
-
 ### Coexisting Generations
 
 Two or more **live**, structurally different solutions to the same concern, left by an unfinished migration (lava
@@ -300,8 +286,8 @@ One finding per site. The reported finding's row note (report format) names the 
   Extracting the concerns usually flattens it.
 - **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
   Concerns, not an Unnecessary Abstraction.
-- **Strata:** zero live sites → Dead Code Paths; near-identical bodies → Duplication; otherwise Coexisting
-  Generations. A copy with zero live sites is Dead Code Paths too.
+- **Strata:** zero live sites → not covered here (unused code is in each reference's Delegated to tools); near-identical
+  bodies → Duplication; otherwise Coexisting Generations.
 - **Feature flags:** always on or always off → Dead Code Paths; both branches live with no removal plan → Coexisting
   Generations.
 - **Constant arguments:** a parameter that every caller passes with one value, or leaves at its default →
@@ -312,9 +298,8 @@ One finding per site. The reported finding's row note (report format) names the 
   row that lists each copy that clears all six gates. Not Duplication. A copy that fails a gate stays a Duplication
   candidate. When the copies share more than the primitive, Duplication claims that region, and its Action calls the
   primitive inside the shared unit.
-- **A branch chain that restates a mapping an existing constant or map holds** → Duplication (rule 1), never also
-  Complex Control Flow: the Action reads the existing source. When only some arms match, Duplication claims those
-  arms, and Complex Control Flow judges the chain that its Action leaves.
+- **A branch chain that restates a mapping an existing constant or map holds** → Duplication (rule 1): the Action
+  reads the existing source. When only some arms match, Duplication claims those arms.
 - **A wrapper whose whole body re-implements a primitive** (a manual `Promise` around a promisified API, a
   context-manager class that `contextlib` covers) → Reinvented Primitives, never also Unnecessary Abstractions. The
   Action calls the primitive at each call site and deletes the wrapper.
@@ -432,25 +417,13 @@ and frequently-read file, is High impact.
 
 ### Phase 2: Scan for Complexity Signals
 
-For each loaded language reference, nominate candidates on that language's eligible list (Phase 1 step 4) from the
-three sources its Phase 2 block names:
-
-1. **Project linter.** When the project invokes a linter itself — package scripts, `Makefile`, pre-commit, CI; a config
-   file alone is not adoption — run that same command without its fix option. Keep the findings that anchor in the
-   eligible list, for the rules the reference maps to categories. Use only the rules the project enables; never install
-   a tool. Record one Scope outcome per linter: **ran**, **skipped** (not adopted, or not installed), **errored**.
-   An inline suppression of a complexity rule nominates its function: open it, and read the comment on the marker
-   line and on the line above. When that comment documents a deferral, record it in Scope (Complexity documented as
-   intentional). Record a command's result only for the files that it checks: a gate that diffs against a base ref
-   checks only the changed files, and a clone detector checks only clones above its size floor. Neither counts as a
-   seed search.
-2. **Toolchain modernizer**, where the reference names one.
-3. **Regex scans.** Approximate: they miss and over-match, so they only nominate.
+For each loaded language reference, nominate candidates on that language's eligible list (Phase 1 step 4) with its
+Phase 2 regex scans. They are approximate: they miss and over-match, so they only nominate.
 
 A scan with many hits runs first with `-c` (hits per file); open the files with the most hits first. Group hits by
 enclosing function: one function is one candidate. Judge each finding under the rules of its own file's language —
-including language-only categories the reference appends. Done when every source has run or has its Scope outcome, and
-every hit belongs to a candidate.
+including language-only categories the reference appends. Done when every scan has run and every hit belongs to a
+candidate.
 
 ### Phase 3: Scan for Duplication
 
@@ -472,7 +445,7 @@ every hit belongs to a candidate.
 3. **Compare.** Open every hit's enclosing body and compare after normalizing names and values. Cite only the region
    that matches (see Duplication: Scope the claim to the shared region).
 
-A clone check in the project's lint run (Phase 2) nominates too. Record
+Record
 `Duplication coverage: {searched} of {total} seed functions searched` in Scope; Duplication findings claim only the
 searched seeds. Done when every seed function has been searched and every hit's body compared, or the coverage line
 records where the search stopped.
@@ -558,6 +531,15 @@ evidence bar; a wider claim does not win because it covers more. In Scope, keep 
 it covers, and add the coverage counts without counting a seed twice.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
+
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
+of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
+only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
+(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
+bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
+sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
+only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
+with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

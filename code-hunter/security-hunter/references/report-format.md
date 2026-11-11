@@ -12,13 +12,10 @@ table, or "none found" line; a thin report is a valid result.
 default, or `none found`) and the files that apply it.
 
 **Language versions line.** The language versions Phase 1 step 5 recorded, with the file each came from; then, after
-`resolved:`, only the library versions Phase 4 looked up for a candidate, with the lockfile each came from. A version
+`resolved:`, only the library versions Phase 3 looked up for a candidate, with the lockfile each came from. A version
 that could not be read is `unknown`.
 
 **Deployment evidence line.** Each environment setting the Phase 1 scan found, with its file, or `none found`.
-
-**Detectors line.** One entry per detector `security-common.md` and the language references name, in one of the
-states of SKILL.md Phase 2.
 
 **Untraced line.** Only when the context budget stopped a trace: the count of candidates whose trace was cut short.
 They are not findings.
@@ -35,12 +32,11 @@ credential.
 **Recommendation-only entries.** Each is a Low entry under Recommendations, with no table row; `Audit completed`
 counts findings only:
 
-- secret-detector adoption (gitleaks or trufflehog) when neither is configured: regex sees known prefixes and
-  `name = "literal"` forms, never high-entropy generic secrets, and this hunter never reads git history;
 - rate limiting when the repository applies no limiter anywhere: the entry names the credential routes and says a
-  gateway may provide the limit.
-
-No other detector is recommended.
+  gateway may provide the limit;
+- a taint analyzer for Injection when the repository runs none (one `rg` for its configuration, or its name in a CI
+  workflow): gosec with `G701`–`G710` included (Go; it traces within one package), Semgrep Community Edition (within
+  one function), or CodeQL (across functions; free for public repositories). This hunter still reports Injection.
 
 *The Evidence cell* in SKILL.md is, per table, the last column before Severity: Credential (Hardcoded Secrets), Path
 (Injection), Reaches (Unvalidated Boundary Input), Effective In (Insecure Configuration), Evidence (Auth Gaps), Channel
@@ -68,7 +64,6 @@ boundary.
 - Auth: {global middleware api/mw/auth.go | per-route decorators (views/*.py) | NestJS APP_GUARD (app.module.ts) | none found}
 - Language versions: {go 1.22 (go.mod) | requires-python >=3.11 (pyproject.toml) | node 20 (engines)}{; resolved: lxml 5.2 (poetry.lock), jsonwebtoken 9 (api/package-lock.json)}
 - Deployment evidence: {DJANGO_SETTINGS_MODULE=app.settings.prod (Dockerfile) | NODE_ENV=production (compose.yaml) | none found}
-- Detectors: {per detector — `gitleaks: ran — gitleaks dir . --no-banner --redact …` / `gosec: skipped — not configured` / `ESLint: skipped — no security-relevant rules enabled` / `govulncheck: errored — fetching vuln.go.dev: …`}
 - {Untraced: {N} candidates (budget)}
 - {Policy: "{quoted instruction}" — accepted by policy: {category} rows {#, #} at {boundary}}
 - {not read: {n} files — context budget}
@@ -123,7 +118,7 @@ boundary.
 
 | # | Location | Resource | Triggered By | Bound | Severity | Impact | Action |
 | - | -------- | -------- | ------------ | ----- | -------- | ------ | ------ |
-| 1 | api/server.go:88 | time | any client holding a connection open | `http.ListenAndServe` with no timeouts; no proxy in the deployment evidence | Medium | High | `http.Server{ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second}` |
+| 1 | api/upload.go:31 | memory | any client posting to `POST /upload` (public) | `io.ReadAll(r.Body)` with no `MaxBytesReader`; no body limit in the deployment evidence | High | High | `r.Body = http.MaxBytesReader(w, r.Body, 10<<20)` before the read |
 
 ### Dependency and Supply-Chain Risks
 

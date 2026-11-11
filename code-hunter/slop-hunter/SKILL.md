@@ -7,23 +7,22 @@ disable-model-invocation: true
 # Slop Hunter
 
 Audit code for **slop** — text in a source file that carries no information for a reader: comments restating code,
-docs restating signatures, style that breaks the project's own conventions, commented-out code, bare lint
+docs restating signatures, style that breaks the project's own conventions, vague work markers, bare lint
 suppressions, hedging, narration. Goal: **the code reads as if a careful human wrote it in this project's idiom.**
 
 The test for every finding is *is this noise?*, never *did an AI write this?*
 
-**Not covered (owned by other hunters):** missing "why" comments, stale or false comments, and the content quality
-of public docs (→ doc-hunter); comments that call the code a hack or a workaround and name no cause, or that name a
-dependency defect but not when the workaround can go, whatever the marker (→ doc-hunter, Unexplained Workarounds);
-names that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code
-(→ smell-hunter, Comments as Deodorant); live but unreachable logic, unused functions and constants
-(→ simplicity-hunter, Dead Code Paths); exported dead symbols
-(→ boundary-hunter, Dead Exports); generic package / module names (→ boundary-hunter, Generic Boundary Names);
-stuttering names as package design (→ smell-hunter); type-checker
-suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (→ invariant-hunter); error-chain correctness and
-discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality
-(→ test-hunter).
-Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+**Not covered (owned by other hunters):** missing "why" comments, stale or false comments, and the content quality of
+public docs (→ doc-hunter); comments that call the code a hack or a workaround and name no cause, or that name a
+dependency defect but not when the workaround can go, whatever the marker (→ doc-hunter, Unexplained Workarounds); names
+that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code (→ smell-hunter,
+Comments as Deodorant); live but unreachable logic (→ simplicity-hunter, Dead Code Paths); unused functions and
+constants (no hunter owns them); exported dead symbols (→ boundary-hunter, Dead Exports); generic package / module names
+(→ boundary-hunter, Generic Boundary Names); stuttering names as package design (no hunter owns them); type-checker
+suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain correctness and
+swallowed errors (→ exception-hunter); discarded error returns (no hunter owns them); narration that leaks secrets (→
+security-hunter); test quality (→ test-hunter). Where ownership is *contested*, the category's **Ownership:** note in
+What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -36,16 +35,15 @@ Category names are canonical: the heading here, in What to Hunt, and in the repo
 | -------- | ----------- | ------ |
 | Redundant Comments | Comment restates trivial code, a name, or a language construct | Delete |
 | Verbose Documentation | Doc block restates the signature it sits on | Strip the redundant part |
-| Style Drift | Breaks the per-file convention baseline | Conform; one consolidated row when a rule enforces the convention |
-| Trivially Dead Code | Commented-out code, vague `TODO`, leftover `pass`, unused import or binding, bare linter suppression | Delete, or justify the suppression |
+| Style Drift | Breaks the per-file convention baseline where no lint rule states it | Conform |
+| Trivially Dead Code | Vague `TODO`, bare linter suppression, Go `_ = x` | Delete, or justify the suppression |
 | Hedging and Narration | Speculative or apologetic comments; logging that narrates flow | Delete; keep concrete constraints with references |
 | Unnecessary Error Wrapping *(Go only)* | Wrapping that adds words, not context | Wrap once where context is meaningful |
 
 ## Core Principles
 
 1. **Diff mode reports only what the change introduced.** The diff is the default surface because slop arrives with
-   new contributions. The one exception is formatting on touched lines (see Style Drift). In path or codebase mode
-   every match in the eligible surface is a candidate.
+   new contributions. In path or codebase mode every match in the eligible surface is a candidate.
 
 2. **Nomination is not proof.** Scans and the diff *nominate*; the working tree decides. A comment added in a commit
    and removed in the working tree is not a finding.
@@ -80,7 +78,7 @@ A comment that restates trivial code, a name, or a language construct.
 **Ownership — the comment ownership rule** (also governs Hedging and Narration):
 
 - Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
-  construct another hunter audits (a discarded error, a type-system bypass) → that hunter.
+  construct another hunter audits (a discarded error, a zero-value contract) → that hunter.
 - Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
 - Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
   go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
@@ -118,13 +116,14 @@ the signature is here.
 
 ### Style Drift
 
-Naming, import grouping, error-handling pattern, idiom choice, or formatting that breaks the per-file convention
-baseline.
+Naming, error-handling pattern, or idiom choice that breaks the per-file convention baseline. A convention that a
+formatter or a lint rule enforces is not judged here: each reference lists it under Delegated to tools.
 
 **Convention baseline, resolved per file, in this order — the first source that yields a convention wins:**
 
-1. Formatter and lint configuration that applies to the file. Ruff and ESLint resolve the nearest config, not one
-   repo-wide file; a monorepo with two configs has two baselines.
+1. Configuration that states a convention judged here, such as a docstring `convention` in Ruff's pydocstyle
+   settings. Ruff and ESLint resolve the nearest config, not one repo-wide file; a monorepo with two configs has two
+   baselines.
 2. Repository instructions: `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, `.editorconfig`, convention docs.
 3. The dominant pattern in comparable established code nearby. Two styles split evenly is no dominant pattern.
 4. The language style guide, named in the reference.
@@ -132,37 +131,13 @@ baseline.
 No source yields a convention → no finding; record `baseline uncertain: <concern>` in Scope. Prescribing a
 convention is not an audit. A finding whose baseline source cannot be named is not reportable.
 
-**Signals** are per language (see the reference): naming convention, import grouping, error-handling pattern,
-idiom choice (f-string vs `.format`, template string vs concatenation, `pathlib` vs `os.path`), formatter output.
-
-**Formatter — two separate questions.**
-
-- *Adoption*: which formatter the project uses, established by the command the project itself invokes — package
-  scripts, `Makefile`, pre-commit config, CI. A config file alone is not adoption; when unsure, the formatter is not
-  adopted. Go's `gofmt` is always adopted.
-- *Execution*: the tool's narrow read-only check, named in the reference. Run only tools already installed — never
-  install one. Record one outcome in Scope: **ran**, **skipped** (none adopted, or adopted but not installed),
-  **errored** (the tool exited with a non-format error). Only **ran** produces candidates.
-
-**Formatting on touched lines is the one exception to "introduced by this change."** In diff mode a formatting
-violation on a line the change touched is reported as a touched-line violation whether or not it predates the
-change: the author edited that line and left it unformatted, and any format-on-save editor would have fixed it.
-Hunk intersection is the rule, not a proof.
-
-**Consolidation — a reporting decision, separate from the remedy.** When a scan enumerates N occurrences of one
-rule-enforceable pattern, report one row: a representative location, `Occurrences: N` (the enumerated count; `≥ N`
-if the scan was partial), and an Action that fits the enforcement state, verified in the project's config:
-
-- Rule or formatter **already enabled** → the violations slipped past it; Action is "run `<fixer>`" or "fix the N
-  sites".
-- Rule **available but disabled** → Action is "enable `<rule>` and fix the N sites".
-- **No rule exists** → no consolidation; report the sites individually, or not at all if they fail the evidence bar.
+**Signals** are per language (see the reference): naming idioms, error-handling pattern, idiom choice.
 
 **Action:** Conform.
 
-**Ownership:** naming drift introduced by the change is here; stuttering names as package design are smell-hunter's
-Stuttering Names. A generic package or module-directory name is boundary-hunter's Generic Boundary Names; file
-placement inside a unit is smell-hunter's.
+**Ownership:** naming drift introduced by the change is here; stuttering names as package design are no hunter's. A
+generic package or module-directory name is boundary-hunter's Generic Boundary Names; file placement inside a unit is
+smell-hunter's.
 
 ### Trivially Dead Code
 
@@ -170,33 +145,26 @@ Text and declarations that compile or parse but do nothing, and can be judged in
 
 **Signals:**
 
-- Commented-out code, of any size
 - `TODO` / `FIXME` / `XXX` with no owner, ticket, or concrete condition. A marker comment that calls the code a hack
   or a workaround, or that names a dependency defect the code works around, is doc-hunter's (Unexplained Workarounds)
-- Leftover `pass` in a non-empty Python body
-- Unused imports and unused function-local bindings where the language lets them compile
 - Linter suppression with no stated reason: bare `//nolint`, `// #nosec`; `# noqa`, `# nosec`, `# pylint: disable`;
   `// eslint-disable*`, `// biome-ignore` — each without a trailing reason. Type-checker suppressions
-  (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are invariant-hunter's Type-System
-  Bypasses, with or without a reason
-- Go only: `_ = x` silencing a non-error binding the author meant to use; unused parameters; unused struct fields.
-  Python and TypeScript unused parameters are out of scope
+  (`# type: ignore`, `# pyright: ignore`, `// @ts-ignore`, `// @ts-expect-error`) are not covered here, with or
+  without a reason
+- Go only: `_ = x` silencing a non-error binding the author meant to use
 
-**Action:** Delete. For a suppression: delete it, or state the reason. For an unused binding whose initializer has
-side effects: unused does not mean deletable — say what is removed and what is kept.
+**Action:** Delete. For a suppression: delete it, or state the reason.
 
 **Not a finding:** a `TODO` with an owner, ticket, or concrete condition; a linter suppression with a stated reason;
 a language idiom the reference's Trivially Dead Code section lists as intentional (e.g. Go blank-identifier forms).
 
-**Ownership:** commented-out code is here, unconditionally — text is not a code path. Live-but-unreachable *logic*
-(guards already guaranteed, stale flags, zero-call helpers), unused functions, and unused constants are
-simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported dead symbols are boundary-hunter's
-Dead Exports.
-Type-checker suppressions, reason or not, are invariant-hunter's Type-System Bypasses — "should this bypass exist?"
-subsumes "does it have a reason?"; one line, one hunter. `_ = f()` where `f` returns an `error` is
-exception-hunter's Swallowed Errors. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
-`/* c8 ignore … */`, `/* v8 ignore … */`) and skipped or focused tests (`t.Skip()`, `@pytest.mark.skip`, `it.skip`,
-`.only`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter.
+**Ownership:** live-but-unreachable *logic* (guards already guaranteed, stale flags) is simplicity-hunter's Dead Code
+Paths, which demands liveness evidence; zero-call helpers, unused functions, and unused constants are no hunter's.
+Exported dead symbols are boundary-hunter's Dead Exports. Type-checker suppressions, reason or not, are not covered
+here. `_ = f()` where `f` returns an `error` is not covered here. Coverage pragmas (`# pragma: no cover`,
+`/* istanbul ignore … */`, `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped tests (`t.Skip()`,
+`@pytest.mark.skip`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter. TypeScript
+skips outside a diff and `.only` are no hunter's.
 
 ### Hedging and Narration
 
@@ -210,7 +178,7 @@ Speculative, apologetic, or self-referential text, and logging that narrates con
   information
 - Task history: `// now uses the v2 client`, `// changed to UTC`, `// added on client feedback`, `// tried a map
   first`. It belongs in the commit or the PR
-- Logging that narrates flow: `log.Println("entering X")`, `logger.debug("starting")`, `console.log('here')`
+- Logging that narrates flow through a logger: `log.Println("entering X")`, `logger.debug("starting")`
 
 **Action:** Delete. Keep comments that document a concrete constraint or a known issue with a reference.
 
@@ -229,8 +197,9 @@ Error wrapping that adds words, not context. Defined in `references/slop-go.md`.
 ### Within-skill routing
 
 A doc comment attached to a declaration (godoc, docstring, JSDoc) → Verbose Documentation. Any other comment →
-Redundant Comments, or Hedging and Narration when it speculates or apologizes. Commented-out code → Trivially Dead
-Code. One finding per site.
+Redundant Comments, or Hedging and Narration when it speculates or apologizes; one that neither restates the code
+nor hedges, and only breaks the file's convention baseline for comments (marker, placement, casing, spacing) → Style
+Drift. One finding per site.
 
 **Markers and suppressions.** A `TODO` / `FIXME` / `XXX` comment or a linter suppression → Trivially Dead Code, also
 when its text hedges or restates code, and also inside a doc comment. That comment gets no other row; the rest of a
@@ -238,18 +207,16 @@ doc comment stays Verbose Documentation. When Trivially Dead Code does not repor
 condition, a stated reason), no other category does.
 
 **Deleted text gets one row.** When an Action deletes whole lines or a whole comment, no other row reports text
-inside them: an unused import out of its group → Trivially Dead Code only. An Action that keeps part of a line (a
-side-effect initializer) deletes no line. A consolidated Style Drift row keeps its enumerated count.
+inside them.
 
 **Doc style.** A doc block in another style than the baseline (Google, NumPy, or Sphinx docstrings; JSDoc tag form)
 → Style Drift. Verbose Documentation judges only redundancy.
 
 ## Test-code scope
 
-Test files are **fully in scope** for every category. Noise inside a test — comments, docs, style, commented-out test
-code — is slop; whether a test can fail — its assertions, skips, focused tests, and coverage pragmas — is
-test-hunter's.
-Test paths are listed in each language reference.
+Test files are **fully in scope** for every category. Noise inside a test — comments, docs, style — is slop; whether a
+test can fail — its assertions, skips, and coverage pragmas — is test-hunter's, except a TypeScript skip or `.only`
+outside a diff, which is no hunter's. Test paths are listed in each language reference.
 
 ## Severity and Impact
 
@@ -350,12 +317,11 @@ impact.
    there. Established files outside it are *read* as **context**: that is where the convention baseline comes from.
 
 5. **Establish the convention baseline** for every eligible file, in the Style Drift order. Note the documentation
-   style in use (godoc; Google, NumPy, or Sphinx docstrings; JSDoc) and formatter *adoption* (Style Drift →
-   Formatter). Record every concern with no resolvable baseline as `baseline uncertain: <concern>`.
+   style in use (godoc; Google, NumPy, or Sphinx docstrings; JSDoc). Record every concern with no resolvable baseline as `baseline uncertain: <concern>`.
 
 ### Phase 2: Scan for Noise
 
-Scans *nominate*; Phase 5 judges each candidate in the working tree.
+Scans *nominate*; Phase 3 judges each candidate in the working tree.
 
 For each loaded reference, run its Phase 2 scan block against that language's eligible list. `$LANG_FILES` below
 stands for `$GO_FILES`, `$PY_FILES`, or `$TS_FILES`.
@@ -363,43 +329,28 @@ stands for `$GO_FILES`, `$PY_FILES`, or `$TS_FILES`.
 - **Diff mode** nominates from added lines: `git diff -U0 "$MB" -- $LANG_FILES`, keeping the `+++` file headers and
   `@@` hunk headers so every candidate has a file and a working-tree line. Untracked files have no diff — scan them
   whole with the whole-file commands, restricted to the untracked subset
-  (`git ls-files --others --exclude-standard -- $LANG_FILES`). Removed lines (`^-`) are read too: a removed use of a
-  still-imported symbol (Go: of a parameter or struct field) nominates a Trivially Dead Code candidate for Phase 4.
+  (`git ls-files --others --exclude-standard -- $LANG_FILES`).
 - **Path and codebase mode** scan the whole eligible file.
 
-Done when every scan in each loaded reference's Phase 2 block has run — in diff mode including the removed-line and
-untracked whole-file scans — and every hit is listed as a candidate.
+Done when every scan in each loaded reference's Phase 2 block has run — in diff mode including the untracked
+whole-file scans — and every hit is listed as a candidate.
 
-### Phase 3: Formatter Check
-
-Per language, run the reference's Formatter section and record the outcome in Scope. In diff mode, keep only
-violations on lines the change touched: compare the formatter's violating lines against the `@@` ranges of
-`git diff -U0 "$MB" -- <file>`. Untracked files are new in full; every line is touched.
-
-### Phase 4: Whole-file Checks on Changed Files — diff mode only
-
-Some slop is invisible on added lines: an import or binding whose last use the change deleted. For each candidate
-the removed-line reading in Phase 2 nominated, check the working tree for remaining uses, then prove the change
-caused it. A line this change added needs no proof. Otherwise the proof is a use at the merge base:
-`git show "$MB:<file>" | rg -c '\bNAME\b'` ≥ 2 (the declaration plus a use). 1 → pre-existing → not a finding.
-
-### Phase 5: Evaluate Each Finding
+### Phase 3: Evaluate Each Finding
 
 For each candidate, in the working tree:
 
 1. Apply the general **Not a finding** list and the category's own **Not a finding:** line first.
 2. Noise or value? Would a reader lose anything if it were gone?
 3. Matches or breaks the baseline? Name the baseline source, or record `baseline uncertain` and drop it.
-4. Does it clear the category's evidence bar — the Phase 4 proof for whole-file checks, the touched-line rule for
-   formatting, the enforcement state for a consolidated row?
-5. Run the loaded reference's Phase 5 block for language-specific judgment and language-only categories.
+4. Does it clear the category's evidence bar?
+5. Run the loaded reference's Phase 3 block for language-specific judgment and language-only categories.
 
 Assign **Severity and Impact** to every finding. Nothing is held back.
 
 Done when every candidate is a reported finding, dropped (not noise, no baseline, or pre-existing), or
 cross-referenced to its owning hunter.
 
-### Phase 6: Produce Report
+### Phase 4: Produce Report
 
 Save as `YYYY-MM-DD-slop-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name (e.g.
 `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). A caller-specified output path or return
@@ -407,8 +358,16 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
+of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
+only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
+(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
+bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
+sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
+only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
+with a rule off, and naming the rule costs one line.
+
 ## Operating Constraints
 
 - **Report only.** The audit report is the deliverable; source files stay untouched.
-- **Evidence required.** Every finding cites `file:line` with the exact text. A consolidated Style Drift row cites
-  its representative location.
+- **Evidence required.** Every finding cites `file:line` with the exact text.

@@ -11,16 +11,12 @@ application < infra`) or `Layer map: none`. `Prohibitions: {contract type, file}
 When **both** are none, add `Dependency Direction Violations and External Type Leaks not evaluated — no boundary
 source`; those two categories then have no tables.
 
-**Graph line.** `Graph: {N nodes, M edges, E erased, U units} from {go list / import scan / depcruise}` — one per
+**Graph line.** `Graph: {N nodes, M edges, E erased, U units} from {go list / import scan}` — one per
 language when several are in scope. Erased counts type-only edges (`import type`, `TYPE_CHECKING`, compiler-elided).
 
 **Emit line.** TypeScript only: `Emit: TypeScript {version} — {verbatimModuleSyntax / default elision / not
 established}`, read from the installed package or the lockfile, and `tsconfig.json`. `not established` (a
 bundler-only build with no readable emit settings) withdraws cycle Kind with a `Limitation` line per cycle.
-
-**Toolchain lines.** One per tool per language, in the form `<tool>: ran — <command>, <version>, <coverage>` /
-`skipped — not installed` / `skipped — not configured` / `errored — <message>`. Every tool here is a **nominator**;
-no finding is tool output. The TypeScript reference names the `knip` and `depcruise` caveats a line records.
 
 **Enumeration line.** Present whenever consumers were found by reading rather than by scan — which is the normal
 case. States what was searched (import forms read, string references searched, the use-as-interface search) and how
@@ -49,12 +45,17 @@ cell names the conflict.
   form.
 - **Basis** (Dependency Direction Violations) is `map: {tier} → {tier}, {source}` or `prohibition: {contract type},
   {file}, "{rule}"`. Nothing else is a basis.
-- **Kind** and **Failure** (Cyclic Dependencies): Kind is `runtime` or `type-only`. Failure is
-  `provable from {entry}: {file:line}`, `observed: {log or test}`, or `none observed`. The **Cycle** cell marks erased edges (`a.ts → b.ts → a.ts (erased)`).
+- **Failure** (Cyclic Dependencies) is `provable from {entry}: {file:line}` or `observed: {log or test}`. The **Cycle**
+  cell marks erased edges that are not part of the runtime cycle (`a.ts → b.ts → a.ts`, `c.ts → a.ts (erased)`).
 - **Unit and boundary source** (External Type Leaks) carries the unit and why it is judged inward: its tier and the
   map, or the prohibition. **External type** names the package, not only the symbol.
 - **Capabilities** (Generic Boundary Names) enumerates the two or more unrelated capabilities found under the name;
   one capability is no finding and no row.
+
+**Layering recommendation.** When the Layer map line names a map and the Prohibitions line is `none`, one Low
+entry under Recommendations, with no table row, names the map and the rules that would enforce it: golangci-lint
+`depguard` (Go), import-linter `layers` (Python), dependency-cruiser `forbidden` or eslint-plugin-boundaries
+`boundaries/dependencies` (TypeScript).
 
 When within-skill precedence chose one reading of an edge or a member over another, the reported finding's Evidence
 cell names the other readings in one clause; a table with no Evidence column carries that clause, and the fan-in that
@@ -83,7 +84,6 @@ sorted order.
 - {Dependency Direction Violations and External Type Leaks not evaluated — no boundary source}
 - Graph: {N nodes, M edges, E erased, U units} from {source}
 - {Emit: TypeScript {version} — {flag / default elision / not established}}
-- Toolchain: {per language — `go list: ran — go list -test=false ./..., go1.26, 84 packages` / `lint-imports: skipped — not configured` / `depcruise: ran — depcruise --output-type json src, 16.3, project config; tsPreCompilationDeps off — type-only edges read from source` / `knip: skipped — not installed`}
 - {Enumeration: read every import of {unit} (named, default, namespace, aliased, wildcard); searched string references in pyproject.toml, settings/*.py; use-as-interface search for {method}; set closed by {how}}
 - {Limitation: {unit} open; README documents `go get` — consumer set not closed}
 - {Policy: "{quoted instruction or rule}" — withdraws {category} at {sites}}
@@ -98,7 +98,7 @@ sorted order.
 | # | Location | Unit | Export | Form | Consumers | Severity | Impact | Action |
 | - | -------- | ---- | ------ | ---- | --------- | -------- | ------ | ------ |
 | 1 | pkg/auth/token.go:31 | `pkg/auth` | `HelperFn` | zero consumers | 0 | Medium | Low | Unexport to `helperFn`; no importer outside `pkg/auth` |
-| 2 | orders/index.ts:4 | `orders` | `export * from './internal/helpers'` — `formatRow`, `Occurrences: 5` | consolidated barrel | 0 | Low | Medium | Replace the wildcard with named re-exports of the public API; five symbols leave the surface |
+| 2 | orders/__init__.py:4 | `orders` | `from .helpers import *` — `format_row`, `Occurrences: 5` | consolidated barrel | 0 | Low | Medium | Replace the wildcard with named re-exports of the public API; five symbols leave the surface |
 | 3 | cache/cache.go:12 | `cache` | `NewCache` | test only | test only: cache/cache_test.go:9 | Low | Low | Unexport; `cache_test` asserts the cached value through `Get`, which stays public |
 
 ### Leaked Internals
@@ -124,10 +124,9 @@ sorted order.
 
 ### Cyclic Dependencies
 
-| # | Location | Cycle | Kind | Failure | Evidence | Severity | Impact | Action |
-| - | -------- | ----- | ---- | ------- | -------- | -------- | ------ | ------ |
-| 1 | b.py:1 | `a.py → b.py → a.py` | runtime | provable from a (`[project.scripts] cli = a:main`): b.py:1 reads `X`, defined at a.py:12 after `import b` at a.py:2 | — | Critical | High | Move `X` into a third module both import, or define it above `import b` |
-| 2 | src/orders/order.ts:2 | `orders/order.ts → orders/line.ts → orders/order.ts (erased)` | type-only | none observed | same layer; a cross-layer type-only cycle is reported as Dependency Direction Violations instead | Low | Low | Move the shared `OrderId` type into `orders/ids.ts`, which both import |
+| # | Location | Cycle | Failure | Evidence | Severity | Impact | Action |
+| - | -------- | ----- | ------- | -------- | -------- | ------ | ------ |
+| 1 | b.py:1 | `a.py → b.py → a.py` | provable from a (`[project.scripts] cli = a:main`): b.py:1 reads `X`, defined at a.py:12 after `import b` at a.py:2 | — | Critical | High | Move `X` into a third module both import, or define it above `import b` |
 
 ### External Type Leaks
 
@@ -138,10 +137,9 @@ sorted order.
 
 ### Generic Boundary Names
 
-| # | Location | Unit | Capabilities | Form | Severity | Impact | Action |
-| - | -------- | ---- | ------------ | ---- | -------- | ------ | ------ |
-| 1 | pkg/util/util.go:1 | `pkg/util` | string padding; HTTP retry; money rounding | generic name | Low | Medium | Split into `strpad`, `httpretry`, `money`; each name states what it provides |
-| 2 | storage/store.go:1 | `storage` | — | clause ≠ directory | Low | Low | Rename the directory to `store`, or the clause to `storage`; importers read one name and write the other |
+| # | Location | Unit | Capabilities | Severity | Impact | Action |
+| - | -------- | ---- | ------------ | -------- | ------ | ------ |
+| 1 | pkg/util/util.go:1 | `pkg/util` | string padding; HTTP retry; money rounding | Low | Medium | Split into `strpad`, `httpretry`, `money`; each name states what it provides |
 
 ## Recommendations (Priority Order)
 

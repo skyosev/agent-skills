@@ -42,8 +42,8 @@ vocabulary, smallest first: a `dict[Kind, X]` lookup when the arms select a valu
 differ by a single call; a Protocol with one implementation per variant, dispatched through a `dict[Kind, Protocol]`,
 only when the arms carry behavior.
 
-Exhaustiveness — `case _: assert_never(x)`, pyright's `reportMatchNotExhaustive` — is invariant-hunter's and never
-decides openness here.
+Exhaustiveness — `case _: assert_never(x)`, pyright's `reportMatchNotExhaustive` — is not covered here and never
+decides openness.
 
 ### Broken Substitution — Python forms
 
@@ -117,7 +117,7 @@ rg -H -n 'isinstance\s*\(' --type py $EXCLUDE -- $PY_FILES
 # Rigid Extension Points: discriminant chains, match statements, boolean parameters
 rg -H -n '^\s*elif\s' --type py $EXCLUDE -- $PY_FILES
 rg -H -n '^\s*match\s+\w' --type py $EXCLUDE -- $PY_FILES
-rg -H -n --pcre2 'def\s+\w+\([^)]*\b\w+\s*:\s*bool\b' --type py $EXCLUDE -- $PY_FILES
+rg -H -n -U --pcre2 'def\s+\w+\([^)]*\b\w+\s*:\s*bool\b' --type py $EXCLUDE -- $PY_FILES
 
 # Concrete Dependency Chains: a call result assigned to an attribute — `SmtpMailer()`, `requests.Session()`,
 # `psycopg.connect(...)`, `boto3.client(...)`; fires on values too, filter while reading
@@ -127,7 +127,7 @@ rg -H -n --pcre2 'self\.\w+\s*=\s*(\w+\.)*\w+\(' --type py $EXCLUDE -- $PY_FILES
 rg -H -n 'datetime\.now\(|datetime\.utcnow\(|time\.time\(|random\.\w+\(' --type py $EXCLUDE -- $PY_FILES
 
 # Concrete Dependency Chains: module-level clients (then find the methods that read them)
-rg -H -n --pcre2 '^\w+\s*=\s*\w*\.?(connect|Client|Session|Engine|create_engine|Redis)\(' --type py $EXCLUDE -- $PY_FILES
+rg -H -n --pcre2 '^\w+\s*(:\s*[\w.\[\], ]+)?=\s*(\w+\.)*(connect|[Cc]lient|Session|Engine|create_engine|Redis)\(' --type py $EXCLUDE -- $PY_FILES
 
 # Composition-root nomination (behavior decides; these only point the search)
 rg -H -n 'Depends\(|create_app|containers\.|providers\.|if\s+__name__\s*==' --type py $EXCLUDE -- $PY_FILES

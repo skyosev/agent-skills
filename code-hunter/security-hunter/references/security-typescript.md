@@ -1,20 +1,20 @@
 # Security Hunter — TypeScript reference
 
-Contents: Applicability · Generated-code and test-path eligibility · Language facts and version gates · Not a finding on these grounds alone — TypeScript · Boundary inventory · Detectors · Phase 3 — security scans · Phase 5 — TypeScript-specific evaluation
+Contents: Applicability · Generated-code and test-path eligibility · Language facts and version gates · Not a finding on these grounds alone — TypeScript · Boundary inventory · Delegated to tools · Phase 2 — security scans · Phase 4 — TypeScript-specific evaluation
 
 ## Applicability
 
 | Category | Applicable | TypeScript note |
 | -------- | ---------- | --------------- |
-| Hardcoded Secrets | **yes** | `security-common.md` scans; `const apiKey: string = "…"` included; a public env prefix with a secret name is Sensitive Data Exposure |
+| Hardcoded Secrets | **yes** | `security-common.md` scans: connection strings and `Authorization` literals; a public env prefix with a secret name is Sensitive Data Exposure |
 | Injection | **yes** | raw SQL APIs, NoSQL filters from the request, `eval` / `Function` / `child_process`, `fs` on input, DOM and framework HTML sinks, `fetch(url)`, redirects, response headers, recursive merges (`proto`) |
 | Unvalidated Boundary Input | **yes, no CGO** | `create(req.body)` and other whole-body writes; a route that skips the schema its peers parse; server-action arguments |
-| Insecure Configuration | **yes** | `rejectUnauthorized: false`, CORS, cookie and session options, CSP, `trust proxy`, GraphQL introspection and playground, WebSocket origin |
+| Insecure Configuration | **yes** | CORS, cookie and session options, file modes, CSP, `trust proxy`, GraphQL introspection and playground, WebSocket origin |
 | Auth Gaps | **yes** | Express / Fastify / NestJS / Next.js / tRPC auth markers, `jwt.decode` / `decodeJwt`, webhook signatures, client claims |
 | Sensitive Data Exposure | **yes** | log calls with credential words or the request; `err.message` / `err.stack` in responses; `localStorage` tokens; public env prefixes |
 | Weak Cryptography | **yes** | `createHash('md5')`, `Math.random`, `createCipher`, `===` on a MAC, `jsonwebtoken` algorithm confusion, low bcrypt cost |
 | Resource Exhaustion | **yes** | `new RegExp(input)` and literal nested quantifiers; body-parser and upload limits; GraphQL depth; `Promise.all` fan-out; WebSocket `maxPayload`; limiters |
-| Dependency and Supply-Chain Risks | **yes** | `package.json` ranges and sources, lockfiles, the project's own `postinstall`, configured `npm audit` |
+| Dependency and Supply-Chain Risks | **yes** | `package.json` ranges and sources, lockfiles, the project's own `postinstall` |
 
 ## Generated-code and test-path eligibility
 
@@ -53,7 +53,6 @@ judged by that version.
 - `jose`: `decodeJwt` never verifies; `jwtVerify` does.
 - Next.js server actions (`"use server"`) receive untrusted arguments; route handlers receive a `Request`;
   `middleware.ts` is the usual auth boundary.
-- `NODE_TLS_REJECT_UNAUTHORIZED=0` disables verification process-wide.
 - A shallow spread defines `__proto__` as an own property and reaches no prototype. `Object.assign` with a
   `__proto__` key sets the target's prototype, never `Object.prototype`, so `Object.assign({}, body).isAdmin` reads
   `true` (Node 24). A recursive merge or a set-by-path with attacker-controlled keys can reach `Object.prototype`.
@@ -84,36 +83,13 @@ judged by that version.
   `APP_GUARD`, and `@Public()`; Next.js `export function middleware` in `middleware.ts` (the route scan nominates it,
   or the peer rule would report false `no-auth` rows); tRPC procedure builders; GraphQL `context` and resolver guards.
 
-## Detectors
+## Delegated to tools
 
-- **ESLint**, when the project configures it, from `node_modules/.bin/eslint` only (never `npx`, which can
-  download); `skipped — configured, not installed` when that file is absent. The full configured rule set runs:
-  ESLint cannot run only some configured rules. Without `--fix` and `--cache`, ESLint writes nothing. The JSON result
-  carries each file's source, so the output is read only through the filter.
+- ESLint with eslint-plugin-sonarjs: `rejectUnauthorized: false` (`sonarjs/unverified-certificate`); a TLS minimum or
+  protocol below 1.2 (`sonarjs/weak-ssl`); DES and RC4 (`sonarjs/no-weak-cipher`).
+- `npm audit` (`pnpm audit`, `yarn npm audit`): a known vulnerability in a locked dependency.
 
-  ```bash
-  TS_FILES=$(cat <run>/typescript.txt); [ -n "$TS_FILES" ] || exit 1  # STOP: empty restore
-  EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/generated/** --glob !**/*.d.ts --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/**'
-  [ "$TS_FILES" = . ] && TS_FILES=$(rg --files --type ts $EXCLUDE -- .)   # codebase mode: enumerate
-  node_modules/.bin/eslint --format json $TS_FILES | node -e 'const keep=/^(security\/|no-unsanitized\/|@microsoft\/sdl\/(no-inner-html|no-document-write|no-insecure-url)$|react\/no-danger$)/;for(const f of JSON.parse(require("fs").readFileSync(0,"utf8")))for(const m of f.messages)if(m.fatal||keep.test(m.ruleId??""))console.log(`${f.filePath}:${m.line}: ${m.ruleId??"fatal"}: ${m.message}`)'
-  ```
-
-  Keep:
-  - `eslint-plugin-security`: `detect-eval-with-expression` → Injection `code`; `detect-child-process` → Injection
-    `command`; `detect-non-literal-fs-filename` → Injection `path`; `detect-non-literal-regexp` and
-    `detect-unsafe-regex` → Resource Exhaustion `cpu`; `detect-possible-timing-attacks` and
-    `detect-pseudoRandomBytes` → Weak Cryptography; `detect-object-injection` → dropped (noise with no sink).
-  - `eslint-plugin-no-unsanitized`: `method`, `property` → Injection `html`.
-  - `@microsoft/eslint-plugin-sdl`: `no-inner-html`, `no-document-write` → Injection `html`; `no-insecure-url` →
-    Insecure Configuration.
-  - `react/no-danger` → Injection `html` candidate.
-
-  No security plugin configured → `skipped — no security-relevant rules enabled`.
-- **npm audit / pnpm audit / yarn npm audit**, only when a package script or CI step runs it, with `--json`. It needs
-  the network; unreachable → `errored`. `audit fix` is stripped. → Dependency and Supply-Chain Risks (`cve`), with
-  the advisory id.
-
-## Phase 3 — security scans
+## Phase 2 — security scans
 
 `$TS_FILES` is this language's eligible list, restored from `<run>/typescript.txt` (SKILL.md Phase 1 step 4).
 Generated-code globs in `$EXCLUDE` approximate the authoritative marker. Scans marked *inventory* feed the Boundaries
@@ -142,12 +118,11 @@ rg -H -n --pcre2 '\b(merge|mergeWith|defaultsDeep|deepmerge|deepMerge|deepExtend
 # Boundary reads (inventory); validation calls (inventory; then match each boundary to a parse)
 rg -H -n --pcre2 'req\.(body|query|params|headers|cookies|files?)\b|request\.(json|formData|text|arrayBuffer)\(\)|searchParams\.get\(|ctx\.(request\.)?(body|query|params)\b|formData\.get\(|process\.argv|event\.(body|queryStringParameters|pathParameters)\b|c\.req\.(json|query|param|valid)\(' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '\.(parse|parseAsync|safeParse|safeParseAsync|validate|validateSync|validateAsync|validateOrReject|assert|decode|is)\(\s*(req\.(body|query|params)|await\s+req(uest)?\.(json|formData)\(\)|body|input|payload|data|raw)\b|plainToInstance\(|ValidationPipe|zValidator\(|celebrate\(|checkSchema\(|typia\.' --type ts $EXCLUDE -- $TS_FILES
-# Insecure Configuration: TLS, CORS, cookies, headers and CSRF, permissions, debug and introspection, trust proxy
-rg -H -n --pcre2 'rejectUnauthorized\s*:\s*false|NODE_TLS_REJECT_UNAUTHORIZED|minVersion\s*:\s*["\x27]TLSv1(\.1)?["\x27]|secureProtocol\s*:\s*["\x27](SSLv\d+|TLSv1_1?)_method|checkServerIdentity\s*:\s*\(\)\s*=>' --type ts $EXCLUDE -- $TS_FILES
+# Insecure Configuration: CORS, cookies, headers and CSRF, permissions, debug and introspection, trust proxy
 rg -H -n --pcre2 '\bcors\(\s*\)|\bcors\(\s*\{[^}\n]*origin\s*:\s*(true|["\x27]\*["\x27]|\(|/|\[|[a-z_])|Access-Control-Allow-Origin["\x27]?\s*[,:]\s*["\x27`]\*|Access-Control-Allow-Origin["\x27]?\s*[,:]\s*(req\.headers|origin)|credentials\s*:\s*true|enableCors\(|allowedOrigins|verifyClient|origin\s*:\s*\(' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'res\.cookie\(|cookies\(\)\.set\(|setCookie\(|cookie\s*:\s*\{|httpOnly\s*:\s*false|secure\s*:\s*false|sameSite\s*:\s*["\x27]?none|\bsession\(\s*\{|cookieSession\(' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'contentSecurityPolicy\s*:\s*false|["\x27]unsafe-inline["\x27]|["\x27]unsafe-eval["\x27]|\bcsrf|csurf|X-Frame-Options|frameguard|hsts' --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 '\bmode\s*:\s*0o?[0-7]?[0-7][4-7][4-7]\b|\.chmod(Sync)?\(\s*[^,]+,\s*0o?[0-7]?[0-7][4-7][4-7]\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 '\bmode\s*:\s*0o?[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b|\.chmod(Sync)?\(\s*[^,]+,\s*0o?[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'introspection\s*:\s*true|playground\s*:\s*true|graphiql\s*:\s*true|\bdebug\s*:\s*true|NODE_ENV\s*[!=]==?\s*["\x27]production|app\.set\(\s*["\x27]trust proxy["\x27]\s*,\s*true|maskedErrors\s*:\s*false|includeStacktraceInErrorResponses\s*:\s*true' --type ts $EXCLUDE -- $TS_FILES
 # Auth Gaps: routes (inventory), auth markers (inventory), JWT verification, webhook signatures, privilege fields and mass assignment
 rg -H -n --pcre2 '\b(app|router|server|fastify|hono|api|r)\.(get|post|put|patch|delete|all|use|route|register|ws)\(\s*["\x27`/]|@(Get|Post|Put|Patch|Delete|All|Query|Mutation|Subscription|SubscribeMessage|MessagePattern|EventPattern|WebSocketGateway)\(|export\s+(async\s+)?function\s+(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b|export\s+const\s+(GET|POST|PUT|PATCH|DELETE)\b|export\s+(async\s+)?function\s+middleware\b|export\s+const\s+middleware\b|\.(query|mutation|subscription)\(\s*(async\s*)?\(|publicProcedure|protectedProcedure|export\s+const\s+handler\s*[:=]|"use server"' --type ts $EXCLUDE -- $TS_FILES
@@ -159,7 +134,7 @@ rg -H -n -i --pcre2 '\.(role|roles|isAdmin|is_admin|admin|permissions?|scopes?|o
 rg -H -n -i --pcre2 '\b(console|logger|log|winston|pino|bunyan|debug)[\w.]*\.(log|info|debug|warn|error|trace|child|fatal)\([^\n]*\b(password|passwd|token|secret|authorization|cookie|api[_-]?key|ssn|card|req\.(body|headers)\b)' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'res\.(status\(\d+\)\.)?(json|send)\(\s*\{?[^\n]*\b((err(or)?|e)\.(message|stack)|stack\s*:|error\s*:\s*(err|e)\b|\.\.\.(err|e)\b)|(localStorage|sessionStorage)\.setItem\(\s*["\x27`][^"\x27`]*(token|jwt|session|secret|password|key|auth)' --type ts $EXCLUDE -- $TS_FILES
 # Weak Cryptography: primitives (then name the use); secret comparisons; hashing inventory
-rg -H -n -i --pcre2 'createHash\(\s*["\x27](md5|sha1)|createCipher\(|createCipheriv\(\s*["\x27](des|rc4|aes-\d+-ecb)|Math\.random\(|\bmd5\(|crypto-js|\bsha1\(|pseudoRandomBytes|bcrypt\.(hash|hashSync)\([^,]+,\s*[1-9]\s*\)|\balgorithm\s*:\s*["\x27](HS256|none)' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n -i --pcre2 'createHash\(\s*["\x27](md5|sha1)|createCipher\(|createCipheriv\(\s*["\x27]aes-\d+-ecb|Math\.random\(|\bmd5\(|crypto-js|\bsha1\(|pseudoRandomBytes|bcrypt\.(hash|hashSync)\([^,]+,\s*[1-9]\s*\)|\balgorithm\s*:\s*["\x27](HS256|none)' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n -i --pcre2 '\b\w*(token|secret|signature|sig|hmac|mac|digest|otp|hash)\w*\s*[!=]==?\s*[a-z_]' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '\bbcrypt\b|argon2|scrypt|pbkdf2|hashPassword|comparePassword|password\w*Hash' --type ts $EXCLUDE -- $TS_FILES
 # Resource Exhaustion: regex from input; literal patterns with a nested or overlapping quantifier (then: run on boundary input?); body parsers and their limits; uploads; GraphQL servers and limits; limiters; fan-out; WebSocket servers
@@ -170,12 +145,12 @@ rg -H -n --pcre2 'express\.(json|urlencoded|raw|text)\(|bodyParser\.\w+\(|bodyLi
 
 Blind spots: `.exec(` of a regex matches the command scan (reading drops it); routes behind a builder
 (`route('/x').get(…)`) or a variable path; `fetch` through a wrapper client; a cookie set by a session library's
-defaults (reading the options); JSX `href` built from input is scanned only as the literal `javascript:` scheme; Vue
-and Svelte template files are in `security-common.md`, not here; an `Object.assign` whose polluted result is read
-several calls later; a nested-quantifier pattern built with `RegExp` from a string holding escaped backslashes
-(`detect-unsafe-regex` catches it when ESLint is configured); a missing `helmet` (absence has no nominator).
+defaults (reading the options); JSX `href` built from input is scanned only as the literal `javascript:` scheme; Vue and
+Svelte template files are in `security-common.md`, not here; an `Object.assign` whose polluted result is read several
+calls later; a nested-quantifier pattern built with `RegExp` from a string holding escaped backslashes; a missing
+`helmet` (absence has no nominator).
 
-## Phase 5 — TypeScript-specific evaluation
+## Phase 4 — TypeScript-specific evaluation
 
 - For each `jwt.decode` / `decodeJwt`: is a claim from it used for a decision, or only `kid` / `alg` before a
   `verify`?

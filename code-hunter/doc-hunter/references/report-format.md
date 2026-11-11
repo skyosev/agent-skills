@@ -12,10 +12,7 @@ A deletions-only run's Scope holds the lines of Phase 1 steps 1 to 3, `Reference
 **Doc style line.** Per language: `go: godoc`; `python: google (ruff pydocstyle convention)` or `python: numpy
 (dominant in nearby docstrings)`; `typescript: TSDoc` or `JSDoc`.
 
-**Detectors line.** One entry per delegated detector the language reference names, in one of the states of SKILL.md
-Phase 2.
-
-**Library units line.** Only for units with a Missing Public Docs or Undocumented Contracts candidate:
+**Library units line.** Only for each library unit and each unit with an Undocumented Contracts candidate:
 `{unit} library|closed — {evidence}`. A TypeScript entry that maps to no source file is the evidence of a closed unit:
 `packages/sdk closed — exports "./dist/index.js" maps to no source file`.
 
@@ -24,14 +21,12 @@ Phase 2.
 - **Location** is `file:line`. A finding for stale references outside the scope anchors at the removal site:
   `file:line (removed: <name>)`, or `<path> (deleted)` for a deleted file.
 - **Why-Search** has one entry per step, in step order, under the step's label: `names`, `comment`, `link`,
-  `repo docs`, `history` (Magic Numbers: the first three). The history entry is a quoted reason with its hash, or one
+  `repo docs`, `history`. The history entry is a quoted reason with its hash, or one
   of `history: <n> commits, no reason`, `history: 20 commits, no reason (cap)`, `history: shallow, …`,
   `history: skipped — line not committed`, `history: errored — <message>`, `history: unavailable`.
 - **Open Question** is `answered: <hash>` when only history answered it.
 - **Missing** (Unexplained Workarounds) is `cause` or `removal condition`.
 - **Contract Clause** for kind `enforceable` starts with `enforceable:` and quotes the comment.
-- **Symbols** (Missing Public Docs) is `<n> symbols: <names>`. **Gate** is `library: <evidence>` or
-  `rule: <linter> <rule>`.
 
 When the within-skill routing chose one category over another at a site, the reported finding's evidence names the
 other reading in one clause.
@@ -51,7 +46,6 @@ other reading in one clause.
 - {excluded — no reference for .<ext>: {count} files — when applicable, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - Doc style: {per language — `go: godoc` / `python: google (ruff pydocstyle convention)` / `typescript: TSDoc`}
-- Detectors: {per detector — `golangci-lint (godoclint, revive): ran — golangci-lint run --enable-only=godoclint,revive …` / `ruff: ran — ruff check --no-fix --output-format=concise …` / `ESLint: skipped — configured, not installed` / `TypeDoc: skipped — not configured`}
 - {Library units: {unit} library|closed — {evidence}}
 - History: {full / shallow / unavailable}
 - {not read: {n} files — context budget}
@@ -66,12 +60,6 @@ other reading in one clause.
 | - | -------- | ---- | ------------- | ---------- | -------- | ------ | ------ |
 | 1 | laytime/weather.go:88 | `if hours > 6` | Which clause or policy sets 6 h? | names: none; comment: none; link: none; repo docs: none; history: 2 commits ("fix weather"), no reason | Medium | Medium | State the source of the 6-hour threshold; none found in code, docs, or history |
 | 2 | laytime/notice.go:31 | `if hours > 6 // contractual minimum` | answered: 3f2a1c | names: none; comment: names no clause; link: none; repo docs: none; history: 3f2a1c "SUPPLYTIME cl. 12: 6 h minimum" | Medium | Medium | `const minWeatherHours = 6 // SUPPLYTIME cl. 12 (from 3f2a1c)` |
-
-### Magic Numbers
-
-| # | Location | Value | Role | Why-Search | Severity | Impact | Action |
-| - | -------- | ----- | ---- | ---------- | -------- | ------ | ------ |
-| 1 | client/retry.go:22 | `1.5` in `retries * 1.5` | backoff multiplier | names: none; comment: none; link: none | Low | Low | `const retryBackoff = 1.5`; add its origin if it was tuned or copied |
 
 ### Non-Obvious Algorithms
 
@@ -102,12 +90,6 @@ other reading in one clause.
 | 2 | rates/get.go:12 | name | `GetRate` | rates/get.go:30 inserts a row when none exists | Medium | Medium | Rename to `GetOrCreateRate` at all call sites |
 | 3 | db/pq.go:88 | expired | "workaround for lib/pq#1234, remove after v1.10.10" | go.mod:14 `github.com/lib/pq v1.11.0` | Low | Low | Confirm the defect is gone, then remove the workaround and its comment |
 | 4 | handlers/legacy.go:30 (removed: handleLegacy) | stale | `[handleLegacy]` | router.go:12 | Low | Low | Update router.go:12 to name the replacement handler |
-
-### Missing Public Docs
-
-| # | Location | Unit | Symbols | Gate | Severity | Impact | Action |
-| - | -------- | ---- | ------- | ---- | -------- | ------ | ------ |
-| 1 | parse/parse.go:1 | `example.com/lib/parse` | 12 symbols: Parse, Format, Scan, Token, Pos, Error, Mode, Option, Reader, Writer, Node, Visit | library: module with no `main` package, dotted module path, not under `internal/` | Low | Medium | Add doc comments, the package comment first |
 
 ## Recommendations (Priority Order)
 

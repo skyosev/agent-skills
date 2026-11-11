@@ -1,20 +1,19 @@
 # Invariant Hunter — Go reference
 
-Contents: Applicability of universal categories · Generated-code and test-path eligibility · Go principles · Not a finding on these grounds alone — Go · Language-only categories · Per-category Go content · Toolchain · Idiom calibration · Phase 2 — invariant scans · Phase 5 — Go-specific evaluation
+Contents: Applicability of universal categories · Generated-code and test-path eligibility · Go principles · Not a finding on these grounds alone — Go · Language-only categories · Per-category Go content · Delegated to tools · Idiom calibration · Phase 2 — invariant scans · Phase 5 — Go-specific evaluation
 
 ## Applicability of universal categories
 
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
-| Unguarded Type Assertions | **yes** | bare `x.(T)`, assertion chains, assertions on `any` from external sources, open-interface type switches |
+| Unguarded Type Assertions | **yes, narrowed** | a type switch over an open interface with no rejection; bare `x.(T)` is delegated |
 | Loose Optionality | **no** | Go has no optional type; pointer-as-optional has no source evidence, and Nil Pointer Risks covers the crash surface |
 | Defensive Access in Non-Boundary Code | **no** | a nil guard the preceding logic already guarantees is simplicity-hunter's Dead Code Paths; the "loose type" half has no Go form |
 | Leaky Discriminated Unions | **no** | type-switch exhaustiveness is a marker under Unguarded Type Assertions; Go has no compile-time exhaustiveness for type switches, so `default: panic` is the best available and is not a finding. A tagged struct with fields meaningful only in some states stays smell-hunter's Temporary Field |
 | Runtime Checks Promotable to Types | **yes, narrowed** | validated-state named types only — see Per-category Go content |
-| Type-System Bypasses | **no** | no source evidence; `any` overuse is not claimed by any Go hunter and is not invented here |
 
 **Language-only categories added below:** Nil Pointer Risks, Zero-Value Traps, Context Misuse, Race Conditions.
-Failure handling — discarded errors, error chains, panic and recover — is exception-hunter's in every language.
+Failure handling — swallowed errors, error chains, panic and recover — is exception-hunter's in every language.
 
 ## Generated-code and test-path eligibility
 
@@ -82,20 +81,16 @@ whose values arrive unchecked.
 - Map, channel, or func field that is nil at zero value and used without initialization
 - Required ID, name, or config with no `New*` constructor, or a constructor that is not the only producer
 - Exported struct with methods that panic on the zero value
-- `sync.Mutex` / `sync.WaitGroup` copied after first use (`copylocks` nominates)
 - A zero sentinel (`Unknown Status = iota`) that no consumer rejects, so an unset field reads as a valid-looking
   member
 - A conversion `T(n)` of external input (request body, config, DB column) into a named constant type with no range
   check. The unchecked conversion is here; content validation and exploitability are security-hunter's
 
-**Evidence bar:** the Issue cell names the field and the method that fails on the zero value, the copy site, the
-consumer that accepts the unchecked sentinel, or the conversion site and the input it converts.
+**Evidence bar:** the Issue cell names the field and the method that fails on the zero value, the consumer that accepts
+the unchecked sentinel, or the conversion site and the input it converts.
 
 **Action:** a constructor; an unexported type when zero-value construction is dangerous; a documented zero-value
-contract with lazy init. For types that must not be copied: **Go cannot make a struct non-copyable** — the mitigations
-are API design and detection, not enforcement. Keep such types behind pointers (constructors return `*T`; don't accept
-or return the struct by value), document the no-copy invariant, and run `go vet`'s `copylocks` analyzer, which is what
-actually catches violations.
+contract with lazy init.
 
 **Action (sentinels and conversions):** reject the zero sentinel at the consumer or the constructor; convert external
 input through a parse function that range-checks (`ParseStatus(n) (Status, error)`).
@@ -112,28 +107,19 @@ called in order (`Init` before `Run`) is smell-hunter's Temporal Coupling. The c
 
 ### Context Misuse
 
-Propagation and cancellation ownership — not the spelling of `context.Background()`.
+A function that accepts a `context.Context` and never consults it in a loop or around blocking I/O, so the caller's
+cancellation does not stop the work.
 
-**Signals:**
+**Not a signal:** context values used as dependency injection: a design smell, not an unenforced invariant.
 
-- A function accepting `context.Context` that never consults it in a loop or around blocking I/O
-- An incoming `ctx` *replaced* by `context.Background()` / `context.TODO()` for a downstream call, severing
-  cancellation
-- A network or DB call with no `ctx` parameter in a call chain that has one
-- A cancel func from `WithCancel` / `WithTimeout` / `WithDeadline` and their `*Cause` variants not called on every
-  path — `defer cancel()` is the idiom, not the test; explicit calls and transferred ownership are read before flagging
-  (`lostcancel` in default vet nominates)
-
-**Not signals:** `context.Background()` / `TODO()` where no context is available to propagate; context values used
-as dependency injection. Both are design smells, not unenforced invariants, and are not findings here.
-
-**Action:** propagate the incoming context; consult it in loops and before blocking calls; cancel on every path.
+**Action:** consult the incoming context in loops and before blocking calls (`ctx.Err()`, a `select` on `ctx.Done()`,
+a call that takes `ctx`).
 
 **Report table:**
 
 | # | Location | Pattern | Severity | Impact | Action |
 | - | -------- | ------- | -------- | ------ | ------ |
-| 1 | svc/sync.go:44 | `ctx := context.Background()` replaces the parameter before `db.QueryContext` | High | Medium | Pass the incoming `ctx` |
+| 1 | svc/sync.go:44 | `for _, f := range files { upload(f) }` never checks `ctx`; a cancelled request uploads every file | Medium | Medium | `if err := ctx.Err(); err != nil { return err }` at the top of the loop |
 
 ### Race Conditions
 
@@ -143,7 +129,6 @@ Shared mutable state accessed without synchronization.
 
 - A map or struct field read and written from multiple goroutines with no mutex
 - A mutex taken on one path but not on another that touches the same state
-- `WaitGroup.Add` inside the goroutine instead of before `go`
 - Non-atomic read-modify-write on a shared variable
 
 **Evidence bar:** the Accessors cell names the goroutines or call paths on both sides — one writer and one reader at
@@ -165,16 +150,6 @@ neither hunter; goroutine leaks and `-race` discipline in *tests* stay with test
 
 ### Unguarded Type Assertions — Go markers
 
-- Bare `x.(T)` — panics on mismatch; the two-value form or a type switch is the fix. **Ownership:** an assertion or
-  switch arm that *compensates* for one implementor of a **contract type** (`if _, ok := store.(*memStore); ok {
-  skipTx = true }`) is solid-hunter's Broken Substitution, guarded or bare; the panic-on-mismatch guard stays here
-  only when no compensation is involved. A *two-value* check that only unlocks an extra outside the contract
-  (`if pg, ok := s.(*pgStore); ok { pg.Vacuum() }`) is neither hunter's; the bare form (`s.(*pgStore).Vacuum()`) is
-  an Unguarded Type Assertion here
-- Assertion chains `x.(A).f.(B)` — one finding, each link a panic point
-- Assertions on `any` from JSON, config, or reflection — the value is external and untrusted; these stay here whatever
-  the concrete type asserted, except `any(v).(X)` where `v` is a type parameter inside a generic body — that is
-  type-hunter's Loose Type Parameter Constraints
 - A type switch over an *open* interface with no `default`, in a function whose contract requires handling or
   rejecting every value, when the code after the switch neither rejects nor deliberately falls back. Sealed
   interfaces (unexported method, finite set in the package) are not findings. `fmt`'s `handleMethods` switches on
@@ -191,23 +166,12 @@ a method returning an error). A proposed type whose zero value would be usable a
 returning `""` silently) is a Zero-Value Traps finding first. Identity and unit types with no validation boundary are
 smell-hunter's Primitive Obsession.
 
-## Toolchain
+## Delegated to tools
 
-**Adoption evidence:** the repository's own vet/lint entry point — a Makefile target, a CI step, a `.golangci.yml`.
-When none exists, `go vet ./...` is still run when a Go toolchain is on `PATH` and packages load: vet is part of the
-standard toolchain, and its default analyzers include `copylocks`, `lostcancel`, and `waitgroup`. `golangci-lint`
-with `forcetypeassert` enabled runs only when the project has it configured, at the project's pinned version.
-
-**Execution:** read-only. `GOPROXY=off go vet ./...` or the project's command. `GOPROXY=off` stops the go command
-from downloading missing modules; a load failure (packages fail to load, module download needed) is then `errored`,
-never a fetch. Options that change what a tool sees are part of the record: `golangci-lint` exclusion rules
-(`issues.exclude-rules` in v1, `linters.exclusions` in v2).
-
-**Outcome rules:**
-
-- `go vet` ran → `copylocks`, `lostcancel`, `waitgroup` nominations are triaged.
-
-Vet's checks are heuristic — low-false-positive, not zero; triage rather than transcribe.
+- golangci-lint: a bare type assertion `x.(T)` (`forcetypeassert`); an incoming `ctx` replaced by
+  `context.Background()` or `context.TODO()` (`contextcheck`); a network call with no `ctx` (`noctx`).
+- `go vet` (default analyzers), or golangci-lint's `govet`: a lock copied by value (`copylocks`); a cancel func not
+  called on every path (`lostcancel`); `WaitGroup.Add` inside the goroutine (`waitgroup`, Go 1.25).
 
 ## Idiom calibration
 
@@ -224,9 +188,6 @@ globs in `$EXCLUDE` approximate the authoritative marker.
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
-# Unguarded Type Assertions: census minus .(type) — regex cannot separate bare from two-value forms; triage each
-rg -H -n '\.\(\*?[\w.]+\)' --type go $EXCLUDE -- $GO_FILES | rg -v '\.\(type\)'
-
 # Unguarded Type Assertions: type switches (then check the interface is open and what follows the switch)
 rg -H -n 'switch\s+(\w+\s*:=\s*)?\w+\.\(type\)' --type go $EXCLUDE -- $GO_FILES
 
@@ -236,10 +197,9 @@ rg -H -n -U --pcre2 'type\s+[A-Z]\w*\s+struct\s*\{[^}]*\b(map\[|chan\s|func\()' 
 # Zero-Value Traps: typed iota zero members (then check whether any consumer rejects the zero sentinel)
 rg -H -n --pcre2 '^\s*\w+\s+[A-Z]\w*\s*=\s*iota\b' --type go $EXCLUDE -- $GO_FILES
 
-# Context Misuse: cancel funcs (then read every return path), and Background/TODO as a nomination for
-# *severed propagation* only — a hit in a function with no incoming context is discarded in Phase 5
-rg -H -n 'context\.With(Cancel|Timeout|Deadline)(Cause)?\(' --type go $EXCLUDE -- $GO_FILES
-rg -H -n 'context\.(Background|TODO)\(\)' --type go $EXCLUDE -- $GO_FILES
+
+# Context Misuse: functions that receive a context (then read their loops and blocking calls for a ctx check)
+rg -H -n --pcre2 'func\s+(\([^)]*\)\s*)?\w+\(\s*ctx\s+context\.Context' --type go $EXCLUDE -- $GO_FILES
 
 # Race Conditions: goroutine launches and sync primitives (then map shared state to its accessors)
 rg -H -n '^\s*go\s+(func|\w+)' --type go $EXCLUDE -- $GO_FILES
@@ -248,24 +208,12 @@ rg -H -n 'sync\.(Mutex|RWMutex|WaitGroup)|atomic\.' --type go $EXCLUDE -- $GO_FI
 
 ## Phase 5 — Go-specific evaluation
 
-For each type assertion candidate:
+For each type switch with no `default`:
 
-- Does the branch compensate for one implementor of a contract type failing its promise? → solid-hunter's Broken
-  Substitution, guarded or bare; cross-reference, do not score.
-- Two-value form or inside a type switch? Not a finding.
-- Bare: what is the source of the value — internal and provably typed, or external (`any` from JSON, config)?
-- Type switch with no `default`: is the interface sealed? If open, does the code after the switch reject or
-  deliberately fall back? Silent zero value → finding.
-
-For each `context.Background()` / `TODO()`:
-
-- Does the enclosing function receive a `ctx`? No → not a finding. Yes → is the new context passed downstream in
-  place of the incoming one? That severs propagation.
-
-For each `WithCancel` / `WithTimeout` / `WithDeadline` (and `*Cause`):
-
-- Is `cancel` called on every return path — deferred, explicit, or handed to an owner that calls it? Read before
-  flagging; `lostcancel` nominations are triaged the same way.
+- Does an arm compensate for one implementor of a contract type failing its promise? → solid-hunter's Broken
+  Substitution; cross-reference, do not score.
+- Is the interface sealed? If open, does the code after the switch reject or deliberately fall back? Silent zero
+  value → finding.
 
 For each exported struct without a constructor:
 
@@ -278,6 +226,10 @@ For each typed `iota` zero member and each `T(n)` conversion into a named consta
   consumer that treats it as a valid member → finding.
 - Does `n` come from external input with no range check before or after the conversion? → finding; content →
   security-hunter. Internal, provably in range → not a finding.
+
+For each function that receives a `ctx`:
+
+- Does a loop over client-sized or unbounded work, or a blocking call, run without consulting `ctx`? → finding.
 
 For each shared variable touched by more than one goroutine:
 

@@ -11,14 +11,13 @@ Audit tests for **whether they can fail** — a refund branch no test drives, `w
 `ErrNotFound`, a `time.Sleep` waiting for a goroutine. Goal: **every critical behavior has a test that turns red when
 the behavior breaks and stays green when it does not.**
 
-**Not covered (owned by other hunters):** noise inside a test — comments, docs, style, commented-out test code
-(→ slop-hunter); unused test helpers and deep nesting in test bodies (→ simplicity-hunter); whether a production
-interface that only a double implements should exist (→ simplicity-hunter, solid-hunter); temporal coupling in a test
-helper, feature envy in a fixture builder, unrelated responsibilities collected in one test-support module
-(→ smell-hunter); a production unit with too many dependencies (→ solid-hunter); production races
-(→ invariant-hunter); a dead export whose only consumers are tests (→ boundary-hunter); real credentials or secrets in
-fixtures (→ security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is
-authoritative.
+**Not covered (owned by other hunters):** noise inside a test — comments, docs, style (→ slop-hunter); commented-out
+test code (no hunter owns it); unused test helpers and deep nesting in test bodies (no hunter owns them); whether a
+production interface that only a double implements should exist (→ simplicity-hunter, solid-hunter); temporal coupling
+in a test helper, feature envy in a fixture builder, unrelated responsibilities collected in one test-support module (→
+smell-hunter); a production unit with too many dependencies (→ solid-hunter); production races (→ invariant-hunter); a
+dead export whose only consumers are tests (→ boundary-hunter); real credentials or secrets in fixtures (→
+security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -158,7 +157,7 @@ defects.
 **Kinds** — the Oracle Trace cell names one:
 
 1. **Subject on both sides** — the expected side calls the code under test, or a production helper it delegates to.
-   `assert.Equal(t, x, x)` is the degenerate form. Hidden Defect: any change to the subject.
+   Hidden Defect: any change to the subject.
 2. **Mirror computation** — the expected side re-derives the result with the same formula, the same library call the
    code makes, or a copy of the production algorithm. Hidden Defect: a rule that both copies get wrong. The test still
    catches a later change to either copy, so a mirror is never High.
@@ -199,26 +198,21 @@ name the test that replaces it.
 
 A test that cannot fail on a wrong result: it has no assertion, it never runs, its assertion never executes, or its
 assertion accepts the result a plausible defect produces. The Kind cell takes one of four values; each language
-reference maps its own forms and detector rules to them:
+reference maps its own forms to them:
 
-- **Absent** — no assertion (Terms). A bare comparison statement (`x == 1` without `assert`). An assertion that
-  checks nothing (Python `assert (x == 1, "msg")`, a tuple that is always true). A Python test whose only check is a
-  `return`ed value (`return result == 1`), which pytest only warns about.
+- **Absent** — no assertion (Terms). A Python test whose only check is a `return`ed value (`return result == 1`),
+  which pytest only warns about.
 - **Never executes**:
   - An assertion inside a `try` whose handler swallows the assertion error (`except Exception`,
     `except AssertionError`, a bare `catch`).
-  - An assertion inside an `except` block for an exception the code may not raise: with no exception, it never runs.
-  - An un-awaited async assertion (`expect(p).resolves` / `.rejects` without `await` or `return`) under a runner that
-    does not await it (TypeScript reference, Config-gated signals).
   - An assertion in a goroutine or callback that the test does not wait for.
   - A conditional assertion: a check nested under a guard on the result
     (`if got != nil { if got.Total != 1750 { t.Errorf(…) } }`), so a nil result skips it. An `if` whose body is the
     failure call is the check itself.
   - An assertion in a loop that is the test's only check, when the test never asserts the collection's length or
     non-emptiness.
-  - A test that never runs: an unconditional skip (`t.Skip()`, `@pytest.mark.skip`, `it.skip` / `xit` /
-    `describe.skip`), or a form the language reference lists (Go loop-variable capture, a Ginkgo pending spec, a
-    Python async test that no plugin handles).
+  - A test that never runs: an unconditional skip (`t.Skip()`, `@pytest.mark.skip`), or a form the language
+    reference lists (a Ginkgo pending spec, a Python async test that no plugin handles).
   - A test file that no command in the repository runs, when the repository shows the exclusion: a runner config
     pattern excludes the file (`testPathIgnorePatterns`, Vitest `exclude`, pytest `norecursedirs`), or a command
     deselects its build tag or marker and no command selects it. The commands are those the repository holds: build
@@ -227,16 +221,12 @@ reference maps its own forms and detector rules to them:
     <files>`. Collection that depends on anything else (a config computed in code, a workspace or project file, a
     command the repository does not show) fails closed: the tests count as live, and Scope records `collection not
     resolved: <pattern or files>`. Runner configs are read, never simulated.
-  - A focused test (`.only`) that leaves the rest of the file unrun, under a runner that lets it through (TypeScript
-    reference, Config-gated signals). The finding anchors at the `.only`. A runner the reference does not name is
-    recorded in Scope and gets no finding.
 - **Weak**:
   - An existence, truthiness, or type-only check (`is not None`, `toBeDefined()`, `NotNil`) when a specific value is
     determined.
   - A check of `err == nil` that ignores the result.
   - An error path that checks only that some error happened (`err != nil`, `pytest.raises(Exception)`, a bare
-    `toThrow()`, a `wantErr` row that only calls `require.Error`) when the error kind is the contract. In testify, an
-    argument after `err` is a message, not an error kind: `assert.Error(t, err, ErrNotFound)` checks only `err != nil`.
+    `toThrow()`, a `wantErr` row that only calls `require.Error`) when the error kind is the contract.
   - An interaction assertion without arguments (`toHaveBeenCalled()`, `assert_called()`, `mock.Anything`) when the
     arguments are the contract.
   - An absence check on an effect that the subject produces asynchronously, with no wait, flush, or timer advance
@@ -246,8 +236,6 @@ reference maps its own forms and detector rules to them:
   - A non-discriminating double: one fake serves both the success and the failure path, or answers any input, so the
     wrong branch or a wrongly forwarded argument also satisfies the assertion.
   - A table or parametrize row that branches into no assertion.
-  - An ignored setup error (Go `x, _ := setup()`; an un-awaited setup promise in TypeScript), so the test asserts on
-    zero values.
   - A check of a proxy that does not decide the claimed property: the end points of a path for "the outline stays
     inside the box", when an arc between two inside end points can leave it.
 - **Weakened in diff** — diff mode only. The change removed an assertion or a whole test (a deleted test file
@@ -275,11 +263,11 @@ checks it.
   not Weak when a sibling `It` checks the result. The test still counts as coverage of that value.
 - Weakened in diff, when the change also removed the behavior the assertion checked.
 
-**Action:** assert the specific outcome; await or return the async assertion; remove the `.only`; un-skip, or delete
+**Action:** assert the specific outcome; un-skip, or delete
 the test and name the test that replaces it.
 
-**Ownership:** skipped and focused tests are here, with or without a reason; slop-hunter does not report them.
-exception-hunter routes an ignored error in a test here.
+**Ownership:** Go and Python skipped tests, and a skip a diff added in any language, are here, with or without a reason;
+slop-hunter does not report them.
 
 ### Brittle Tests
 
@@ -358,7 +346,7 @@ with no second implementation, the Action names simplicity-hunter's Unnecessary 
 **Ownership:** whether a production interface that only a double implements should exist is simplicity-hunter's and
 solid-hunter's question; both count the double as a second implementation. A production unit with too many
 dependencies is solid-hunter's; this hunter reports the divergent or unbound double at the test, and the two
-cross-reference by unit name. invariant-hunter routes `as any` on a mock here.
+cross-reference by unit name. invariant-hunter routes a cast on a mock here.
 
 ### Test Setup Duplication
 
@@ -611,7 +599,7 @@ Tests (Weakened in diff), at `<path> (deleted)`.
    findings anchor only at in-scope test files.
 
 5. **Record the test toolchain** per language, with the reference's detection section: the test framework and its
-   version, the double library, and the delegated detectors that the project already configures. A version comes from
+   version and the double library. A version comes from
    the lockfile or installed metadata. A manifest range (`package.json`, `pyproject.toml`) decides a gate only when
    every version it admits falls on the same side of it. Go reads the `go` line of the module that contains the test.
    An unknown version is recorded (`pytest version: unknown`), and the signals gated on it are skipped.
@@ -632,15 +620,12 @@ Tests (Weakened in diff), at `<path> (deleted)`.
 
 ### Phase 2: Scan for Candidates
 
-Scans, counts, and detector output **nominate**; nothing is a finding until Phase 6 has read the test and the code it
-drives. For each loaded reference, run its Phase 2 scan block: test-quality scans on the test list, coverage-pragma
-scans on the production list. Run each delegated detector the loaded reference says to run, with its read-only
-command, and record `ran`, `skipped — <reason>`, or `errored — <message>` in Scope; an errored detector's candidates
-are not used. Diff mode nominates from the working tree over the manifest files: whether a test can fail is a property
-of the current code. The diff itself is Phase 4's.
+Scans and counts **nominate**; nothing is a finding until Phase 6 has read the test and the code it drives. For each
+loaded reference, run its Phase 2 scan block: test-quality scans on the test list, coverage-pragma scans on the
+production list. Diff mode nominates from the working tree over the manifest files: whether a test can fail is a
+property of the current code. The diff itself is Phase 4's.
 
-Done when every scan in each loaded reference's Phase 2 block has run, every detector the loaded references name has
-its Scope line, and every hit is listed as a candidate.
+Done when every scan in each loaded reference's Phase 2 block has run and every hit is listed as a candidate.
 
 ### Phase 3: Map Tests and Production Code
 
@@ -728,12 +713,20 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 Read `references/report-format.md` for the report template and per-category table schemas.
 When the report merges several runs, read `references/merge-runs.md`.
 
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
+of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
+only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
+(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
+bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
+sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
+only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
+with a rule off, and naming the rule costs one line.
+
 ## Operating Constraints
 
 - **Report only.** The audit report is the deliverable; source files stay untouched. A requested test run is the one
   command that may write, and Scope lists every path it changed.
-- **Never install.** Run only tools the project already has. A delegated detector runs only when the project
-  configures it, with read-only flags; mutation tools never run.
+- **Never install.** A requested test run uses only tools the project already has; mutation tools never run.
 - **Evidence required.** Every finding cites `file:line` with the exact test or production code, and its category's
   evidence cell is filled from the code read. A Hidden Defect, Accepted Defect, or Breaking Refactor is reasoned from
   that code and names the lines it follows from.

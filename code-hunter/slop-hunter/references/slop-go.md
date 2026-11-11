@@ -1,6 +1,6 @@
 # Slop Hunter — Go reference
 
-Contents: Generated-code eligibility · Language-only categories · Per-category Go markers · Formatter · Idiom calibration · Phase 2 — slop scans · Phase 5 — Go-specific evaluation
+Contents: Generated-code eligibility · Language-only categories · Per-category Go markers · Delegated to tools · Idiom calibration · Phase 2 — slop scans · Phase 3 — Go-specific evaluation
 
 ## Generated-code eligibility
 
@@ -65,45 +65,32 @@ opening is convention, not slop — see Verbose Documentation.
 
 ### Style Drift
 
-- Import grouping that breaks the project's pattern (standard library / third-party / internal)
 - Error variable named `error`, `e`, or `ex` where the project uses `err`
 - `Create*` constructors where the project uses `New*`, or the reverse
 - Receiver naming that breaks the project's pattern (single-letter vs. word)
 - A different error-wrapping library than the project's (`errors.Wrap` where the project uses `fmt.Errorf("…: %w")`)
-- Idioms from other languages: `GetX()` for `X()`, `toString()` for `String()`, `userId` for `userID`
-- `gofmt` output on touched lines (see Formatter)
+- Idioms from other languages: `GetX()` for `X()`, `toString()` for `String()`
 
 ### Trivially Dead Code
 
-Go's compiler rejects unused imports and unused local variables, so those never appear in compiling code and
-`//nolint` cannot hide them. What Go does allow:
-
 - `_ = x` silencing a non-error binding the author meant to use
-- Unused function parameters (after a refactor)
-- Unused struct fields
 - Bare `//nolint` or `//nolint:<linter>` with no trailing `// reason`; bare `// #nosec` or `// #nosec <rule>`
-- Commented-out code; `TODO` / `FIXME` without owner, ticket, or condition
+- `TODO` / `FIXME` without owner, ticket, or condition
 
 Not a finding: `import _ "pkg"` for side effects; `var _ Iface = (*T)(nil)` compile-time assertions; `_ = x` where
-the project's lint config requires it for an intentionally ignored return; a parameter whose signature is fixed by an
-interface, function type, or callback (`ServeHTTP(w, r)` that ignores `r`); a struct field that carries a struct tag
-or is exported — reflection and other packages read it.
+the project's lint config requires it for an intentionally ignored return.
 
 ### Hedging and Narration
 
 Narration logging: `log.Print*` / `log.*` / `slog.*` / `zap` / `logrus` calls whose message is `entering`,
 `exiting`, `starting`, `finished`, `begin`, `end`, `here`, or a function name with no operational payload.
 
-## Formatter
+## Delegated to tools
 
-**Adoption:** always — `gofmt` is canonical and needs no adoption evidence.
-
-**Execution:** `gofmt -l $GO_FILES`. Passing the eligible list is the exclusion mechanism; `gofmt -l .` would list
-vendored and generated files. Not installed means `gofmt` is not on `PATH`. A parse error is `errored`.
-
-In diff mode, `gofmt -d <file>` gives the violating lines. Convention cell: `gofmt, touched line`.
-
-`goimports` is not `gofmt`: treat it as a formatter only when the project invokes it, then run `goimports -l`.
+- golangci-lint: unformatted code (formatter `gofmt` or `gofumpt`); import grouping (formatter `gci` with the
+  project's sections, or `goimports` with `local-prefixes`); naming case and initialisms such as `userId` (staticcheck
+  `ST1003`); commented-out code (gocritic `commentedOutCode`); unused parameters (revive `unused-parameter`); unused
+  struct fields (`unused`); a `//nolint` that suppresses nothing (`nolintlint` with `allow-unused: false`).
 
 ## Idiom calibration
 
@@ -132,9 +119,6 @@ D '.*fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'               # error-wrapping
 D '.*(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'   # narration
 D '.*(?i)(might need|for safety|new, improved|improved version)'                                   # hedging
 
-# Removed lines, with file and hunk headers: a removed use of a parameter or struct field nominates a Phase 4 candidate
-git diff -U0 "$MB" -- $GO_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
-
 # ---- Whole-file scans ----
 # path / codebase: F=$GO_FILES    diff (untracked files): F=$(git ls-files --others --exclude-standard -- $GO_FILES)
 W() { [ -z "$F" ] || rg -nH "$@" -- $F; }                       # empty F must not search the whole tree
@@ -146,32 +130,26 @@ W '^\s*_\s*=\s*\w'
 W 'fmt\.Errorf\("(error|failed|err|[A-Z]\w+: )'
 W '(log|slog|logger|zap|logrus)\.\w+\(\s*"(entering|exiting|starting|finished|begin|end|here)'
 W -i 'might need|for safety|new, improved|improved version'
-
-# ---- Formatter (Phase 3) ----
-gofmt -l $GO_FILES
 ```
 
-## Phase 5 — Go-specific evaluation
+## Phase 3 — Go-specific evaluation
 
 For each `fmt.Errorf` candidate:
 
 - Does the message add something the caller cannot infer — the operation, the resource, an identifier? If it only
   says "error" or "failed", it is redundant.
 - Is the inner error already wrapped with the same context one frame down? Report the outer wrap.
-- Is `%v` used where a caller matches the chain? That is exception-hunter's Broken Error Chains — cross-reference,
-  do not score.
+- Is `%v` used where a caller matches the chain? That is not covered here; do not score.
 
 For each `//nolint` or `#nosec`:
 
 - Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real
   (`errcheck` on a dropped error)? Then the noise hides a finding (SKILL.md Severity). Score only the bare
-  suppression; cross-reference the dropped error to exception-hunter's Swallowed Errors, and a real gosec finding to
-  security-hunter.
+  suppression; cross-reference a real gosec finding to security-hunter.
 
 For each `_ = x`:
 
-- Does the right-hand side return an `error`? Then it is exception-hunter's Swallowed Errors — cross-reference, do
-  not score. Otherwise: is `x` a result the author meant to use, or an intentional discard the lint config demands?
+- Does the right-hand side return an `error`? Then it is not covered here; drop it. Otherwise: is `x` a result the author meant to use, or an intentional discard the lint config demands?
 
 For each doc comment on an unexported symbol:
 

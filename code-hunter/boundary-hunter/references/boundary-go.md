@@ -1,6 +1,6 @@
 # Boundary Hunter — Go reference
 
-Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Per-category Go content · Toolchain · Phase 2 — graph build · Phase 3 — Go scans · Phase 5 — Go-specific evaluation
+Contents: Applicability of the categories · Generated-code and test-path eligibility · Go principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Per-category Go content · Delegated to tools · Graph source · Phase 2 — graph build · Phase 3 — Go scans · Phase 5 — Go-specific evaluation
 
 ## Applicability of the categories
 
@@ -12,7 +12,7 @@ Contents: Applicability of the categories · Generated-code and test-path eligib
 | Dependency Direction Violations | **yes** | Module edges are package edges; a Go file cannot import from its own package, so there is no intra-unit edge |
 | Cyclic Dependencies | **n/a** | The compiler rejects import cycles. A Go cycle is a build error, not an audit finding; nothing here nominates one |
 | External Type Leaks | **yes** | External = an import path outside every module of the repository and not stdlib; `golang.org/x/...` is external |
-| Generic Boundary Names | **yes** | Package unit. Adds the `clause ≠ directory` form, which only Go has |
+| Generic Boundary Names | **yes** | Package unit |
 
 ## Generated-code and test-path eligibility
 
@@ -143,19 +143,20 @@ Edge-tier packages (`infra/*`, `transport/*`, `cmd/*`) using or converting these
 never findings. A `userRow` struct inside `infra/postgres` cloning a `pb.User` is nobody's finding — type-hunter
 refuses it (no consolidation path that keeps the external out), and there is no crossing here.
 
-### Generic Boundary Names — Go forms
+### Generic Boundary Names — Go content
 
-- `generic name` — a package named `util`, `utils`, `common`, `helpers`, `shared`, `misc`, `base`, `models`, `types`,
+- A package named `util`, `utils`, `common`, `helpers`, `shared`, `misc`, `base`, `models`, `types`,
   `lib` **and** exporting two or more unrelated capabilities, enumerated in the Capabilities cell. `strutil` holding
   string helpers only is not a finding.
-- `clause ≠ directory` — the `package` clause differs from the directory name. **Exceptions:** `package main`; a
-  `_test` package; a major-version directory (`/v2`, `/v3`); a hyphenated directory whose clause drops the hyphen or a
-  `go-` prefix (`go-redis` → `redis`, `my-pkg` → `mypkg`).
 
 A package spanning persistence, HTTP, and pricing across ten files is **solid-hunter's** Responsibility Sprawl, not a
 finding here; this category judges the name.
 
-## Toolchain
+## Delegated to tools
+
+- golangci-lint's `revive`: a package clause that differs from its directory name (`package-directory-mismatch`).
+
+## Graph source
 
 `go list` is the graph source and is **always attempted** — it ships with the toolchain and is never an install:
 
@@ -163,9 +164,9 @@ finding here; this category judges the name.
 go list -test=false -f '{{.ImportPath}} {{join .Imports " "}}' ./...
 ```
 
-Module resolution can need the network, and build errors or unresolvable tags make it fail. On failure, build the
-graph from the import scan below and record `go list: errored — {message}; graph from import scan (build tags not
-resolved)`. Findings then claim the scanned graph.
+Module resolution can need the network, and build errors or unresolvable tags make it fail. On failure, build the graph
+from the import scan below and record it on the Graph line:
+`from import scan (go list errored: {message}; build tags not resolved)`. Findings then claim the scanned graph.
 
 No other tool is run. `go-arch-lint` is read as a **configuration** (`.go-arch-lint.yml`), never executed.
 
@@ -211,8 +212,8 @@ rg -H -n --pcre2 '"[^"]+/(impl|internal|private|detail)(/[^"]+)?"' --type go $EX
 # External Type Leaks: type aliases to an imported package's type (re-export form)
 rg -H -n --pcre2 '^type\s+[A-Z]\w*\s*=\s*\w+\.' --type go $EXCLUDE -- $GO_FILES
 
-# Generic Boundary Names: package clauses (compare with the directory; read the exports for capabilities)
-rg -H -n '^package\s+\w+' --type go $EXCLUDE -- $GO_FILES
+# Generic Boundary Names: generic package clauses (read the exports for capabilities)
+rg -H -n '^package\s+(util|utils|common|helpers|shared|misc|base|models|types|lib)$' --type go $EXCLUDE -- $GO_FILES
 
 # Publication signals — project-wide, one pass per module (root go.mod, go.work members, nested modules)
 for m in $(rg --files --glob '**/go.mod' --glob '!**/vendor/**' -- .); do
@@ -252,7 +253,6 @@ For each package:
 
 - Only its parent or the parent's siblings import it, and it is not under `internal/` → Deep Imports `exposure`.
 - Generic name, and two or more unrelated capabilities enumerated → Generic Boundary Names.
-- Clause ≠ directory, and none of the four exceptions → `clause ≠ directory`.
 - Responsibilities spanning actors → solid-hunter; cross-reference, do not score.
 
 For each exported signature in an inward-tier package (boundary source required):
