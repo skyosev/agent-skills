@@ -1,16 +1,16 @@
 # Boundary Hunter — TypeScript reference
 
-Contents: Applicability of the categories · Generated-code and test-path eligibility · TypeScript principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Emit and erasure · Per-category TypeScript content · Toolchain · Phase 2 — graph build · Phase 3 — TypeScript scans · Phase 5 — TypeScript-specific evaluation
+Contents: Applicability of the categories · Generated-code and test-path eligibility · TypeScript principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Emit and erasure · Per-category TypeScript content · Delegated to tools · Phase 2 — graph build · Phase 3 — TypeScript scans · Phase 5 — TypeScript-specific evaluation
 
 ## Applicability of the categories
 
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
-| Dead Exports | **yes** | `export` judged at the unit's entry; a file `export` a sibling inside the unit imports is how files share, never a finding. Consolidated form for `export *`; `knip --include-entry-exports` nominates when present |
+| Dead Exports | **no** | Delegated to knip (Delegated to tools) |
 | Leaked Internals | **yes** | An exported type or member whose shape is the implementation, with an external consumer touching it |
 | Deep Imports | **yes** | Bypassing the barrel, the `exports` field, or a **unit-named** alias. A root wildcard alias (`@/*` → `src/*`) is not an entry; a directory with no barrel, no `exports`, and no unit-named alias has no deep imports at all |
 | Dependency Direction Violations | **yes** | **File** edges, so `src/domain/order.ts → src/infra/postgres.ts` inside one workspace package is judged |
-| Cyclic Dependencies | **yes** | File graph. Kind by erasure of `import type` and compiler-elided edges, per tsconfig and TypeScript version |
+| Cyclic Dependencies | **yes** | File graph. Runtime by erasure of `import type` and compiler-elided edges, per tsconfig and TypeScript version |
 | External Type Leaks | **yes** | External = a `node_modules` specifier that is not a workspace package, except Node builtins, `@types/node`, and `lib.*` types |
 | Generic Boundary Names | **yes** | Directory or workspace-package unit. **Never a file**: a 700-line `utils.ts` is smell-hunter's God Module |
 
@@ -50,8 +50,7 @@ are also ineligible.
 - **Public entry** — the `exports` entry, the barrel, or a tsconfig `paths` alias **that maps to a package root or a
   barrel**. A root wildcard alias is not an entry. A directory with none of the three has no entry, so it has no Deep
   Imports and every file is public.
-- **Export** — the `export` keyword, judged at the unit's **entry**. An export a sibling file inside the same unit
-  imports is not a finding; an export the entry re-exports and nothing outside imports is.
+- **Export** — the `export` keyword, judged at the unit's **entry**: the surface Leaked Internals reads.
 - **External consumer** — an import from outside the unit in a non-test file, plus string references (a dynamic
   `import()` with a literal specifier, a route or plugin manifest naming the module).
 - **Publication** — per SKILL.md Terms › Published unit.
@@ -99,18 +98,6 @@ Record the `Emit:` Scope line with what was read.
 
 ## Per-category TypeScript content
 
-### Dead Exports — TypeScript forms
-
-- `zero consumers` — the entry exports it and nothing outside the unit imports it, and the unit is closed.
-- `test only` — the only importer is a test path.
-- `consolidated barrel` — `export * from './internal/helpers'` exposing N symbols nothing outside imports is **one**
-  row: a representative symbol, `Occurrences: N`, Action "named re-exports of the public API". A consumed internal
-  among them gets its own Leaked Internals row.
-
-**Enumeration caveat:** default imports (`import Foo from …`), namespace imports (`import * as m`), aliased named
-imports (`import { a as b }`), and re-export chains defeat name grep. Read the importers; `knip` nominates but does
-not decide.
-
 ### Leaked Internals — TypeScript forms
 
 An exported type or member whose shape is the implementation, with an external consumer touching it: an exported
@@ -137,13 +124,8 @@ still an outward edge.
 
 ### Cyclic Dependencies — TypeScript content
 
-- **Kind** — remove every erased edge (per the Emit rules above). The cycle survives → `runtime`; it disappears →
-  `type-only`, **including** a cycle of one runtime and one `import type` edge.
-- **`depcruise` as classifier** — when `depcruise` is present, a rule with
-  `viaOnly: { dependencyTypesNot: ['type-only'] }` matches exactly the cycles whose every edge survives erasure,
-  which is this definition. It is **valid only when the project's configuration sets `tsPreCompilationDeps: true`**;
-  otherwise the graph contains no type-only edges at all and the classification is read from source. The Toolchain
-  line says which.
+- **Runtime** — remove every erased edge (per the Emit rules above). The cycle survives → `runtime`; it disappears →
+  `type-only`, not judged here, **including** a cycle of one runtime and one `import type` edge.
 - **Failure `provable`** — a module-level read of a partner's `const` or `class` binding before its initialization on
   the named entry path: ESM hoists the declaration but leaves the binding in the temporal dead zone, so the read
   throws `ReferenceError`. `function` declarations hoist fully and do not fail. Recorded `provable from {entry}:
@@ -173,34 +155,18 @@ A directory or workspace-package unit named `util`, `utils`, `common`, `helpers`
 feature-flag client, and a currency formatter is the common form. **Never a file** — `utils.ts` of any size is
 smell-hunter's God Module.
 
-## Toolchain
+## Delegated to tools
 
-Present-only, from `node_modules/.bin`, read-only, never installed and never given a written configuration:
-
-```bash
-# <source roots>: the workspace package directories, else the tsconfig `include` roots (e.g. `src`, `packages`)
-
-# Graph + cycles, against the PROJECT'S OWN config
-node_modules/.bin/depcruise --output-type json --config <project config> <source roots>
-
-# Only when depcruise is absent. madge reads only .js unless --extensions names the TypeScript ones
-node_modules/.bin/madge --circular --json --extensions ts,tsx,mts,cts,js,jsx,mjs,cjs --ts-config tsconfig.json <source roots>
-
-# Dead Exports nominations — the flag is required
-node_modules/.bin/knip --include-entry-exports
-```
-
-`knip` without `--include-entry-exports` skips exports of entry files, which is exactly the unit-entry surface Dead
-Exports judges; when the project's own script omits the flag, the Toolchain line records that it was added for this
-read-only run. `madge` duplicates `depcruise` and is used only in its absence. Every tool here nominates; no finding
-is tool output.
+- knip: an export with no consumer, and with `--production` one used only by tests. Set `includeEntryExports` for each
+  workspace that is not published (SKILL.md Terms › Published unit).
+- dependency-cruiser `no-circular`, or Biome `noImportCycles`: an import cycle with no module-level read that fails.
 
 ## Phase 2 — graph build
 
 Nodes are files (`.ts`, `.tsx`, `.mts`, `.cts`, plus `.js`, `.jsx`, `.mjs`, `.cjs` as non-anchoring nodes). Edges are
 `import`, `export … from`, `import()` with a literal specifier, and `require()`. Resolve relative paths, tsconfig
 `paths` aliases, and workspace package names to files. Tag each edge **erased** or **runtime** per the Emit rules.
-Project nodes onto units for the four surface categories; keep file edges for direction and cycles.
+Project nodes onto units for the surface categories; keep file edges for direction and cycles.
 
 The graph scans keep generated files: a generated client that imports a hand-written module is its consumer. The
 `from` scan runs multiline (`-U`) so a
@@ -227,9 +193,8 @@ rg -n -U --pcre2 "import\s*\{[^}]*\btype\s" --type ts $GRAPH_EXCLUDE -- .
 ```bash
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/build/** --glob !**/.next/** --glob !**/*.test.* --glob !**/*.spec.* --glob !**/*.e2e.* --glob !**/__tests__/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
 
-# Dead Exports: the entry surface, and wildcard re-exports
+# Leaked Internals: the entry surface (then read each consumed export's members)
 rg -H -n --pcre2 "^\s*export\s+(async\s+)?(function|const|class|enum|type|interface|default)" --type ts $EXCLUDE -- $TS_FILES
-rg -H -n --pcre2 "^\s*export\s+\*\s+from" --type ts $EXCLUDE -- $TS_FILES
 
 # Deep Imports: paths past a barrel (substitute the unit's own directory name and aliases)
 rg -H -n --pcre2 "from\s+['\"][^'\"]*/(internal|private|impl|src)/" --type ts $EXCLUDE -- $TS_FILES
@@ -254,14 +219,11 @@ rg -n --hidden 'forbidden|depConstraints|boundaries/element-types' --glob '**/.d
 For each unit:
 
 - Which entry applies — `exports`, barrel, unit-named alias, or none? A unit with no entry has **no Deep Imports**.
-- `private: true`, or unreachable from `exports` / `main` → closed. Otherwise open → withdraw Dead Exports with a
-  `Limitation` line; other categories still report.
 
 For each export at an entry:
 
-- Importers outside the unit, read (default, namespace, aliased, and re-export chains included), string references
-  searched? None → Dead Exports (consolidated when it arrived through `export *`). Only tests → `test only`.
-- Consumed, and does a member fail the rewrite test with a statable reason? → Leaked Internals.
+- Consumed outside the unit (default, namespace, aliased, and re-export chains read), and does a member fail the rewrite
+  test with a statable reason? → Leaked Internals.
 - Consumed only by a sibling file inside the same unit → no finding.
 
 For each import edge:
@@ -272,10 +234,11 @@ For each import edge:
 
 For each cycle:
 
-- Classify every edge with the Emit rules; remove erased edges. Survives → `runtime`; gone → `type-only`.
+- Classify every edge with the Emit rules; remove erased edges. Survives → `runtime`; gone → `type-only`, not judged
+  here.
 - Emit pipeline not establishable → withdraw Kind with a `Limitation` line.
 - `runtime`: a module-level read of a partner's `const` / `class` binding before initialization on the entry path →
-  `provable`, with the entry named and whether it is a production entry. Otherwise `none observed`.
+  `provable`, with the entry named and whether it is a production entry. Otherwise no finding here.
 - Every in-scope edge in a JavaScript file → no anchor; `Limitation` line.
 
 For each exported declaration in an inward-tier unit (boundary source required):

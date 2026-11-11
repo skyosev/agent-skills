@@ -1,6 +1,6 @@
 # Boundary Hunter — Python reference
 
-Contents: Applicability of the categories · Generated-code and test-path eligibility · Python principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Per-category Python content · Toolchain · Phase 2 — graph build · Phase 3 — Python scans · Phase 5 — Python-specific evaluation
+Contents: Applicability of the categories · Generated-code and test-path eligibility · Python principles · Boundary unit, public entry, export, publication · Layer map, prohibitions, and policy · External types · Per-category Python content · Delegated to tools · Phase 2 — graph build · Phase 3 — Python scans · Phase 5 — Python-specific evaluation
 
 ## Applicability of the categories
 
@@ -10,9 +10,9 @@ Contents: Applicability of the categories · Generated-code and test-path eligib
 | Leaked Internals | **yes** | Judges **any** consumed non-underscore name, whatever `__all__` says, plus the `__init__` re-exporting a `_name` form |
 | Deep Imports | **yes** | `pkg._x` and `pkg.internal.x` are deep whatever the `__init__` holds; bypassing an `__init__` that re-exports is the other form. Python has **no enforcement mechanism** — the remedy vocabulary is convention and `import-linter` contracts, never `internal/` |
 | Dependency Direction Violations | **yes** | Module edges. An `import-linter` `layers` contract is the one machine-readable ordering this suite reads |
-| Cyclic Dependencies | **yes** | Module graph. Kind by erasure of `TYPE_CHECKING`-guarded edges; Failure provable by reading a module-level partner read against definition order |
+| Cyclic Dependencies | **yes** | Module graph. Runtime by erasure of `TYPE_CHECKING`-guarded edges; Failure provable by reading a module-level partner read against definition order |
 | External Type Leaks | **yes** | External = not stdlib (`sys.stdlib_module_names`) and not a first-party package declared by a repository `pyproject` |
-| Generic Boundary Names | **yes** | Package unit. No `clause ≠ directory` form: the package name *is* the directory name |
+| Generic Boundary Names | **yes** | Package unit |
 
 ## Generated-code and test-path eligibility
 
@@ -37,8 +37,7 @@ Markdown-only inputs are also ineligible.
 - **A name can be consumed by string.** `[project.entry-points]`, `[project.scripts]`, Django `INSTALLED_APPS` /
   `MIDDLEWARE` / `AUTH_USER_MODEL`, Celery task names, pytest plugin names, template and serializer paths. The string
   is the consumer.
-- **A package is its directory.** There is no clause-vs-directory mismatch to find, and no re-export surface in a PEP
-  420 namespace package.
+- **A package is its directory.** A PEP 420 namespace package has no re-export surface.
 
 ## Boundary unit, public entry, export, publication
 
@@ -118,8 +117,8 @@ root; a Protocol declared **in the inward module** only where the import cannot 
 ### Cyclic Dependencies — Python content
 
 - **Kind.** Edges inside `if TYPE_CHECKING:` blocks are **erased**. A cycle is `runtime` when it survives removal of
-  every erased edge, `type-only` when it does not — including a cycle with one runtime edge and one
-  `TYPE_CHECKING` edge, which is **type-only**.
+  every erased edge, `type-only` (not judged here) when it does not — including a cycle with one runtime edge and
+  one `TYPE_CHECKING` edge, which is **type-only**.
 - **Failure `provable`** — module `b` reads a binding of partner `a` at module level (`from a import X`, `a.X`, or a
   module-level call into a function whose body reads `a.X`, one hop) **and** `a` defines `X` after its own
   `import b`. On an entry that starts at `a`, `b` runs against a partially initialized `a` and raises `ImportError`
@@ -145,25 +144,12 @@ Edge-tier modules (`infra/*`, `adapters/*`, `http/*`) are the wrapping layer and
 
 A package named `util`, `utils`, `common`, `helpers`, `shared`, `misc`, `base`, `models`, `types`, `lib` **and**
 exporting two or more unrelated capabilities, enumerated. A `models` package holding types for unrelated domains is
-the common form. No `clause ≠ directory` form exists. A generic-named *module file* (`helpers.py`) is smell-hunter's
+the common form. A generic-named *module file* (`helpers.py`) is smell-hunter's
 God Module.
 
-## Toolchain
+## Delegated to tools
 
-One tool, present-only, read-only:
-
-```bash
-# Only when import-linter is configured and installed. No --config: it finds setup.cfg, .importlinter, or
-# pyproject.toml itself; pass --config only to name the file the contract was found in.
-lint-imports
-```
-
-Its output nominates direction and cycle candidates and confirms that the project's own contracts hold; it is never a
-finding by itself, and a contract's *text* is what supplies the layer map or the prohibition. Record `lint-imports:
-ran — {command}, {version}, {contracts checked}` / `skipped — not configured` / `skipped — not installed` /
-`errored — {message}`.
-
-The graph is built from the import scan.
+- pylint `cyclic-import`: an import cycle with no module-level read that fails.
 
 ## Phase 2 — graph build
 
@@ -243,10 +229,10 @@ For each import edge:
 
 For each cycle:
 
-- Remove every `TYPE_CHECKING` edge. Cycle survives → `runtime`; gone → `type-only`.
+- Remove every `TYPE_CHECKING` edge. Cycle survives → `runtime`; gone → `type-only`, not judged here.
 - `runtime`: is there a module-level partner read (`from a import X`, `a.X`, or a one-hop module-level call) whose
   binding `a` defines after its own `import b`? → `provable`, with the entry named and whether it is a production
-  entry. No such read → `none observed`.
+  entry. No such read → no finding here.
 - `type-only` crossing layers → report the crossing edge as Dependency Direction Violations with the cycle named in
   Evidence.
 

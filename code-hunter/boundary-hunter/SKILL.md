@@ -33,20 +33,20 @@ marks a category that is n/a in some language; each language reference's Applica
 
 | Category | Core signal | Action |
 | -------- | ----------- | ------ |
-| Dead Exports | An export with no external consumer | Unexport; drop from `__all__`; replace the wildcard with named re-exports |
+| Dead Exports *(conditional)* | An export with no external consumer | Unexport; drop from `__all__`; replace the wildcard with named re-exports |
 | Leaked Internals | A consumed export exposing *how* the unit works | Unexport the member; expose the behavior through a method or an owned type |
 | Deep Imports | A consumer reaching past the unit's public entry | Import from the entry; expose the symbol there; `internal/` or `exports` to enforce |
 | Dependency Direction Violations | A module edge pointing outward against the layer map, or an edge an explicit prohibition names | Move the type to its owner; inject from the composition root; invert only where the language leaves no other break |
-| Cyclic Dependencies *(conditional)* | Two or more modules importing each other, directly or transitively | Extract the shared concept into a third module, or invert the edge |
+| Cyclic Dependencies *(conditional)* | A runtime import cycle whose module-level read fails from an entry | Extract the shared concept into a third module, or invert the edge |
 | External Type Leaks | An external type crossing inward | An owned type or interface declared in the inward unit, implemented and converted at the edge |
 | Generic Boundary Names | A package or directory unit named for what it contains, not what it provides | Name after the capability; split by capability |
 
 ## Core Principles
 
-1. **Scans and counts nominate; reading decides.** `rg 'export \*'`, `go list`, `depcruise --output-type json`, and
-   every other tool find candidates; fan-in, fan-out, and occurrence counts nominate and set Impact. Nothing is a
-   finding until the consumers have been enumerated by reading, the tier has been read from a recorded source, the
-   cycle's edges have been classified, and the rewrite test has been answered in words.
+1. **Scans and counts nominate; reading decides.** `rg 'export \*'`, `go list`, and every other scan find candidates;
+   fan-in, fan-out, and occurrence counts nominate and set Impact. Nothing is a finding until the consumers have been
+   enumerated by reading, the tier has been read from a recorded source, the cycle's edges have been classified, and the
+   rewrite test has been answered in words.
 
 2. **Interfaces at two sites only.** The skill asks for an interface only when it is declared in an inward unit to
    keep an external type at the edge, or as the last-resort inversion where the language leaves no other way to break
@@ -134,14 +134,13 @@ marks a category that is n/a in some language; each language reference's Applica
   parser library whose documented product is its AST passes with that AST; a domain type, a result, an option struct
   pass. The Exposed member cell states the reason; a member whose reason cannot be stated is not a finding.
 - **Form** — a labelled variant inside one category, carried in the report's Form cell: Dead Exports `zero consumers`
-  / `package-local only` (Go) / `test only` / `consolidated barrel` (Python, TypeScript); Deep Imports `crossing` /
-  `exposure` (Go); Cyclic Dependencies `runtime` / `type-only`; External Type Leaks `signature` / `re-export` /
-  `mapper output`; Generic Boundary Names `generic name` / `clause ≠ directory` (Go). Dependency Direction Violations
+  / `package-local only` (Go) / `test only` / `consolidated barrel` (Python); Deep Imports `crossing` / `exposure`
+  (Go); External Type Leaks `signature` / `re-export` / `mapper output`. Dependency Direction Violations
   has one form and no Form cell; its Basis cell says whether the map or a prohibition is the boundary source.
 
 ## What to Hunt
 
-### Dead Exports
+### Dead Exports *(conditional)*
 
 An export with no external consumer.
 
@@ -154,17 +153,17 @@ An export with no external consumer.
 - An exported symbol imported only by test files
 
 **Evidence bar:** enumerate consumers project-wide **by reading, not by regex alone** — Go methods and grouped
-`const (…)` / `var (…)` blocks defeat line-anchored patterns; TypeScript default, namespace, and aliased imports and
-Python `import *` defeat name grep. Search string references (entry points, settings, registries, templates) and mark
-them as consumers. Mark test-file consumers `test only`. Struct fields and reflection-protocol methods are never
-candidates; an interface-named method is a candidate only when no site uses the type as that interface. Confirm the
-unit is closed, else withdraw with a `Limitation` line. Go form: an exported identifier used only inside its own
-package. Python and TypeScript consolidated form: a wildcard re-export exposing N dead symbols is **one** row with a
-representative symbol and `Occurrences: N`; a consumed member the rewrite test fails (Python: a `_name` the
-submodule's `__all__` lists, the only way `import *` carries one) gets its own Leaked Internals row.
+`const (…)` / `var (…)` blocks defeat line-anchored patterns; Python `import *` defeats name grep. Search string
+references (entry points, settings, registries, templates) and mark them as consumers. Mark test-file consumers
+`test only`. Struct fields and reflection-protocol methods are never candidates; an interface-named method is a
+candidate only when no site uses the type as that interface. Confirm the unit is closed, else withdraw with a
+`Limitation` line. Go form: an exported identifier used only inside its own package. Python consolidated form: a
+wildcard re-export exposing N dead symbols is **one** row with a representative symbol and `Occurrences: N`; a consumed
+member the rewrite test fails (Python: a `_name` the submodule's `__all__` lists, the only way `import *` carries one)
+gets its own Leaked Internals row.
 
-**Not a finding:** a TypeScript or Python `export` consumed only by sibling files inside the unit — the keyword is how
-files share. Go's analogue, an exported identifier used only package-locally, *is* the `package-local only` form.
+**Not a finding:** a Python export consumed only by sibling modules inside the package — that is how modules share. Go's
+analogue, an exported identifier used only package-locally, *is* the `package-local only` form.
 
 **Action:** unexport; remove from `__all__`; replace the wildcard with named re-exports of the public API. Test-only:
 the export exists for the test alone, and the Action names the public behavior the test should assert after
@@ -173,8 +172,7 @@ not double.
 
 **Ownership:** an *exported* symbol with no external consumer is here. An unused *unexported* function or constant,
 and a Python non-`__all__` name with no importers anywhere, are simplicity-hunter's Dead Code Paths; unused imports
-and bindings are not covered here. A TypeScript `export` in a non-entry file that the entry does not
-re-export, with zero importers anywhere, is simplicity-hunter's Dead Code Paths — the analogue of the Python rule. A
+and bindings are not covered here. A
 member exposed but untouched by any consumer is this category at member granularity, Low; a member a consumer touches
 is Leaked Internals.
 
@@ -266,12 +264,13 @@ editing many areas stays smell-hunter's Shotgun Surgery.
 
 ### Cyclic Dependencies *(Python, TypeScript)*
 
-Two or more modules importing each other, directly or transitively, on the module graph.
+A runtime import cycle on the module graph whose module-level read of a partner binding fails from an entry (Failure
+`provable` or `observed`). A cycle with no failing read is not judged here.
 
 - **Runtime cycle** — a cycle that still exists after every erased edge is removed from the graph. A cycle that
   disappears when erased edges are removed is **type-only**, even when some of its edges are runtime imports: `A → B`
-  runtime plus `B → A` type-only is not a runtime cycle, because after erasure nothing points back. Kind is a property
-  of the cycle, never of a single edge.
+  runtime plus `B → A` type-only is not a runtime cycle, because after erasure nothing points back. A type-only cycle
+  cannot fail at import and is not judged here.
 - **Provable failure** — a runtime cycle's Failure value decided by reading: module `b` has, at module level, a read
   of a binding from cycle partner `a` — `from a import X`, `a.X`, or a call at module level into a function whose body
   reads `a.X` (one hop) — and `a` defines `X` *after* the statement that imports `b`. From the entry that starts at
@@ -290,11 +289,10 @@ Two or more modules importing each other, directly or transitively, on the modul
 - A circular-reference error at runtime or from a bundler
 - An import deferred inside a function
 
-**Evidence bar:** the cycle path; **Kind** — `runtime` when the cycle survives removal of every erased edge,
-`type-only` when it does not; **Failure** — `provable from {entry}: {site}` (above), `observed: {log or test}` (a
-cited existing output), or `none observed`. Deferred imports inside functions are a nomination signal only: they
-neither prove nor exclude an init hazard. Same-layer type-only cycles are Low, with no "explicitly justified" concept;
-cross-layer type-only edges route to Dependency Direction Violations.
+**Evidence bar:** the cycle path, which survives removal of every erased edge; **Failure** —
+`provable from {entry}: {site}` (above) or `observed: {log or test}` (a cited existing output). A runtime cycle with
+neither is no finding. Deferred imports inside functions are a nomination signal only: they neither prove nor exclude an
+init hazard. Cross-layer type-only edges route to Dependency Direction Violations.
 
 **Action:** extract the shared concept into a third module, or invert the edge. A provable cycle's Action names the
 entry and the statement that fails.
@@ -346,13 +344,11 @@ A package or directory unit named for what it contains, not what it provides.
 **Signals:**
 
 - A unit named `util`, `utils`, `common`, `helpers`, `shared`, `misc`, `base`, `models`, `types`, `lib`
-- A Go package clause that does not match its directory
 - A `models` package holding types for unrelated domains
 
 **Evidence bar:** *generic name* form — the unit's name is in the generic list **and** its exports span two or more
 unrelated capabilities, enumerated. One capability under a generic-ish name (`strutil` with string helpers only) is
-not a finding. Never a file. Go *clause ≠ directory* form — the package clause differs from the directory name,
-excluding `main`, `_test` packages, major-version directories (`/v2`), and hyphenated directories (`go-foo` → `foo`).
+not a finding. Never a file.
 
 **Action:** name the unit after the capability; split by capability where two or more were enumerated.
 
@@ -364,17 +360,16 @@ solid-hunter's Responsibility Sprawl, including the split's design.
 
 ### Within-skill precedence
 
-Per import edge: a Cyclic Dependencies finding whose Failure is `provable` or `observed` > Dependency Direction
-Violations > Cyclic Dependencies with Failure `none observed` > Deep Imports. Per exported member: a member failing
-the rewrite test with a consumer touching it is Leaked Internals; exposed but untouched is Dead Exports at member
-granularity. A member that External Type Leaks also claims is routed by its consumers, never by Severity. With Dead
-Exports, it stays Dead Exports: unexporting takes the external type out of the API. With Leaked Internals, it is
+Per import edge: a Cyclic Dependencies finding > Dependency Direction Violations > Deep Imports. Per exported member: a
+member failing the rewrite test with a consumer touching it is Leaked Internals; exposed but untouched is Dead Exports
+at member granularity. A member that External Type Leaks also claims is routed by its consumers, never by Severity. With
+Dead Exports, it stays Dead Exports: unexporting takes the external type out of the API. With Leaked Internals, it is
 External Type Leaks when a consumer in an inward unit touches it — that consumer needs the owned replacement type, and
-the Action names it `file:line` — else Leaked Internals. An import edge that Dependency Direction Violations claims
-and an exported signature in the same unit that External Type Leaks claims for a type from that edge's target are two
-findings, each naming the other in one clause: fixing the signature leaves the edge wherever unexported code still
-uses the target. The reported finding's Evidence cell names the other readings in one clause, or its Action cell where
-the table has no Evidence column.
+the Action names it `file:line` — else Leaked Internals. An import edge that Dependency Direction Violations claims and
+an exported signature in the same unit that External Type Leaks claims for a type from that edge's target are two
+findings, each naming the other in one clause: fixing the signature leaves the edge wherever unexported code still uses
+the target. The reported finding's Evidence cell names the other readings in one clause, or its Action cell where the
+table has no Evidence column.
 
 ## Test-code scope
 
@@ -403,11 +398,9 @@ Every finding carries **both**. They answer different questions and routinely di
   order); a Dependency Direction Violations edge from the inner tier outward, or one an explicit prohibition names; an
   External Type Leak in an inner-tier API; a Leaked Internals member an external consumer mutates.
 - **Medium** — the default for a finding that clears its bar: dead exports with zero consumers, leaked internals a
-  consumer reads, deep imports (crossing form), a runtime cycle with no module-level read of a partner binding
-  (structural coupling in any import order — the position of the imports, module-level or deferred, plays no part),
-  external type leaks in the middle tier.
-- **Low** — generic boundary names, `clause ≠ directory`, the Go exposure form, test-only exports, same-layer
-  type-only cycles, a dead export at member granularity, a consolidated barrel row whose symbols are all unconsumed.
+  consumer reads, deep imports (crossing form), external type leaks in the middle tier.
+- **Low** — generic boundary names, the Go exposure form, test-only exports, a dead export at member granularity, a
+  consolidated barrel row whose symbols are all unconsumed.
 
 A candidate that fails its evidence bar or matches a Not-a-finding line produces **no finding at any severity**.
 Severity is never a confidence scale: a consumer set that could not be closed, a tier that could not be assigned, a
@@ -512,21 +505,17 @@ impact at Medium severity; a dead export in a leaf is Low.
    prohibition, Dependency Direction Violations and External Type Leaks are not evaluated** — record the Scope line
    and judge the other five categories.
 
-6. **Record the toolchain — present-only.** Run each loaded reference's Toolchain section with the tools the project
-   already has, writing no configuration into the project, and write one `Toolchain:` line per tool with the exact
-   invocation, in the form `references/report-format.md` gives.
-
-7. **Read the emit settings** when TypeScript is in scope, per the TypeScript reference's "Emit and erasure" section,
+6. **Read the emit settings** when TypeScript is in scope, per the TypeScript reference's "Emit and erasure" section,
    and record the `Emit:` line. Where the emit pipeline cannot be established, cycle Kind is withdrawn per candidate
    with a `Limitation` line, never guessed.
 
 ### Phase 2: Build the Import Graph
 
 Project-wide, whatever the scope. One file-level graph, each edge tagged **erased** or **runtime** per the language
-reference: Go from `go list` (or the import scan on failure); Python and TypeScript from import scans, with the
-present graph tool as a nominator and cross-check. Graph scans run on `.` — never on the step-4 lists — and keep
-generated files, which are context and can be consumers. Annotate nodes with their boundary unit and, where a layer
-map exists, their tier. Record `Graph: {N nodes, M edges, E erased, U units} from {source}` in Scope.
+reference: Go from `go list` (or the import scan on failure); Python and TypeScript from import scans. Graph scans run
+on `.` — never on the step-4 lists — and keep generated files, which are context and can be consumers. Annotate nodes
+with their boundary unit and, where a layer map exists, their tier. Record
+`Graph: {N nodes, M edges, E erased, U units} from {source}` in Scope.
 
 ### Phase 3: Scan and Nominate
 
@@ -565,12 +554,12 @@ block for its language-specific judgment.
 
 Assign **Severity and Impact** to every finding. One finding per edge and per exported member. Nothing is held back; `Audit completed: N findings` counts every reported finding.
 
-**`Audit completed: 0 findings` needs every candidate resolved** (the Done line below). On a run with candidates,
-the `Limitation` and `Policy:` lines name what was withdrawn. On a run without candidates, no category had one — no
-export, no module-graph cycle, no module edge between different tiers or named by a prohibition, no deep import, no
-external type in an exported signature, no generic-named unit. Candidates are never keyed on cross-unit edges: two
-files inside one barrel directory importing each other are a cycle candidate although the projection onto units shows
-no edge at all.
+**`Audit completed: 0 findings` needs every candidate resolved** (the Done line below). On a run with candidates, the
+`Limitation` and `Policy:` lines name what was withdrawn. On a run without candidates, no category had one — no export,
+no runtime module-graph cycle, no module edge between different tiers or named by a prohibition, no deep import, no
+external type in an exported signature, no generic-named unit. Candidates are never keyed on cross-unit edges: two files
+inside one barrel directory importing each other are a cycle candidate although the projection onto units shows no edge
+at all.
 
 Done when every candidate is a reported finding, a withdrawal (`Limitation` or `Policy:` line), a drop (failed
 evidence bar or a Not-a-finding line), or a hand-off to its owning hunter.
@@ -583,10 +572,19 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
+of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
+only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
+(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
+bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
+sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
+only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
+with a rule off, and naming the rule costs one line.
+
 ## Operating Constraints
 
 - **Report only.** The audit report is the deliverable; source files stay untouched.
-- **Read; never install or execute.** Use only tools the project already has. Establish a cycle's failure and the
-  emit pipeline by reading code and existing logs — never by importing a project module or running a bundler.
+- **Read; never install or execute.** Run no tool but `go list`. Establish a cycle's failure and the emit pipeline by
+  reading code and existing logs — never by importing a project module or running a bundler.
 - **Evidence from reading.** Every finding cites `file:line` with the exact declaration, import statement, or
   signature, and fills its category's evidence cells from what was read, never by inference.

@@ -47,8 +47,8 @@ Two units, evaluated separately:
 - **Struct.** Methods spanning unrelated concepts, a `New*` with many collaborators, methods that never touch the
   struct's fields. A cohesive aggregate whose methods all mutate one entity through one workflow is not a finding.
 
-**Boundary with boundary-hunter.** A generic package name with two or more unrelated capabilities, and a package
-clause that differs from its directory, are boundary-hunter's Generic Boundary Names. Responsibility and change
+**Boundary with boundary-hunter.** A generic package name with two or more unrelated capabilities is boundary-hunter's
+Generic Boundary Names; a package clause that differs from its directory is not covered here. Responsibility and change
 analysis — named actors, independent reasons to change, multiple files in a package spanning unrelated concerns — is
 here.
 
