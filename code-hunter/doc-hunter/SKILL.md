@@ -16,15 +16,14 @@ true.**
 `TODO` / `FIXME` / `XXX` work items, hedging, and task history in comments (→ slop-hunter); "what" comments over
 non-trivial code (Comments as Deodorant), call order of the project's own API (Temporal Coupling), duration integers,
 floating-point money, and raw status strings, also when a comment states the allowed values (Primitive Obsession),
-stuttering names (→ smell-hunter); comments that justify a nil or zero-value contract, an
-invariant that a runtime check already enforces (→ invariant-hunter); comments that justify a discarded error, Go
-reachable panics and discarded errors, `None` / `undefined` returned for an error (→ exception-hunter); empty catches
-and discarded promises are not covered here; code that needs a "what" comment, intentional complexity whose
-stated reason is stale, unused code under `// IMPORTANT: do not remove` (→ simplicity-hunter; boundary-hunter for an
-export); an implementation that breaks a *documented* interface contract (→ solid-hunter); Go aliases without a
-migration comment (→ type-hunter); generic package names (→ boundary-hunter); doctests and Go `Example` functions
-(→ test-hunter); comments that leak secrets (→ security-hunter). Where ownership is *contested*, the category's
-**Ownership:** note in What to Hunt is authoritative.
+stuttering names (→ smell-hunter); comments that justify a nil or zero-value contract, an invariant that a runtime check
+already enforces (→ invariant-hunter); comments that justify a discarded error, Go reachable panics and discarded
+errors, `None` / `undefined` returned for an error (→ exception-hunter); empty catches and discarded promises are not
+covered here; code that needs a "what" comment, intentional complexity whose stated reason is stale, unused code under
+`// IMPORTANT: do not remove` (→ boundary-hunter for an export, else no hunter); an implementation that breaks a
+*documented* interface contract (→ solid-hunter); Go aliases without a migration comment (→ type-hunter); generic
+package names (→ boundary-hunter); doctests and Go `Example` functions (→ test-hunter); comments that leak secrets (→
+security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -233,7 +232,7 @@ on OS, browser, runtime, or library version). A platform branch or a delay that 
   `TODO`, `FIXME`, or none).
 - A comment that names a dependency defect the code works around, but not when the workaround can go.
 - Defensive code for a case the types rule out, when it compensates for a dependency (otherwise it is
-  simplicity-hunter's Dead Code Paths or invariant-hunter's Defensive Access).
+  no hunter's, or invariant-hunter's Defensive Access).
 - An order of calls on a third-party object that breaks if reordered, when the dependency's documentation does not
   present it as standard use, with no comment. Example: subscribe only after connect, on a client that drops earlier
   subscriptions.
@@ -366,8 +365,8 @@ A comment, doc, or name claims what a cited line contradicts.
 
 - A false comment whose only role is to justify a construct that another hunter audits. The construct is the defect,
   and its owner reports it:
-  - `// IMPORTANT: do not remove` over code that nothing uses → the unused code's owner (simplicity-hunter,
-    boundary-hunter).
+  - `// IMPORTANT: do not remove` over code that nothing uses → boundary-hunter for an unused export;
+    other unused code is no hunter's.
   - a zero-value contract → invariant-hunter; a discarded error → exception-hunter.
   - an alias's migration comment → type-hunter.
   - intentional complexity → simplicity-hunter.

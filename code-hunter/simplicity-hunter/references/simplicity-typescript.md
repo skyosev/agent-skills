@@ -1,7 +1,5 @@
 # Simplicity Hunter — TypeScript reference
 
-Contents: Generated-code eligibility · Reinvented Primitives · Dead code — ownership and liveness hooks · Complex Control Flow — TypeScript signals · Coexisting Generations — Phase 4 · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
-
 ## Generated-code eligibility
 
 **Marker:** no TypeScript-wide marker is defined; when a project documents one, apply it. `@generated` alone is not
@@ -25,23 +23,11 @@ coerces non-symbol keys).
 
 ## Dead code — ownership and liveness hooks
 
-**Ownership:** an `export` in a non-entry file that its unit's entry does not re-export, with zero importers anywhere,
-is here, not boundary-hunter's Dead Exports. Unused parameters are a recorded gap no hunter audits.
+**Ownership:** an `export` or a file that nothing imports is in Delegated to tools (knip). Unused parameters are a
+recorded gap no hunter audits.
 
 **Liveness hooks** beyond the shared channels (SKILL.md Terms): `package.json` `exports` / `bin`; JSX use
 (`<Foo />`); dynamic `import()`, including `lazy(() => import('./Page'))`; file-based routes.
-
-## Complex Control Flow — TypeScript signals
-
-In addition to the shared signals (unflattened async control flow):
-
-- 3+ levels of nested callbacks (Node.js-style `(err, result) => { ... }`)
-- `.then().then().then()` chains longer than 3 steps, or nested `.then()` "promise pyramids"
-- Mixing callbacks and promises in the same function
-- Error handling scattered across multiple `.catch()` blocks where a single `try`/`catch` would do
-
-**Action addendum:** convert callback pyramids and long `.then()` chains to `async`/`await` with `try`/`catch`, one
-sequential `await` per step.
 
 ## Coexisting Generations — Phase 4
 
@@ -62,23 +48,25 @@ rg -l --type ts --pcre2 'Legacy|Deprecated|(?<![A-Z0-9])V[12]\b' --glob '!**/nod
 find . -type d \( -name legacy -o -name old -o -name new \) \
   -not -path '*/node_modules/*' -not -path '*/dist/*' -not -path '*/.git/*'
 
-# 3. Deprecation markers
+# 3. Deprecation markers (evidence of intended replacement for a stratum the other scans nominated)
 rg -n --type ts '@deprecated' --glob '!**/node_modules/**' --glob '!**/dist/**' .
 ```
 
-## Phase 2 — complexity scans
+## Delegated to tools
 
-**Linter rules:** ESLint `complexity`, `max-depth` → Complex Control Flow; `max-params` → Over-Parameterized APIs.
-Biome `noExcessiveCognitiveComplexity` → Complex Control Flow.
+- ESLint with typescript-eslint, or Biome where a rule is named: deep nesting, branchy functions, nested ternaries,
+  and nested callbacks (`complexity`, `max-depth`, `no-nested-ternary`, `max-nested-callbacks`, or Biome
+  `noExcessiveCognitiveComplexity`, `noNestedTernary`); a guard the type already rules out
+  (`@typescript-eslint/no-unnecessary-condition`); a call to a deprecated symbol (`@typescript-eslint/no-deprecated`).
+- knip: an export or a file that nothing imports.
+
+## Phase 2 — complexity scans
 
 **Regex scans.** Restore the eligible list first: `TS_FILES=$(cat <run>/typescript.txt); [ -n "$TS_FILES" ] || exit 1`.
 
 ```bash
 # Dependencies, build output, generated-code approximations.
 EXCLUDE='--glob !**/node_modules/** --glob !**/dist/** --glob !**/*.generated.* --glob !**/__generated__/** --glob !**/*.g.ts --glob !**/generated/**'
-
-# Deep nesting (8+ spaces: 3 levels inside a function, 2 inside a class method, at a 2-space indent)
-rg -Hn '^\s{8,}\S' --type ts $EXCLUDE -- $TS_FILES
 
 # Boolean parameters
 rg -Hn --pcre2 '\w+\s*[?:]?\s*:\s*boolean' --type ts $EXCLUDE -- $TS_FILES
@@ -87,15 +75,6 @@ rg -Hn --pcre2 '\w+\s*[?:]?\s*:\s*boolean' --type ts $EXCLUDE -- $TS_FILES
 rg -Hn -U --pcre2 'function\s+\w+\s*\([^)]{80,}\)' --type ts $EXCLUDE -- $TS_FILES
 rg -Hn -U --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\([^)]{80,}\)\s*(?:=>|:)' --type ts $EXCLUDE -- $TS_FILES
 rg -Hn -U --pcre2 '^\s+\w+\s*\([^)]{80,}\)\s*[:{]' --type ts $EXCLUDE -- $TS_FILES
-
-# Nested ternaries (skips ?. ?? and optional members `a?:`)
-rg -Hn --pcre2 '(?<!\?)\?(?![.?:])[^;,]*(?<!\?)\?(?![.?:])[^;,]*:' --type ts $EXCLUDE -- $TS_FILES
-
-# .then() chains of 3+ steps, one-line or split, inline arrow callbacks included
-rg -Hn -U --pcre2 '\.then\((?:[^()]|\([^()]*\))*\)\s*\.then\((?:[^()]|\([^()]*\))*\)\s*\.then\(' --type ts $EXCLUDE -- $TS_FILES
-
-# Inline suppressions of a complexity rule; -B1 shows the reason on the line above
-rg -Hn -B1 --pcre2 '(?:eslint|oxlint|biome|fallow)[-\w]*(?:disable|ignore)[^\n]*\b(?:complexity|max-depth|max-params)\b' --type ts $EXCLUDE -- $TS_FILES
 ```
 
 ## Phase 3 — Duplication list and exclude

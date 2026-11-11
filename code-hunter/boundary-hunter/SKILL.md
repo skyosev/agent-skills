@@ -12,16 +12,16 @@ importing each other until initialization order decides whether the process star
 `utils` package holding three unrelated capabilities. Goal: **every unit is a black box, replaceable from its public
 entry alone.**
 
-**Not covered (owned by other hunters):** unused non-exported functions, constants, and branches, and any Python
-public name with no importers at all (→ simplicity-hunter Dead Code Paths); unused imports and bindings
-(→ slop-hunter); a generic-named *file* and file placement inside a unit (→ smell-hunter God Module in Python and
-TypeScript; in Go nobody's); package-level responsibility and change analysis — named actors, independent reasons to
-change (→ solid-hunter Responsibility Sprawl); type-level wiring, self-instantiation, and module-level singleton reads
-(→ solid-hunter Concrete Dependency Chains); two hand-written declarations of one shape with a consolidation path
-(→ type-hunter Duplicated Type Declarations); a promoted method set from an embed (→ type-hunter Embedding
-Antipatterns); type-system bypasses at a boundary layer (no hunter owns them); content validation at a trust boundary
-(→ security-hunter); message chains inside object design (no hunter owns them). Where ownership is *contested*, the
-category's **Ownership:** note in What to Hunt is authoritative.
+**Not covered (owned by other hunters):** unreachable branches (→ simplicity-hunter Dead Code Paths); unused
+non-exported functions and constants, and any Python public name with no importers at all (no hunter owns them); unused
+imports and bindings (→ slop-hunter); a generic-named *file* and file placement inside a unit (→ smell-hunter God Module
+in Python and TypeScript; in Go nobody's); package-level responsibility and change analysis — named actors, independent
+reasons to change (→ solid-hunter Responsibility Sprawl); type-level wiring, self-instantiation, and module-level
+singleton reads (→ solid-hunter Concrete Dependency Chains); two hand-written declarations of one shape with a
+consolidation path (→ type-hunter Duplicated Type Declarations); a promoted method set from an embed (→ type-hunter
+Embedding Antipatterns); type-system bypasses at a boundary layer (no hunter owns them); content validation at a trust
+boundary (→ security-hunter); message chains inside object design (no hunter owns them). Where ownership is *contested*,
+the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -170,11 +170,10 @@ the export exists for the test alone, and the Action names the public behavior t
 unexporting. After unexporting, a symbol with no callers at all becomes simplicity-hunter's next audit — sequential,
 not double.
 
-**Ownership:** an *exported* symbol with no external consumer is here. An unused *unexported* function or constant,
-and a Python non-`__all__` name with no importers anywhere, are simplicity-hunter's Dead Code Paths; unused imports
-and bindings are not covered here. A
-member exposed but untouched by any consumer is this category at member granularity, Low; a member a consumer touches
-is Leaked Internals.
+**Ownership:** an *exported* symbol with no external consumer is here. An unused *unexported* function or constant, and
+a Python non-`__all__` name with no importers anywhere, are no hunter's; unused imports and bindings are not covered
+here. A member exposed but untouched by any consumer is this category at member granularity, Low; a member a consumer
+touches is Leaked Internals.
 
 ### Leaked Internals
 

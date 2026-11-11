@@ -12,14 +12,13 @@ hopes for instead of guaranteeing. Goal: **guarantees established at constructio
 hold throughout downstream code, consumers narrow without casts, and invalid states are caught where data is created.**
 
 **Not covered (owned by other hunters):** type *structure* — Duplicated Type Declarations (a sibling type, a runtime
-value, or a schema as source), Generics That Never Vary, Loose Type Parameter Constraints, Over-Powered Type
-Constructs, Enum Construct Mechanics, Alias vs Named Type Mechanics (→ type-hunter); how failures are handled,
-matched, wrapped, and converted — Go discarded errors, error chains, and panics included (→ exception-hunter);
-trust-boundary *content* validation and exploitability (→ security-hunter); a guard the type already rules out
-(→ simplicity-hunter, Dead Code Paths); optional fields with no discriminant yet, method call order, identity and
-unit types with no validation boundary (→ smell-hunter); linter suppressions and wrapping-message redundancy
-(→ slop-hunter); test quality (→ test-hunter). Where ownership is *contested*, the category's **Ownership:** note in
-What to Hunt is authoritative.
+value, or a schema as source), Generics That Never Vary, Loose Type Parameter Constraints, Over-Powered Type Constructs,
+Enum Construct Mechanics, Alias vs Named Type Mechanics (→ type-hunter); how failures are handled, matched, wrapped, and
+converted — Go discarded errors, error chains, and panics included (→ exception-hunter); trust-boundary *content*
+validation and exploitability (→ security-hunter); a guard the type already rules out (no hunter owns it); optional
+fields with no discriminant yet, method call order, identity and unit types with no validation boundary (→
+smell-hunter); linter suppressions and wrapping-message redundancy (→ slop-hunter); test quality (→ test-hunter). Where
+ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -151,9 +150,8 @@ finding when the value has already been resolved at the construction boundary an
 
 **Action:** tighten the upstream type; the guard then becomes deletable.
 
-**Ownership:** when the *type already guarantees* presence, the guard is simplicity-hunter's Dead Code Paths (delete
-the guard). When the type is optional and the value is always present, it is here (tighten the type; the guard falls
-away afterwards).
+**Ownership:** when the *type already guarantees* presence, the guard is no hunter's (a type checker reports it). When
+the type is optional and the value is always present, it is here (tighten the type; the guard falls away afterwards).
 
 ### Leaky Discriminated Unions *(conditional)*
 
@@ -207,7 +205,7 @@ validation boundary is smell-hunter's Primitive Obsession — `NewType('UserId',
 not a finding here. A manual type beside a schema (`z.infer` candidates) is type-hunter's Duplicated Type Declarations.
 A presence check (`if (node.config)`, `if node.config is not None`) after a discriminant test is not this category:
 the variant type still marks the field optional → Leaky Discriminated Unions (`leaking field`); the variant type
-already makes it required → simplicity-hunter's Dead Code Paths.
+already makes it required → no hunter's.
 
 ### Within-skill routing
 
@@ -367,7 +365,7 @@ For each runtime guard, assertion, or validation nominated:
 - **Promote to type** — a type can carry it and blocks the actual failure path (see the immutability rule).
 - **Keep as runtime** — trust boundary, serialization, or excessive type complexity; the Complexity cell names which
   (see report-format.md).
-- **Delete** — the type already guarantees it → simplicity-hunter's Dead Code Paths; hand off.
+- **Delete** — the type already guarantees it → not covered here.
 
 ### Phase 5: Evaluate Each Finding
 

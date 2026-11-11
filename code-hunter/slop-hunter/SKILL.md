@@ -12,18 +12,16 @@ suppressions, hedging, narration. Goal: **the code reads as if a careful human w
 
 The test for every finding is *is this noise?*, never *did an AI write this?*
 
-**Not covered (owned by other hunters):** missing "why" comments, stale or false comments, and the content quality
-of public docs (→ doc-hunter); comments that call the code a hack or a workaround and name no cause, or that name a
-dependency defect but not when the workaround can go, whatever the marker (→ doc-hunter, Unexplained Workarounds);
-names that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code
-(→ smell-hunter, Comments as Deodorant); live but unreachable logic, unused functions and constants
-(→ simplicity-hunter, Dead Code Paths); exported dead symbols
-(→ boundary-hunter, Dead Exports); generic package / module names (→ boundary-hunter, Generic Boundary Names);
-stuttering names as package design (→ smell-hunter); type-checker
+**Not covered (owned by other hunters):** missing "why" comments, stale or false comments, and the content quality of
+public docs (→ doc-hunter); comments that call the code a hack or a workaround and name no cause, or that name a
+dependency defect but not when the workaround can go, whatever the marker (→ doc-hunter, Unexplained Workarounds); names
+that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code (→ smell-hunter,
+Comments as Deodorant); live but unreachable logic (→ simplicity-hunter, Dead Code Paths); unused functions and
+constants (no hunter owns them); exported dead symbols (→ boundary-hunter, Dead Exports); generic package / module names
+(→ boundary-hunter, Generic Boundary Names); stuttering names as package design (→ smell-hunter); type-checker
 suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain correctness and
-discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality
-(→ test-hunter).
-Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality (→
+test-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -159,14 +157,13 @@ Text and declarations that compile or parse but do nothing, and can be judged in
 **Not a finding:** a `TODO` with an owner, ticket, or concrete condition; a linter suppression with a stated reason;
 a language idiom the reference's Trivially Dead Code section lists as intentional (e.g. Go blank-identifier forms).
 
-**Ownership:** live-but-unreachable *logic*
-(guards already guaranteed, stale flags, zero-call helpers), unused functions, and unused constants are
-simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported dead symbols are boundary-hunter's
-Dead Exports.
-Type-checker suppressions, reason or not, are not covered here. `_ = f()` where `f` returns an `error` is not covered
-here. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
-`/* c8 ignore … */`, `/* v8 ignore … */`) and skipped tests (`t.Skip()`, `@pytest.mark.skip`), reason or not, are
-test-hunter's: whether a test can fail is one line, one hunter. TypeScript skips and `.only` are no hunter's.
+**Ownership:** live-but-unreachable *logic* (guards already guaranteed, stale flags) is simplicity-hunter's Dead Code
+Paths, which demands liveness evidence; zero-call helpers, unused functions, and unused constants are no hunter's.
+Exported dead symbols are boundary-hunter's Dead Exports. Type-checker suppressions, reason or not, are not covered
+here. `_ = f()` where `f` returns an `error` is not covered here. Coverage pragmas (`# pragma: no cover`,
+`/* istanbul ignore … */`, `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped tests (`t.Skip()`,
+`@pytest.mark.skip`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter. TypeScript
+skips and `.only` are no hunter's.
 
 ### Hedging and Narration
 

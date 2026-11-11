@@ -43,7 +43,7 @@ Sphinx). Markers:
 - `TODO` / `FIXME` without owner, ticket, or condition
 - Bare `# noqa`, `# nosec`, `# pylint: disable=…` with no trailing reason
 
-A public name with no importers anywhere → simplicity-hunter Dead Code Paths; a public name imported only inside its
+A public name with no importers anywhere is no hunter's; a public name imported only inside its
 own package → boundary-hunter Dead Exports.
 
 ### Hedging and Narration

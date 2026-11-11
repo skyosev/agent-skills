@@ -6,7 +6,7 @@ Contents: Applicability of the categories · Generated-code and test-path eligib
 
 | Category | Applicable | Reason |
 | -------- | ---------- | ------ |
-| Dead Exports | **yes** | Export = a name in `__all__` or re-exported by a package `__init__.py`, **for this category only**. A plain non-underscore name has no "unexport" edit: with zero importers it is simplicity-hunter's Dead Code Paths, with intra-package importers only it is nothing. PEP 420 namespace packages have no `__init__` surface, so only a module `__all__` applies |
+| Dead Exports | **yes** | Export = a name in `__all__` or re-exported by a package `__init__.py`, **for this category only**. A plain non-underscore name has no "unexport" edit: with zero importers it is no hunter's, with intra-package importers only it is nothing. PEP 420 namespace packages have no `__init__` surface, so only a module `__all__` applies |
 | Leaked Internals | **yes** | Judges **any** consumed non-underscore name, whatever `__all__` says, plus the `__init__` re-exporting a `_name` form |
 | Deep Imports | **yes** | `pkg._x` and `pkg.internal.x` are deep whatever the `__init__` holds; bypassing an `__init__` that re-exports is the other form. Python has **no enforcement mechanism** — the remedy vocabulary is convention and `import-linter` contracts, never `internal/` |
 | Dependency Direction Violations | **yes** | Module edges. An `import-linter` `layers` contract is the one machine-readable ordering this suite reads |
@@ -48,7 +48,7 @@ Markdown-only inputs are also ineligible.
   imports of that form.
 - **Export (Dead Exports only)** — a name in `__all__`, or a name a package `__init__.py` re-exports. Nothing else.
   A plain non-underscore module-level name is **not** an export for this category: zero importers anywhere →
-  simplicity-hunter's Dead Code Paths; intra-package importers only → nothing here.
+  no hunter's; intra-package importers only → nothing here.
 - **Leaked Internals and Deep Imports do not use that gate.** A consumed non-underscore name is judged by the rewrite
   test whatever `__all__` says; a deep import is judged by the path reached.
 - **External consumer** — an import from outside the package in a non-test file, plus string references.
@@ -215,7 +215,7 @@ For each `__all__` entry and `__init__` re-export:
 
 For each plain non-underscore module-level name:
 
-- Zero importers anywhere → **simplicity-hunter's** Dead Code Paths; cross-reference, do not score.
+- Zero importers anywhere → no hunter's; do not score.
 - Intra-package importers only → nothing here.
 - Consumed from outside and failing the rewrite test → Leaked Internals (the `__all__` gate does not apply).
 

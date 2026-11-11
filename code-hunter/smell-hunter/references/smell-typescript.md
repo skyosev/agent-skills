@@ -13,7 +13,7 @@ Contents: Applicability of conditional categories · Generated-code eligibility 
 | Class Abuse | **yes** | classes standing in for modules and functions |
 
 **No language-only categories.** The construct of an existing `enum` belongs to type-hunter (Enum Construct
-Mechanics); callback pyramids and unflattened promise chains belong to simplicity-hunter's Complex Control Flow.
+Mechanics); callback pyramids and unflattened promise chains are no hunter's.
 
 ## Generated-code eligibility
 

@@ -135,7 +135,7 @@ For each `Optional` / `| None` field:
 For each `is not None` / `or default`:
 
 - Is the value already resolved at the construction boundary? Then Defensive Access. Is the type already
-  non-optional? Then simplicity-hunter's Dead Code Paths. At a trust boundary → not a finding.
+  non-optional? Then it is not covered here. At a trust boundary → not a finding.
 
 For each `isinstance` / `if`-`elif` chain over a union:
 

@@ -11,12 +11,12 @@ smells and language-specific antipatterns outside specialized hunters' scope. Go
 changes are localized, domain concepts are modeled explicitly, language idioms are respected.**
 
 **Not covered (owned by other hunters):** long method / mixed concerns, dead code, speculative generality, boolean
-parameters, interface pollution, callback hell and unflattened promise chains, replacing a project implementation with
-an equivalent existing primitive (Reinvented Primitives) (→ simplicity-hunter); missing "why" documentation (→
-doc-hunter); magic numbers (no hunter owns them); the construct of an existing enum, constant group, or Go/Python alias
-(→ type-hunter); SOLID violations (→ solid-hunter); module boundary and dependency direction (→ boundary-hunter);
-invariant enforcement (→ invariant-hunter); security (→ security-hunter); test quality (→ test-hunter); AI-generated
-noise and cosmetic style (→ slop-hunter).
+parameters, interface pollution, replacing a project implementation with an equivalent existing primitive (Reinvented
+Primitives) (→ simplicity-hunter); callback hell and unflattened promise chains (no hunter owns them); missing "why"
+documentation (→ doc-hunter); magic numbers (no hunter owns them); the construct of an existing enum, constant group, or
+Go/Python alias (→ type-hunter); SOLID violations (→ solid-hunter); module boundary and dependency direction (→
+boundary-hunter); invariant enforcement (→ invariant-hunter); security (→ security-hunter); test quality (→
+test-hunter); AI-generated noise and cosmetic style (→ slop-hunter).
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.

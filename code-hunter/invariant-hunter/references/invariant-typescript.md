@@ -39,10 +39,9 @@ proposal states which is being closed.
 ### Defensive Access — TypeScript forms
 
 `?.` and `??` on always-present values; `|| default` where the default was resolved at the construction boundary;
-`if (x)` on a non-optional value. `user?.name` where `user: User` is non-optional → simplicity-hunter's Dead Code
-Paths, not here.
-`user?.name` where `user?: User` but every caller passes one → Defensive Access; one finding per invariant, consumers
-cited as evidence.
+`if (x)` on a non-optional value. `user?.name` where `user: User` is non-optional is not covered here. `user?.name`
+where `user?: User` but every caller passes one → Defensive Access; one finding per invariant, consumers cited as
+evidence.
 
 ### Leaky Discriminated Unions — TypeScript forms
 
@@ -111,7 +110,7 @@ For each `?:` field:
 
 For each `?.` / `??`:
 
-- Is the type already non-optional? → simplicity-hunter's Dead Code Paths. Optional but always present here → Defensive
+- Is the type already non-optional? → not covered here. Optional but always present here → Defensive
   Access. Trust boundary → not a finding.
 
 For each `as const` / `Readonly<T>` proposal:

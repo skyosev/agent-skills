@@ -12,18 +12,17 @@ a type parameter every instantiation binds to the same type, a constraint that h
 constant group with no named type, an exported struct promoting `Lock` and `Unlock` to every importer.
 
 **Not covered (owned by other hunters):** primitives standing in for domain concepts where no named construct exists
-yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package
-organization (→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports);
-the *crossing* beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror);
-optionality, unguarded narrowing, exhaustiveness, `as const` adoption for a value with no parallel declaration
-(→ invariant-hunter's Runtime Checks Promotable to Types), validation of external input into an enum, never-checked
-zero sentinels (→ invariant-hunter); `any` / `Any` as a *value* type, `satisfies` in place of an `as T` (no hunter
-owns them); repeated logic and repeated runtime values, abstractions with one call site, runtime
-control flow, reinvented runtime primitives (→ simplicity-hunter); a struct embedding an interface it implements only
-partly, interface width (→ solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope,
-see Test-code scope); documentation restating types (→ slop-hunter); content validation at trust boundaries
-(→ security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is
-authoritative.
+yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package organization
+(→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports); the *crossing*
+beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror); optionality, unguarded
+narrowing, exhaustiveness, `as const` adoption for a value with no parallel declaration (→ invariant-hunter's Runtime
+Checks Promotable to Types), validation of external input into an enum, never-checked zero sentinels (→
+invariant-hunter); `any` / `Any` as a *value* type, `satisfies` in place of an `as T` (no hunter owns them); repeated
+logic and repeated runtime values, abstractions with one call site, reinvented runtime primitives (→ simplicity-hunter);
+runtime control flow (no hunter owns it); a struct embedding an interface it implements only partly, interface width (→
+solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope, see Test-code scope);
+documentation restating types (→ slop-hunter); content validation at trust boundaries (→ security-hunter). Where
+ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -233,7 +232,7 @@ boundaries often do.
 
 **Action:** replace with the simpler construct.
 
-**Ownership:** type-level only; simplicity-hunter's Complex Control Flow and Reinvented Primitives are runtime code.
+**Ownership:** type-level only; simplicity-hunter's Reinvented Primitives is runtime code.
 Template literal *overuse* is here; a template literal type *missing* for a structured string domain is
 smell-hunter's Primitive Obsession.
 
