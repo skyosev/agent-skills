@@ -352,8 +352,8 @@ the code could).
 
 **Action:**
 
-- A doc comment stating the clause, in the language's convention. For a unit or a range, a name that states it
-  (`ratePct`, `distanceNm`) is the alternative.
+- For a unit or a range, a name that states it (`ratePct`, `distanceNm`); a doc comment is the alternative. For any
+  other clause, a doc comment stating it, in the language's convention.
 - `enforceable` → name the enforcement (a type, a check at construction, an assertion, or a test), and keep the
   comment until it lands.
 - Interface contracts: the Action names both behaviors; the author picks the contract, and the other implementation
