@@ -469,7 +469,7 @@ One site, one finding. The rules, in order:
    (`catch { res.status(400) }`) → Untranslated Boundary Errors (`outward`), whatever its expected failure.
 2. **Log then default is Swallowed.** A handler that logs and returns a default is `logged-only` or `defaulted`, never
    Double Handling. Double Handling needs the failure to propagate after the log.
-3. **External identity outside the adapter is Untranslated.** An external library's failure matched by text or code
+3. **External identity outside the adapter is Untranslated, unless the handler is also wrong.** An external library's failure matched by text or code
    outside its adapter → Untranslated Boundary Errors (`inward`). An internal failure matched by text → Unmatchable
    Failures. A failure that reaches the generic 500: no identity to map → Unmatchable Failures; an identity the
    boundary does not map → Untranslated Boundary Errors (`outward`). A handler outside the adapter that also drops the
