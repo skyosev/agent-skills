@@ -447,9 +447,9 @@ table states the language's markers.
 ## Test-code scope
 
 **Test files are excluded from every category.** Error handling inside a test (a `try` / `catch` that makes the test
-pass whatever happens, an ignored `err` in a test) is test-hunter's Inert and Weak Tests. A missing test for an error
-path is test-hunter's Coverage Gaps. Test paths are listed in each language reference. The exclusion is by path: a
-helper imported by production code from a non-test path is audited; a production helper under `tests/` is not.
+pass whatever happens) is test-hunter's Inert and Weak Tests; an ignored `err` in a test is no hunter's. A missing test
+for an error path is test-hunter's Coverage Gaps. Test paths are listed in each language reference. The exclusion is by
+path: a helper imported by production code from a non-test path is audited; a production helper under `tests/` is not.
 
 ## Severity and Impact
 

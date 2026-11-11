@@ -1,6 +1,6 @@
 # Test Hunter — Python reference
 
-Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated detectors · Version-gated signals · Language-specific signals · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
+Contents: Generated-code eligibility · Test list and production list · Framework and version detection · Delegated to tools · Version-gated signals · Language-specific signals · Remedies · Coverage mapping blind spots · Test execution · Evidence path form · Phase 2 — test scans
 
 ## Generated-code eligibility
 
@@ -37,33 +37,12 @@ printf '%s\n' $PY_FILES | grep -Ev "$TEST_RE" > <run>/python-prod.txt || echo /d
   `setup.cfg`, `tox.ini`; the default is `strict`), anyio's pytest plugin (`@pytest.mark.anyio`), pytest-trio.
 - **Doubles:** `unittest.mock`, pytest-mock (`mocker`).
 
-## Delegated detectors
+## Delegated to tools
 
-**ruff** runs whenever the project configures it (`[tool.ruff]` in `pyproject.toml`, `ruff.toml`, `.ruff.toml`). Its
-output decides which rules are on: a hit shows that its rule is selected, whatever the installed version's defaults.
-
-```bash
-cd "$(git rev-parse --show-toplevel)" || exit 1
-PY_TESTS=$(cat <run>/python-tests.txt); [ -n "$PY_TESTS" ] || exit 1   # STOP: empty restore
-[ "$PY_TESTS" = /dev/null ] || ruff check --no-fix --no-cache --output-format concise -- $PY_TESTS | rg -w 'PLR0124|PLR0133|B015|B017|F631|F811|PGH005|PLW0129|PT011|PT012|PT017'
-```
-
-- `PLR0124` (comparison with itself), `PLR0133` (comparison of two constants) → Tautological Tests (subject on both
-  sides).
-- `B015` (comparison statement without `assert`) → Inert and Weak Tests (Absent).
-- `F631` (`assert` on a non-empty tuple: `assert (x == 1, "msg")`) → Absent: the tuple is always true.
-- `PLW0129` (`assert` on a literal) → Absent, for a non-empty literal only: `assert ""` always fails.
-- `PGH005` (`mock.assert_called` without `()`, an attribute access) → Absent.
-- `B017` (`assertRaises` / `pytest.raises` on `Exception` or `BaseException`) → Inert and Weak Tests (Weak) when the
-  error kind is the contract.
-- `PT011` (`pytest.raises` without `match` on an exception in its broad list, which also holds `ValueError` and
-  `OSError`) → Weak only when the code raises a narrower type than the one checked, or tells cases apart by message.
-  `pytest.raises(ValueError)` already checks a kind.
-- `PT012` (a `pytest.raises` block with more than one statement) → Never executes only when a check comes after the
-  call that raises. Setup before that call is fine.
-- `PT017` (`assert` inside an `except` block) → Inert and Weak Tests (Never executes).
-- `F811` (redefinition) → Never executes when a test function or method is defined twice under one name: pytest
-  collects only the last. A redefined helper is not this hunter's.
+- ruff: a comparison of a name with itself or of two constants (`PLR0124`, `PLR0133`); a comparison statement with no
+  `assert` (`B015`); `assert` on a tuple or a non-empty literal (`F631`, `PLW0129`); `mock.assert_called` with no call
+  (`PGH005`); an `assert` on the caught exception inside `except` (`PT017`, not in ruff's default set); a test defined
+  twice under one name (`F811`).
 
 ## Version-gated signals
 

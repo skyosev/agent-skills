@@ -165,8 +165,8 @@ simplicity-hunter's Dead Code Paths, which demands liveness evidence. Exported d
 Dead Exports.
 Type-checker suppressions, reason or not, are not covered here. `_ = f()` where `f` returns an `error` is not covered
 here. Coverage pragmas (`# pragma: no cover`, `/* istanbul ignore … */`,
-`/* c8 ignore … */`, `/* v8 ignore … */`) and skipped or focused tests (`t.Skip()`, `@pytest.mark.skip`, `it.skip`,
-`.only`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter.
+`/* c8 ignore … */`, `/* v8 ignore … */`) and skipped tests (`t.Skip()`, `@pytest.mark.skip`), reason or not, are
+test-hunter's: whether a test can fail is one line, one hunter. TypeScript skips and `.only` are no hunter's.
 
 ### Hedging and Narration
 
