@@ -35,9 +35,9 @@ FILES=$(cat <run>/go.txt <run>/python.txt <run>/typescript.txt 2>/dev/null)  # n
 git show "$MB:<deleted path>"                                                 # once per path in <run>/deleted.txt
 ```
 
-- **Changed-line restriction.** Unexplained Business Rules, Magic Numbers, Non-Obvious Algorithms, and Unexplained
-  Workarounds report only lines that the change added or modified. Untracked files are new in full. Undocumented
-  Contracts and Missing Public Docs report only declarations that the change added, or whose signature or body it
+- **Changed-line restriction.** Unexplained Business Rules, Non-Obvious Algorithms, and Unexplained Workarounds
+  report only lines that the change added or modified. Untracked files are new in full. Undocumented Contracts reports
+  only declarations that the change added, or whose signature or body it
   modified. Misleading Comments and Names reports text on changed lines, plus the two nominations below.
 - **Stale-text nominations** (Misleading Comments and Names), for every declaration whose signature or body the
   change modified:
@@ -53,11 +53,10 @@ git show "$MB:<deleted path>"                                                 # 
 - A declaration is removed when its package no longer declares it (Go: the directory; Python: the module; TypeScript:
   the file), and a method when its type no longer does (identity `Type.Method`). A same name declared elsewhere does
   not hide the removal.
-- Search the whole repository's comments for references to each removed name, with the reference's removed-name scan.
-  A hit counts in reference syntax: a Go doc link (`[Name]`, `[pkg.Name]`, `[Type.Method]`), a backtick span in Go or
-  TypeScript, a Python Sphinx role, a TypeScript `{@link}` or `@see`. A bare word counts only when the name is not a
-  plain word: it has an inner capital, an underscore, or a digit (`handleLegacy`, `parse_rate`). A removed `Close`
-  never matches "Close the body".
+- Search the whole repository's comments for references to each removed name, with the reference's removed-name scan. A
+  hit counts in reference syntax: a Go doc link (`[Name]`, `[pkg.Name]`, `[Type.Method]`), a backtick span in Go or
+  TypeScript, a TypeScript `@see`. A bare word counts only when the name is not a plain word: it has an inner capital,
+  an underscore, or a digit (`handleLegacy`, `parse_rate`). A removed `Close` never matches "Close the body".
 - Read each hit. It counts only when it refers to the removed declaration: same package, or qualified by it.
 - A stale reference in the target scope is anchored at the comment. Stale references outside the scope produce one
   finding at the in-scope removal site — `file:line (removed: <name>)`, or `<path> (deleted)` for a deleted file —
