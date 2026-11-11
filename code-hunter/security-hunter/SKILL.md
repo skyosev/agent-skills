@@ -7,11 +7,12 @@ disable-model-invocation: true
 # Security Hunter
 
 Audit code for **exploitable weaknesses** — places where someone outside the system can make it do what its owner did
-not intend: `db.Query(fmt.Sprintf("… %s", r.URL.Query().Get("id")))` on a public route, `DATABASE_URL =
-"postgres://app:s3cr…@prod-db/app"` in the settings module the Dockerfile loads, `jwt.decode(token)` whose `sub` selects
-the account, `router.delete("/admin/users/:id", h)` beside a peer that requires an admin, `io.ReadAll(r.Body)` with no
-limit. Goal: **every value that crosses a trust boundary is checked before it is interpreted, stored, or decided on; no
-credential lives in a committed file; every protected action is protected on every route.**
+not intend: `db.Query(fmt.Sprintf("… %s", r.URL.Query().Get("id")))` on a public route,
+`DATABASE_URL = "postgres://app:s3cr…@prod-db/app"` in the settings module the Dockerfile loads, `jwt.decode(token)`
+whose `sub` selects the account, `router.delete("/admin/users/:id", h)` beside a peer that requires an admin,
+`io.ReadAll(r.Body)` with no limit. Goal: **every value that crosses a trust boundary is checked before it is
+interpreted, stored, or decided on; no credential lives in a committed file; every protected action is protected on
+every route.**
 
 **Not covered (owned by other hunters):** type-system bypasses (`as any`, `as unknown as T`, `@ts-ignore`,
 `strict: false`, Go bare type assertions), the unguarded type claim at a trust boundary, races on goroutine shared
