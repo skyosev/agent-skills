@@ -122,8 +122,8 @@ TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/test_*.py --glob !**/*_test.py --glob !*
 # Feature envy: chained attribute access across module boundaries
 rg -nH --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type py $EXCLUDE -- $PY_FILES
 
-# Data clumps: signatures with 3+ parameters besides self, multi-line included — test setup belongs to test-hunter
-rg -nHU --pcre2 'def\s+\w+\s*\((?:self\s*,\s*)?+(?:[^,)]*,){2,}[^)]*\)' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
+# Data clumps: 3+ parameters besides self or cls, multi-line included — test setup belongs to test-hunter
+rg -nHU --pcre2 'def\s+\w+\s*\((?:\s*(?:self|cls)\b[^,)]*,)?+(?:(?:[^,()\[\]]|\[[^\[\]]*\]|\([^()]*\))*,){2,}[^)]*\)' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
 
 # Primitive obsession: two bare str/int params in sequence, float money, raw status strings
 rg -nH --pcre2 'def\s+\w+\s*\([^)]*:\s*str\s*,[^)]*:\s*str' --type py $EXCLUDE -- $PY_FILES

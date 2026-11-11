@@ -185,7 +185,7 @@ TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/*_test.go"
 rg -nH --pcre2 '\b[a-z]\w+\.[A-Z]\w+\.' --type go $EXCLUDE -- $GO_FILES
 
 # Data clumps: signatures with 3+ parameters, multi-line included — test setup belongs to test-hunter
-rg -nHU --pcre2 'func\s+(\(\w+\s+\*?\w+\)\s+)?\w+\((?:[^,)]*,){2,}[^)]*\)' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
+rg -nHU --pcre2 'func\s+(\(\w+\s+\*?\w+(\[[^\]]*\])?\)\s+)?\w+(\[[^\]]*\])?\((?:[^,)]*,){2,}[^)]*\)' --type go $TEST_OWNED_EXCLUDE -- $GO_PROD
 
 # Primitive obsession: two bare string/int params in sequence (swap candidates)
 rg -nH --pcre2 'func.*\(\s*\w+\s+string\s*,\s*\w+\s+string' --type go $EXCLUDE -- $GO_FILES
