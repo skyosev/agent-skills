@@ -229,8 +229,9 @@ Error wrapping that adds words, not context. Defined in `references/slop-go.md`.
 ### Within-skill routing
 
 A doc comment attached to a declaration (godoc, docstring, JSDoc) → Verbose Documentation. Any other comment →
-Redundant Comments, or Hedging and Narration when it speculates or apologizes. Commented-out code → Trivially Dead
-Code. One finding per site.
+Redundant Comments, or Hedging and Narration when it speculates or apologizes; one that neither restates the code
+nor hedges, and only breaks the file's convention baseline for comments (marker, placement, casing, spacing) → Style
+Drift. Commented-out code → Trivially Dead Code. One finding per site.
 
 **Markers and suppressions.** A `TODO` / `FIXME` / `XXX` comment or a linter suppression → Trivially Dead Code, also
 when its text hedges or restates code, and also inside a doc comment. That comment gets no other row; the rest of a
