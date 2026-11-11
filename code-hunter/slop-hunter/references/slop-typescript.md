@@ -1,6 +1,6 @@
 # Slop Hunter — TypeScript reference
 
-Contents: Generated-code eligibility · Per-category TypeScript markers · Formatter · Idiom calibration · Phase 2 — slop scans · Phase 5 — TypeScript-specific evaluation
+Contents: Generated-code eligibility · Per-category TypeScript markers · Delegated to tools · Idiom calibration · Phase 2 — slop scans · Phase 3 — TypeScript-specific evaluation
 
 ## Generated-code eligibility
 
@@ -35,55 +35,33 @@ Comment syntax is `//` and `/* */`. `// Initialize the array` above `const arr =
 JSDoc markers:
 
 - JSDoc on a non-exported function restating its name or body
-- `@param name - the name`; `@param {string} name` repeating a type the signature already declares
+- `@param name - the name`
 - `@returns` restating the return type
 - `@description` narrating the implementation rather than the contract
 
-JSDoc types (`{string}`) in a TypeScript file are redundant with the signature unless the project generates docs from them — check for a `typedoc`
-or `api-extractor` config before flagging.
-
-### Style Drift
-
-- `snake_case` where the project uses `camelCase`, or the reverse; `I`-prefixed interfaces where the project has none
-- Template strings where the project uses concatenation, or the reverse
-- Import ordering or grouping that breaks the project's (or its `import/order` / `simple-import-sort` config)
-- A different error-handling pattern than established code (thrown strings, `catch (e: any)`, swallowed catches)
-- `function` declarations where the project uses arrow constants, or the reverse
-- Formatter output on touched lines (see Formatter)
-
-ESLint resolves the nearest config (`eslint.config.*`, `.eslintrc.*`); Biome resolves `biome.json` /
-`biome.jsonc`.
-
 ### Trivially Dead Code
 
-- `import { X } from '…'` where `X` has no use in the file
-- `const x = …` inside a function or block, never referenced, with a side-effect-free initializer. An unused
-  top-level constant is simplicity-hunter's Dead Code Paths
-- Commented-out code (`// const old = …`); `TODO` / `FIXME` without owner, ticket, or condition
+- `TODO` / `FIXME` without owner, ticket, or condition
 - Bare `// eslint-disable`, `// eslint-disable-next-line <rule>`, `// biome-ignore lint/<rule>` with no trailing
   reason (`-- reason` for ESLint, `: reason` for Biome)
 
-Not a finding: `import type` kept for a declaration merge with a stated reason;
-`export {}` making a file a module.
-
 ### Hedging and Narration
 
-Narration: `console.log` / `console.debug` / `console.info` with `'entering …'`, `'here'`, `'start'`, `'done'`, a
-function name, or an unlabelled variable dump.
+Narration through a logger: `logger.debug('entering …')`, `logger.info('start')`.
 
-## Formatter
+## Delegated to tools
 
-**Adoption:** the project invokes `prettier` or `biome format` — a `package.json` script, `lint-staged`, a husky
-hook, `.pre-commit-config.yaml`, or CI. A project running `biome check` with `formatter.enabled` in `biome.json` has
-adopted Biome. A `.prettierrc` alone is **not** adoption.
-
-**Execution:** `node_modules/.bin/prettier --list-different $TS_FILES` or `node_modules/.bin/biome format $TS_FILES`
-(the nearest `node_modules` in a monorepo) — never `biome check`, which also lints. Not installed means no
-`node_modules/.bin/<tool>`. A syntax error or bad config is `errored`.
-
-In diff mode, `prettier --check` names files only; get the violating lines from
-`diff <(node_modules/.bin/prettier <file>) <file>` (or `node_modules/.bin/biome format <file>` output). Convention
-cell: `prettier, touched line`.
+- Prettier, or Biome's formatter: unformatted code.
+- ESLint with typescript-eslint, eslint-plugin-jsdoc and eslint-plugin-sonarjs, or Biome where a rule is named:
+  naming case and an `I` prefix (`@typescript-eslint/naming-convention`, or Biome `useNamingConvention`); import order
+  (eslint-plugin-simple-import-sort, or Biome's `organizeImports` assist); concatenation where a template fits
+  (`prefer-template`, or Biome `useTemplate`); `function` declarations against arrow constants (`func-style`); a
+  thrown non-`Error`, `catch (e: any)` and an empty `catch` (`@typescript-eslint/only-throw-error`, `no-explicit-any`,
+  `no-empty`, or Biome `useThrowOnlyError`, `noExplicitAny`, `noEmptyBlockStatements`); commented-out code
+  (`sonarjs/no-commented-code`); unused imports and locals (`@typescript-eslint/no-unused-vars`, or Biome
+  `noUnusedImports`, `noUnusedVariables`); `console` calls (`no-console`, or Biome `noConsole`, with an override for
+  CLI files); JSDoc types in a `.ts` file (`jsdoc/no-types`); a disable comment that suppresses nothing
+  (`linterOptions.reportUnusedDisableDirectives`; Biome reports it by default).
 
 ## Idiom calibration
 
@@ -109,12 +87,8 @@ D '\s*(//|/?\*)'                                             # comments and JSDo
 D '.*(@param|@returns?|@description)'                            # JSDoc tags
 D '.*\b(TODO|FIXME|XXX)\b'                                     # placeholder markers
 D '.*(eslint-disable|biome-ignore)'                              # linter suppressions (check for a reason)
-D '\s*import\s'                                                # added imports (check uses in the file)
-D '.*console\.(log|debug|info)\('                              # narration candidates
+D '.*(log|logger)\.\w+\(\s*["\x27`](entering|exiting|start|done|here)'   # narration through a logger
 D '.*(?i)(might need|for safety|new, improved|improved version)'              # hedging
-
-# Removed lines, with file and hunk headers: a removed use of a still-imported name nominates a Phase 4 candidate
-git diff -U0 "$MB" -- $TS_FILES | rg '^(\+\+\+ |@@|-)' | rg -v '^--- (a/|/dev/null)'
 
 # ---- Whole-file scans ----
 # path / codebase: F=$TS_FILES    diff (untracked files): F=$(git ls-files --others --exclude-standard -- $TS_FILES)
@@ -124,17 +98,11 @@ W '/\*\*'                                                      # JSDoc blocks
 W -B2 '^\s*(async\s+)?function\s+[a-z]|^\s*const\s+[a-z]\w*\s*=\s*(async\s*)?\(' # non-exported functions with docs
 W '\b(TODO|FIXME|XXX)\b'
 W 'eslint-disable|biome-ignore'
-W 'console\.(log|debug|info)\('
+W '(log|logger)\.\w+\(\s*["\x27`](entering|exiting|start|done|here)'
 W -i 'might need|for safety|new, improved|improved version'
-
-# Unused-import nomination (path mode): for each imported name, count uses outside the import line
-# rg -c '\bNAME\b' FILE   → 1 means the import is the only mention
-
-# ---- Formatter (Phase 3), only when adopted and installed ----
-node_modules/.bin/prettier --list-different $TS_FILES      # or: node_modules/.bin/biome format $TS_FILES
 ```
 
-## Phase 5 — TypeScript-specific evaluation
+## Phase 3 — TypeScript-specific evaluation
 
 For each JSDoc candidate:
 
@@ -142,17 +110,6 @@ For each JSDoc candidate:
 - Does the project generate docs from JSDoc (`typedoc`, `api-extractor`)? Then `@param` prose has a consumer;
   judge the prose, not the presence.
 
-For each unused-import candidate in diff mode:
-
-- Is the name used anywhere in the working-tree file — JSX tags, decorators, type positions, `typeof`?
-- Unused in the working tree → apply the Phase 4 proof.
-- `noUnusedLocals` on in the applicable `tsconfig`? Re-open the file to confirm. If the import is unused, it slipped
-  past `tsc` (bundlers such as esbuild and Vite do not type-check) and is a finding.
-
 For each suppression:
 
 - Is there a trailing reason (`-- reason`, `: reason`)? Bare → Trivially Dead Code. Is the suppressed rule reporting something real? Then the noise hides a finding (SKILL.md Severity).
-
-For each `console.*`:
-
-- Is this a CLI or script whose output *is* `console`? Then it is the interface, not narration.

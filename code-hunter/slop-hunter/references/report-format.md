@@ -9,11 +9,8 @@ table, or "none found" line; a thin report is a valid result.
 Language-only categories appended by a language reference (Go: Unnecessary Error Wrapping) use the table
 schema supplied in that reference.
 
-**Consolidated rows** (SKILL.md Style Drift → Consolidation): Occurrences is `N`, or `≥ N` for a partial scan; every
-other row has `Occurrences: 1`. `Audit completed` counts every reported finding, a consolidated row once.
-
 **Convention cell.** Names the baseline source used — config file, repository instruction, nearby code, or style
-guide. For a formatter finding in diff mode it also carries the touched-line rule: `gofmt, touched line`.
+guide.
 
 ```md
 # Slop Hunter Audit — {date}
@@ -29,7 +26,6 @@ guide. For a formatter finding in diff mode it also carries the touched-line rul
 - References loaded: {go, python, typescript as present}
 - {excluded — no reference for .<ext>: {count} files — when applicable, naming each extension}
 - {Deleted in diff: {list} — only for diff scope with deletions}
-- Formatter: {per language — ran <tool> / skipped — <reason> / errored — <message>}
 - {baseline uncertain: <concern> — one line per concern, when any}
 - {not read: {n} files — context budget}
 - {Read split: {n} agents by {unit} — merged by this session}
@@ -51,24 +47,22 @@ guide. For a formatter finding in diff mode it also carries the touched-line rul
 
 ### Style Drift
 
-| # | Location | Pattern | Convention | Occurrences | Severity | Impact | Action |
-| - | -------- | ------- | ---------- | ----------- | -------- | ------ | ------ |
-| 1 | svc/user.py:12 | `userName` | `snake_case` — `ruff.toml` N815, nearby code | 1 | Low | Medium | Rename |
-| 2 | cmd/run.go:7 | import grouping | `gofmt, touched line` | 1 | Low | Low | Run `gofmt -w` |
-| 3 | web/view.tsx:3 | unformatted file | Prettier — `package.json` `format` script | 14 | Low | Medium | Run `prettier --write` |
+| # | Location | Pattern | Convention | Severity | Impact | Action |
+| - | -------- | ------- | ---------- | -------- | ------ | ------ |
+| 1 | store/order.go:12 | `func CreateOrder(…)` | `New*` constructors — nearby code (`store/user.go`, `store/item.go`) | Low | Medium | Rename to `NewOrder` |
 
 ### Trivially Dead Code
 
 | # | Location | Code | Severity | Impact | Action |
 | - | -------- | ---- | -------- | ------ | ------ |
-| 1 | util/parse.py:3 | `import re` — last use removed in this change (used at merge base `a1b2c3d`) | Low | Low | Delete |
+| 1 | util/parse.py:3 | `# TODO: fix this` — no owner, ticket, or condition | Low | Low | Delete, or name the owner |
 | 2 | handler.go:55 | `//nolint:errcheck` with no reason | Medium | Medium | State the reason |
 
 ### Hedging and Narration
 
 | # | Location | Pattern | Severity | Impact | Action |
 | - | -------- | ------- | -------- | ------ | ------ |
-| 1 | worker.ts:88 | `console.log('entering process')` | Low | Low | Delete |
+| 1 | worker.ts:88 | `logger.debug('entering process')` | Low | Low | Delete |
 
 ## Recommendations (Priority Order)
 

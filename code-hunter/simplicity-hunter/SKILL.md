@@ -12,7 +12,7 @@ deeper than needed, mixed concerns. Goal: **the simplest code that preserves int
 **Not covered (owned by other hunters):** class and interface *design* (→ solid-hunter; Go interface pollution stays
 here); invariant enforcement (→ invariant-hunter); type structure (→ type-hunter); module boundaries and exports
 (→ boundary-hunter); documentation (→ doc-hunter); security (→ security-hunter); test quality and test-code
-duplication (→ test-hunter); cosmetic style and commented-out code, in every mode (→ slop-hunter); broader
+duplication (→ test-hunter); cosmetic style (→ slop-hunter); commented-out code is not covered here; broader
 non-idiomatic patterns (→ smell-hunter); performance — over-engineered code is here, under-optimized code is
 perf-hunter's; error-handling policy — what to catch, how to convert and propagate (→ exception-hunter; duplicated
 error-handling code stays here). A finding that doesn't answer "is this simpler than it could be?" belongs
@@ -205,8 +205,8 @@ flags always on/off, shown by evidence in the repository — a constant, a confi
 (a flag whose value lives outside the repository, such as in a remote flag service, is withdrawn); `nil` / `None` /
 `undefined` checks already guaranteed (see Guard ownership); default/`else` arms already ruled out.
 
-**Ownership:** commented-out code is slop-hunter's Trivially Dead Code, unconditionally — text is not a code path and
-has no liveness question. This category owns *live* code that cannot execute or is never called: unused functions and
+**Ownership:** commented-out code is not covered here — text is not a code path and has no liveness question. This
+category owns *live* code that cannot execute or is never called: unused functions and
 constants. Exported dead symbols → boundary-hunter's Dead Exports. The language reference's Dead code section splits
 unused bindings, parameters, and fields, and names the exported dead symbols that stay here.
 

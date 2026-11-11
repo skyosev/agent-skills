@@ -13,7 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parent
 HUNTERS = sorted(d.name for d in ROOT.glob("*-hunter"))
 NOT_SLOP = [h for h in HUNTERS if h != "slop-hunter"]  # slop's step 1 differs on purpose: diff is its default scope
 COMMENT_RULE = ["doc-hunter", "slop-hunter", "smell-hunter"]
-DELEGATING = ["exception-hunter"]  # hunters whose references hold a `## Delegated to tools` section
+DELEGATING = ["exception-hunter", "slop-hunter"]  # hunters whose references hold a `## Delegated to tools` section
 
 # (file, first-line prefix, end-line prefix or None for "next blank line", hunters)
 SHARED = [

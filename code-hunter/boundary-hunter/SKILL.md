@@ -173,7 +173,7 @@ not double.
 
 **Ownership:** an *exported* symbol with no external consumer is here. An unused *unexported* function or constant,
 and a Python non-`__all__` name with no importers anywhere, are simplicity-hunter's Dead Code Paths; unused imports
-and bindings are slop-hunter's Trivially Dead Code. A TypeScript `export` in a non-entry file that the entry does not
+and bindings are not covered here. A TypeScript `export` in a non-entry file that the entry does not
 re-export, with zero importers anywhere, is simplicity-hunter's Dead Code Paths — the analogue of the Python rule. A
 member exposed but untouched by any consumer is this category at member granularity, Low; a member a consumer touches
 is Leaked Internals.
