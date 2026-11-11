@@ -193,7 +193,9 @@ footer { font-size: 13px; color: var(--ink-3); border-top: 1px solid var(--line)
     <dt>[[FILL: a folder the steps name]]</dt><dd>[[FILL: the path, what it holds, what it imports]]</dd>
     <dt>Code version</dt><dd>Commit <code>[[FILL: short sha]]</code>, the last commit on <code>[[FILL: branch]]</code> when this page was written. Each source link opens that version. Each example output on this page comes from a run against that code.</dd>
   </dl>
-  <p>[[FILL: how many steps, the example that grows through them, the two parts of each step (usage, then the amber box "Inside the engine"), and what the reader must know already]]</p>
+  <p>[[FILL: how many steps, the example that grows through them, the two parts of each step (usage, then the amber box "Inside …" with the source that does the work)]]</p>
+  <!-- The known items of the reader profile. A second reader sees here what the page does not explain. -->
+  <p>This page assumes that you can read: [[FILL: each known item of the profile, by name; "nothing beyond the main branch" when no item is known]]</p>
 </header>
 
 <!-- One button per step. aria-controls names the panel id; the first button is selected. -->
@@ -259,9 +261,9 @@ const x = make('id');  <span class="c">// a comment span: the highlighter leaves
       <tr><td>[[FILL: a consequence]]</td><td><span class="err">[[FILL]]</span></td><td><span class="ok">[[FILL]]</span></td><td><span class="ok">[[FILL]]</span></td></tr>
     </tbody>
   </table></div></div>
-  <!-- Closed by default. Code for each alternative, so the reader sees the failure. Sketches are marked; errors are real tsc --strict text; outputs are real runs. -->
+  <!-- Closed by default. Code for each alternative, so the reader sees the failure. Sketches are marked; errors are real text from the project's checker; outputs are real runs. -->
   <details class="alt"><summary>[[FILL: The N ways]] in code</summary><div class="body">
-    <p>A and B are sketches. They are not in the code. The compiler errors come from <code>tsc --strict</code>. The outputs come from real runs of the sketches.</p>
+    <p>A and B are sketches. They are not in the code. The compiler errors come from <code>[[FILL: the command of the project's checker, for example tsc --strict, mypy or javac; drop this sentence when the block shows no such error]]</code>. The outputs come from real runs of the sketches.</p>
     <h4>A. [[FILL: alternative A]]</h4>
     <div class="code"><div class="cap"><b>sketch · not in the code</b><span>[[FILL: file]]</span></div><pre><code>[[FILL: sketch]]
 <span class="c">// error TS2362: [[FILL: the real message]]</span></code></pre></div>
@@ -279,8 +281,8 @@ const x = make('id');  <span class="c">// a comment span: the highlighter leaves
   </table></div></div>
   <p>[[FILL: what the rejected design would do in this case]]</p>
 
-  <!-- 5. Inside the engine: open. The real source that does this step, trimmed; the link names the full SHA and the exact lines. -->
-  <details class="inside" open><summary>Inside the engine: [[FILL: the mechanism, as a claim]]</summary><div class="body">
+  <!-- 5. Inside: open. The real source that does this step, trimmed; the link names the full SHA and the exact lines. -->
+  <details class="inside" open><summary>Inside [[FILL: the package or module, by its name in the terms box]]: [[FILL: the mechanism, as a claim]]</summary><div class="body">
     <p>[[FILL: the question the source answers, then the answer]]</p>
     <div class="code"><div class="cap"><b>[[FILL: path/in/repo.ts]]</b><a href="https://github.com/[[FILL: owner/repo]]/blob/[[FILL: full 40-char sha]]/[[FILL: path/in/repo.ts]]#L[[FILL: a]]-L[[FILL: b]]" target="_blank" rel="noopener">lines [[FILL: a–b]], trimmed ↗</a></div><pre><code>[[FILL: trimmed real source]]</code></pre></div>
     <div class="out"><div class="cap">Output <span>· real runs</span></div><div class="tw"><table><tbody>

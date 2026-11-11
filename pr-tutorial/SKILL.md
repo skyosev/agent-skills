@@ -8,7 +8,7 @@ argument-hint: "[PR number | PR URL | branch]"
 
 Teach the new concept of: $ARGUMENTS (a PR number, a PR URL or a branch; nothing means the current branch).
 
-You write one HTML page that teaches the concept as a tabbed tutorial. Each step adds one idea to the steps before it. The reader knows the code on the main branch. Everything that the branch adds is new to the reader, the internals too.
+You write one HTML page that teaches the concept as a tabbed tutorial. Each step adds one idea to the steps before it. Everything that the branch adds is new to the reader, the internals too. The reader profile (section 2) records what else the reader can read.
 
 pr-explain explains what a PR changed, on one page. This skill teaches how the new thing works, step by step. If the user wants a review or a change summary, use pr-explain.
 
@@ -17,7 +17,7 @@ pr-explain explains what a PR changed, on one page. This skill teaches how the n
 - `T=<this skill's directory>`. Node runs `$T/scripts/check.mjs`.
 - The Artifact tool. Before you write the page, follow its contract: call `quickstart` with `intent: "other"`, or load the `artifact-design` skill. `$T/assets/template.html` already follows that contract (title, theme tokens, dark mode, pinned cdnjs script). Keep those parts.
 - `agent-browser` for the screenshots in step 6. If it is missing, skip the screenshots and say so.
-- Work in `D=<session scratchpad>/pr-tutorial/<repo>-<branch>`.
+- Work in `D=<session scratchpad>/pr-tutorial/<repo>-<branch>`: the repository name without its owner, and `-` for each `/` in the branch name.
 
 ## 1. Freeze the commit and find what is new
 
@@ -34,27 +34,50 @@ git branch -r --contains $HEAD           # empty: the source links will 404
 - Every source link is `https://github.com/<owner>/<repo>/blob/<full HEAD SHA>/<path>#L<a>-L<b>`. A branch name in a link moves; a full SHA does not.
 - If no remote branch holds HEAD, tell the user that the links do not open until the branch is pushed.
 
-## 2. Plan the steps
+## 2. Profile the reader, then plan the steps
 
-Write the plan before any HTML: one line per step with its title, the names it adds, and the map parts it adds.
+### The reader profile
+
+The **profile** records what the reader can read without help. It decides what the page explains and what the page only uses. Build it before the plan.
+
+1. List each thing that the branch's code needs from the reader, that exists outside the branch, and that a developer who writes this language every day can still lack. A pattern that the branch implements (a reducer) is an item; the branch's own names are not. Daily syntax (a loop, a lambda, a list method) is not an item; the page only uses it. The headings:
+   - language features: generics, a decorator, a discriminated union;
+   - patterns: a reducer, dependency injection, an event log;
+   - design concepts: derived state, idempotency;
+   - technologies: a library, a framework, a protocol;
+   - main-branch modules that the branch builds on.
+2. Number the items. Show each one as at most 5 lines from the branch; show a main-branch module as its path and one sentence. Two items that a reader knows or lacks together are one item (a schema library and the type that it derives from a schema). A general item (Java streams) covers its common members (`map`, `filter`); a member that many users of the technology cannot read (a custom `Collector`) is an item of its own. Within a heading, go from easy to hard.
+3. Ask the user once: "Which of these can the reader read without help? Answer with the numbers." For a page with more than one reader, the user answers for the reader who knows least.
+4. Mark each item that the answer names `known`, and every other item `new`. An item that you find later, while you write a step, is `new`; add it to the profile.
+
+The profile is done when each item has a mark. The plan then gives each `new` item the step whose code first needs it.
+
+What a mark changes:
+
+- **A `new` item:** the page explains it at its first use (section 4).
+- **A `known` item:** the page only uses it. The header lists the `known` items ("This page assumes that you can read: …"), so a second reader sees what the page leaves out.
+- **A step whose design choice is a `known` pattern or design concept:** the step states the problem, names the pattern, says how the branch applies it, and goes from the use to the "Inside" block. The analogy of block 1 and blocks 3 and 4 of section 3 (the comparison and the cases) are for a design choice that is `new`.
+
+### The plan
+
+Write the plan before any HTML: one line per step with its title, the names it adds, the `new` profile items it explains, and the map parts it adds.
 
 - **Start with the smallest set of interfaces and abstractions that shows the intent of the architecture and how the parts talk to each other.** Then add one concept per step. Each step builds on the steps before it and stays short.
-- **Smallest set does not mean public API only.** The reader knows only the main branch, so the internals are new too. A tutorial that shows only usage leaves the reader with names and no model. Every step pairs its use with an "Inside the engine" block (step 3).
-- **Find the reader's level in the language.** Knowing the main branch does not mean knowing the language features that the branch adds. List the harder features the branch uses as short snippets, from easy to hard, and ask which ones the reader can read. Teach each other feature at the step whose code first needs it.
-- **Grow one small example.** Take it from the branch's tests if one fits. Each step continues the code of the step before, and each line that a step adds has a reader in that step. The last step shows the real product code that uses the concept.
+- **Smallest set does not mean public API only.** The reader knows only the main branch, so the internals are new too. A tutorial that shows only usage leaves the reader with names and no model. Every step pairs its use with an "Inside" block (section 3).
+- **Grow one small example.** Take it from the branch's tests if one fits. Each step continues the code of the step before, and each line that a step adds has a reader in that step. The last step shows the real product code that uses the concept. When the branch has no such code, the last step shows the function of the branch that product code will call, and says that no caller exists yet.
 - **One map.** Draw the architecture once, as the SVG in the template. Each part gets `data-s="<step that adds it>"`; the page dims later parts and marks the parts of the current step.
 
 ## 3. Write each step
 
 Copy `$T/assets/template.html` to `$D/tutorial.html`. Its step 1 shows every block, in order, with a comment on what each block holds. A step keeps that order and drops the blocks it has no use for.
 
-Before you write the first step, read `$T/references/example-step.html`. It is a finished step that the user accepted after four rounds of feedback. It shows how much a step must explain. A step that follows the rules below but is much shorter than the example is probably too thin.
+Before you write the first step, read `$T/references/example-step.html`. It is a finished step that the user accepted after four rounds of feedback. Its design choices were `new` to its reader, and it shows how much such a step must explain. A step with a `new` design choice that follows the rules below but is much shorter than the example is probably too thin. A step with a `known` design choice is shorter by the parts that section 2 names.
 
 1. **The problem first.** Say which questions the concept answers, and why the reader needs the answer before the code. Then give a familiar analogy, mapped term by term ("a spreadsheet: a handle is the cell address, a pick is what you typed"). A step that says what a thing is, but not why, loses the reader.
 2. **The use.** The next piece of the example, in the code view (below), then its real output in an `.out` table.
 3. **The design choice, compared.** When the design picks one of several usual ways, show a table: one column per alternative, one row per consequence (`.ok`, `.err`, `.amb`). Under it, a closed `details.alt` "The N ways in code" with code for each alternative, so the reader sees the failure, not only a cell that says "no". Mark each alternative that is not in the code "sketch · not in the code". When the failure only shows at run time (shared state, a race, a lost value), run the sketch and paste its output. When the usual fix for an alternative leads back to this design, show that too: "to fix B, you make one object per configuration; then the input box needs a name to find its object; that name is a handle". This step convinces the reader more than the table does.
 4. **Concrete cases.** Before and after, with real output, and one sentence on what the rejected design does in the same case.
-5. **Inside the engine.** An open `details.inside` with the real source that does this step, trimmed, and a link to its exact lines. Say "trimmed" in the link text when you cut lines.
+5. **Inside.** An open `details.inside` with the real source that does this step, trimmed, and a link to its exact lines. Its title is "Inside <the package or module, by its name in the terms box>: <the mechanism, as a claim>". Say "trimmed" in the link text when you cut lines.
 6. **Keep this.** The rule the reader takes away, in the `.rule` box.
 
 Code blocks: escape `<`, `>` and `&`. Write comments as `<span class="c">// …</span>` and new lines as `<span class="hl">…</span>`; the highlighter paints only the text around them. Set `data-lang` on the `code` element when the language is not TypeScript.
@@ -73,8 +96,8 @@ When a step continues earlier code, the reader sees what changed and does not re
 
 - **Never open with undefined context.** The lead says what the package is and what it does. A first sentence such as "a run of the engine at a3f227e" names a commit and a term that the reader has not met.
 - **The terms box defines each folder, package, branch and commit before the page uses it.** No bare SHA and no unexplained name ("the engine") anywhere.
-- **Define every name at or before its first use**: function, type, parameter (`ctx`), field, error code, term. Add each to the step's "New" list. Before you finish a step, read its code and prose and look for each identifier in the "New" lists of this step and the steps before, or in the terms box.
-- **Name each language construct too.** A pattern has no identifier to scan for: a discriminated union, a type guard, an overload. At its first use, name it, say what it does, show it in a few lines of its own, and add it to the "New" list.
+- **Define every name at or before its first use**: function, type, parameter (`ctx`), field, error code, term. Add each to the step's "New" list. Before you finish a step, read its code and prose and look for each identifier in the "New" lists of this step and the steps before, in the terms box, or in a `known` item of the profile (`@property`, when the reader knows Python decorators).
+- **Explain each `new` item of the profile at its first use.** An item has no identifier to scan for: a discriminated union, a type guard, a reducer. Name it, say what it does, show it in a few lines of its own, and add it to the "New" list.
 - A forward reference "(step N)" is allowed only where the sentence makes sense without it.
 - **Fold only code.** The explanation of a step and its main outputs stay open.
 - **Closed blocks do not define names for the open text.** The reader can skip a closed `details.alt`. A name that only a closed block defines is undefined for the text outside it. Define it in the open text first.
@@ -83,7 +106,8 @@ When a step continues earlier code, the reader sees what changed and does not re
 ## 5. Every output and claim is real
 
 - Run each example against the code at HEAD: scratch scripts in `$D/run/` that import the real source from `$D/wt` by absolute path. Paste the output as it prints. Trim only with "…".
-- Quote compiler errors from a real `tsc --strict --noEmit` run, with the code, for example `error TS2322: Type 'number' is not assignable to type 'string'.` Run the sketches too; a sketch output also comes from a run.
+- A symbol that the branch does not export: run it through an exported function that shows its result. When no exported function shows the result, copy its lines unchanged into the script, and say so in the caption of the output ("from a copy of lines a–b").
+- Quote compiler and type-checker errors from a real run of the project's own checker with the project's settings (`tsc --noEmit`, `mypy`, `javac`). Keep the error code, for example `error TS2322: Type 'number' is not assignable to type 'string'.` In a language with no such checker, quote the error of a real run. Run the sketches too; a sketch output also comes from a run.
 - Show one change and one error per block. Show the lines the error names. Explain the error as a numbered chain: what each value or type is, what the operation requires, why they do not fit. Add a run that shows the effect at run time when one exists.
 - Check every sentence that states a fact about the code against the source line that proves it. A plausible claim is not proof: one draft said "the browser does not send the values", and the code sends them.
 - Write "bug", "wrong" or "breaks" only when a run on the page shows the harm, or when a rule that the page already stated is broken. Otherwise say what happens, and name the step that brings the rule.
@@ -116,7 +140,7 @@ Look for: text that overflows at 390 px, code without colors (the highlighter fa
 
 Spawn one reviewer agent that has not seen your work. Give it the page path and this brief:
 
-> Read the steps of `<path>` in order, as a reader who knows only the `<main branch>` branch of `<repo>`. Report per step: (1) names used before they are defined; (2) concepts with no "why"; (3) design choices where a comparison with the alternative, in code, would help; (4) confusing jumps or contradictions; (5) language constructs that the page does not name and explain; (6) errors whose cause the page does not explain step by step, and blocks with more than one change; (7) "bug" or "wrong" with no run or stated rule; (8) code that nothing reads in its own step. Quote the sentence for each finding.
+> Read the steps of `<path>` in order, as a reader who can read these without help: `<the known items of the profile>`. Everything else on the page is new to this reader. Report per step: (1) names used before they are defined; (2) concepts with no "why"; (3) design choices outside that list where a comparison with the alternative, in code, would help; (4) confusing jumps or contradictions; (5) language features, patterns and technologies outside that list that the page does not name and explain; (6) errors whose cause the page does not explain step by step, and blocks with more than one change; (7) "bug" or "wrong" with no run or stated rule; (8) code that nothing reads in its own step; (9) an explanation of something on that list, and text that repeats an earlier step. Quote the sentence for each finding.
 
 Check each finding against the page and the code before you act on it or relay it. A reviewer can be wrong. Scan for (5) to (8) yourself too: reviewers missed each of them, and the reader found them.
 
