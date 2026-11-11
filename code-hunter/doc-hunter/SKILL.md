@@ -16,8 +16,8 @@ true.**
 `TODO` / `FIXME` / `XXX` work items, hedging, and task history in comments (→ slop-hunter); "what" comments over
 non-trivial code (Comments as Deodorant), call order of the project's own API (Temporal Coupling), duration integers,
 floating-point money, and raw status strings, also when a comment states the allowed values (Primitive Obsession),
-stuttering names (→ smell-hunter); comments that justify a nil or zero-value contract, an invariant that a runtime check
-already enforces (→ invariant-hunter); comments that justify a discarded error, Go reachable panics and discarded
+stuttering names (no hunter owns them); comments that justify a nil or zero-value contract, an invariant that a runtime
+check already enforces (→ invariant-hunter); comments that justify a discarded error, Go reachable panics and discarded
 errors, `None` / `undefined` returned for an error (→ exception-hunter); empty catches and discarded promises are not
 covered here; code that needs a "what" comment, intentional complexity whose stated reason is stale, unused code under
 `// IMPORTANT: do not remove` (→ boundary-hunter for an export, else no hunter); an implementation that breaks a
@@ -76,8 +76,7 @@ Rules of the standard:
   Comments and Names. A claim the repository cannot settle → no finding.
 - A doc is true for every case it covers → Misleading Comments and Names.
 - A name says what the thing is or does → Misleading Comments and Names (`name`). One concept has one name in storage,
-  code, API, and docs → the same, at mapping sites. A prefix that repeats the package or type → smell-hunter's
-  Stuttering Names.
+  code, API, and docs → the same, at mapping sites. A prefix that repeats the package or type → no hunter.
 
 **Comment ownership rule** (shared with slop-hunter and smell-hunter; the first match wins):
 
@@ -372,7 +371,7 @@ A comment, doc, or name claims what a cited line contradicts.
   - intentional complexity → simplicity-hunter.
 - A vague or generic name → boundary-hunter's Generic Boundary Names (packages), or not a finding.
 - Naming convention drift → slop-hunter's Style Drift.
-- Stuttering → smell-hunter's Stuttering Names.
+- Stuttering → no hunter.
 
 **Evidence bar:** the Claim, quoted, and Contradicted At, the line or lines that contradict it. For `expired`, the
 repository fact (the `go.mod` line, the lockfile version, the date). In diff mode, the change that made the text

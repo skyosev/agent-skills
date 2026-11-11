@@ -1,6 +1,6 @@
 # Smell Hunter — Go reference
 
-Contents: Applicability of conditional categories · Generated-code eligibility · Language-only categories · Per-category Go content · Framework carve-outs · Idiom calibration · Phase 2 — smell scans · Phase 5 — Go-specific evaluation
+Contents: Applicability of conditional categories · Generated-code eligibility · Language-only categories · Per-category Go content · Framework carve-outs · Idiom calibration · Phase 2 — smell scans · Delegated to tools · Phase 5 — Go-specific evaluation
 
 ## Applicability of conditional categories
 
@@ -12,7 +12,7 @@ Contents: Applicability of conditional categories · Generated-code eligibility 
 | Anemic Domain Model | **no** | functional domain logic over immutable data is idiomatic Go. solid-hunter records plain functions and closures as architecture style and never demands objects (its "Functional-style code" Not-a-finding); flagging it here would contradict a sibling hunter |
 | Class Abuse | **no** | Go has no classes |
 
-**Language-only categories added below:** `init()` Abuse, Stuttering Names, Pointer Out-Parameters.
+**Language-only categories added below:** `init()` Abuse, Pointer Out-Parameters.
 
 ## Generated-code eligibility
 
@@ -47,25 +47,6 @@ belong in `init()`.
 | # | Location | Side Effects | Severity | Impact | Action |
 | - | -------- | ------------ | -------- | ------ | ------ |
 | 1 | file.go:line | Opens DB connection, reads env vars | High | Medium | Move to explicit `Setup()` called from main |
-
-### Stuttering Names
-
-Exported identifiers that repeat the package name, violating Go's convention that the package name supplies context.
-
-**Ownership:** stuttering as a package-design smell is owned here; slop-hunter owns Go
-naming-convention *drift introduced by the audited change* (its diff orientation).
-
-**Signals:** `user.UserName` for `user.Name`; `config.ConfigOption` for `config.Option`; `auth.AuthMiddleware` for
-`auth.Middleware`; `db.DBConnection` for `db.Connection`; `errors.ErrorCode` for `errors.Code`.
-
-**Action:** Drop the package-name prefix. `user.Name` already reads as "the Name in the user package"; the stutter is
-noise and violates the convention documented in Effective Go. Severity is **Low** however widespread.
-
-**Report table:**
-
-| # | Location | Current Name | Suggested Name | Severity | Impact | Action |
-| - | -------- | ------------ | -------------- | -------- | ------ | ------ |
-| 1 | user/user.go:12 | `user.UserName` | `user.Name` | Low | Low | Rename |
 
 ### Pointer Out-Parameters
 
@@ -237,11 +218,13 @@ rg -nH --pcre2 'func[^{]*\b(dst|out|output|result|target)\s+\*' --type go $EXCLU
 
 # Pointer out-parameters: pointer-to-slice and pointer-to-map params
 rg -nH --pcre2 'func[^{]*(\*\[\]|\*map\[)' --type go $EXCLUDE -- $GO_FILES
-
-# Stuttering names: compare each package name against its exported symbols
-rg -nH '^package\s+\w+' --type go $EXCLUDE -- $GO_FILES
-rg -nH '^(func|type|var|const)\s+[A-Z]\w+' --type go $EXCLUDE -- $GO_FILES
 ```
+
+## Delegated to tools
+
+- golangci-lint's `revive`: an exported name that repeats its package name as a prefix, `user.UserName` (`exported`,
+  with the arguments `disableChecksOnConstants`, `disableChecksOnFunctions`, `disableChecksOnMethods`,
+  `disableChecksOnTypes`, `disableChecksOnVariables`, which turn off its missing-doc checks and keep the stutter check).
 
 ## Phase 5 — Go-specific evaluation
 

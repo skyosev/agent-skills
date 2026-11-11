@@ -18,7 +18,7 @@ dependency defect but not when the workaround can go, whatever the marker (→ d
 that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code (→ smell-hunter,
 Comments as Deodorant); live but unreachable logic (→ simplicity-hunter, Dead Code Paths); unused functions and
 constants (no hunter owns them); exported dead symbols (→ boundary-hunter, Dead Exports); generic package / module names
-(→ boundary-hunter, Generic Boundary Names); stuttering names as package design (→ smell-hunter); type-checker
+(→ boundary-hunter, Generic Boundary Names); stuttering names as package design (no hunter owns them); type-checker
 suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain correctness and
 discarded error returns (→ exception-hunter); narration that leaks secrets (→ security-hunter); test quality (→
 test-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
@@ -134,9 +134,9 @@ convention is not an audit. A finding whose baseline source cannot be named is n
 
 **Action:** Conform.
 
-**Ownership:** naming drift introduced by the change is here; stuttering names as package design are smell-hunter's
-Stuttering Names. A generic package or module-directory name is boundary-hunter's Generic Boundary Names; file
-placement inside a unit is smell-hunter's.
+**Ownership:** naming drift introduced by the change is here; stuttering names as package design are no hunter's. A
+generic package or module-directory name is boundary-hunter's Generic Boundary Names; file placement inside a unit is
+smell-hunter's.
 
 ### Trivially Dead Code
 

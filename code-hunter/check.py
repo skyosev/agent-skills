@@ -15,7 +15,7 @@ NOT_SLOP = [h for h in HUNTERS if h != "slop-hunter"]  # slop's step 1 differs o
 COMMENT_RULE = ["doc-hunter", "slop-hunter", "smell-hunter"]
 # hunters whose references hold a `## Delegated to tools` section
 DELEGATING = ["boundary-hunter", "doc-hunter", "exception-hunter", "invariant-hunter", "security-hunter",
-              "simplicity-hunter", "slop-hunter", "test-hunter"]
+              "simplicity-hunter", "slop-hunter", "smell-hunter", "test-hunter"]
 
 # (file, first-line prefix, end-line prefix or None for "next blank line", hunters)
 SHARED = [

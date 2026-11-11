@@ -382,7 +382,7 @@ other category keeps the site.
 
 Six categories are universal. The five marked *(conditional)* run only where each language reference's Applicability
 table says yes; a language with no reference is not supported. Language-only categories are defined entirely in their
-reference: `init()` Abuse, Stuttering Names and Pointer Out-Parameters (Go); Mutable Default Arguments (Python).
+reference: `init()` Abuse and Pointer Out-Parameters (Go).
 
 ## Test-code scope
 
@@ -406,8 +406,8 @@ criticality and change frequency: a smell in a prototype is less urgent than one
 
 **Severity — behavioral risk if left as-is:**
 
-- **Critical** — *actively producing wrong behavior* on a production path (swappable primitive IDs already mixed up;
-  a mutable default already leaking state between calls). Smells are rarely Critical.
+- **Critical** — *actively producing wrong behavior* on a production path (swappable primitive IDs already mixed up).
+  Smells are rarely Critical.
 - **High** — a defect with likely user-visible, security, or reliability impact if left unaddressed.
 - **Medium** — correctness or maintainability risk without imminent impact.
 - **Low** — hygiene; no behavioral risk.
@@ -550,6 +550,15 @@ Save as `YYYY-MM-DD-smell-hunter-audit-{model-name}.md` — `{model-name}` is th
 mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
+
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
+of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
+only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
+(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
+bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
+sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
+only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
+with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 
