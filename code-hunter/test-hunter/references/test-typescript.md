@@ -81,6 +81,9 @@ printf '%s\n' $TS_FILES | grep -Ev "$TEST_RE" > <run>/typescript-prod.txt || ech
   `expect(spy).not.toHaveBeenCalled()` right after `fireEvent` / `userEvent` with no `waitFor`, `findBy*`, or timer
   advance; Playwright `await expect(locator).not.toBeVisible()` right after an action, where the negated web-first
   matcher passes on its first sample.
+- **A Playwright assertion on a one-shot read** (Flaky): `expect(await loc.isVisible()).toBe(true)` samples once and
+  never retries; `await expect(loc).toBeVisible()` retries. The negated form (`.toBe(false)`) is a candidate for an
+  absence check before an async effect.
 - **Shared double state** (Flaky): a module-level `vi.fn()` / `jest.fn()` that a test configures
   (`mockReturnValue`, `mockResolvedValueOnce`); `global.x = …` or `globalThis.x = …` assigned directly; an object built
   in `beforeAll` that tests change. The mock cleanup settings above decide what is cleared.
@@ -177,7 +180,7 @@ rg -H -n --pcre2 '\b(vi|jest)\.spyOn\(' -- $TS_TESTS
 rg -H -n --pcre2 '\b(beforeEach|beforeAll)\(|^\s*(export\s+)?(function|const)\s+(make|build|create)\w*' -- $TS_TESTS
 
 # Flaky Test Indicators: sleeps, clocks, randomness, generated data, locale, environment, module and double state,
-# concurrency, real services, unreleased resources, retries
+# concurrency, real services, unreleased resources, retries, Playwright one-shot reads
 rg -H -n --pcre2 'setTimeout\(|\bsleep\(|\bdelay\(|waitForTimeout\(' -- $TS_TESTS
 rg -H -n 'Date\.now\(\)|new Date\(\)|Math\.random\(\)|toLocale\w*String\(|@faker-js/faker' -- $TS_TESTS
 rg -H -n --pcre2 'process\.env(\.\w+|\[[^\]]+\])\s*=(?!=)' -- $TS_TESTS
@@ -186,6 +189,7 @@ rg -H -n '\.concurrent\b' -- $TS_TESTS
 rg -H -n --pcre2 '\b(fetch|axios\.\w+)\(\s*["\x27\x60]https?://' -- $TS_TESTS
 rg -H -n 'listen\(|createServer\(|new PrismaClient\(|new Redis\(' -- $TS_TESTS
 rg -H -n 'retryTimes\(|\.retries\(|retry:\s*\d|retries:\s*\d' -- $TS_TESTS
+rg -H -n --pcre2 'expect\(\s*await\s+[^;]*\.(is(Visible|Hidden|Enabled|Disabled|Checked|Editable)|textContent|innerText|inputValue|getAttribute|count)\(' -- $TS_TESTS
 
 # Config: retries, update switches, collection and coverage excludes, mock cleanup, concurrency,
 # type-checking (also read each tsconfig a type-check command names), test scripts

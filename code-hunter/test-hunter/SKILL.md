@@ -16,8 +16,9 @@ test code (no hunter owns it); unused test helpers and deep nesting in test bodi
 production interface that only a double implements should exist (→ simplicity-hunter, solid-hunter); temporal coupling
 in a test helper, feature envy in a fixture builder, unrelated responsibilities collected in one test-support module (→
 smell-hunter); a production unit with too many dependencies (→ solid-hunter); production races (→ invariant-hunter); a
-dead export whose only consumers are tests (→ boundary-hunter); real credentials or secrets in fixtures (→
-security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+dead export whose only consumers are tests, in Go and Python (→ boundary-hunter); a real connection string or
+`Authorization` value in a fixture (→ security-hunter); other secrets in fixtures (no hunter owns them). Where ownership
+is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -205,6 +206,7 @@ reference maps its own forms to them:
 - **Never executes**:
   - An assertion inside a `try` whose handler swallows the assertion error (`except Exception`,
     `except AssertionError`, a bare `catch`).
+  - An assertion inside an `except` block for an exception the code may not raise: with no exception, it never runs.
   - An assertion in a goroutine or callback that the test does not wait for.
   - A conditional assertion: a check nested under a guard on the result
     (`if got != nil { if got.Total != 1750 { t.Errorf(…) } }`), so a nil result skips it. An `if` whose body is the
@@ -263,8 +265,7 @@ checks it.
   not Weak when a sibling `It` checks the result. The test still counts as coverage of that value.
 - Weakened in diff, when the change also removed the behavior the assertion checked.
 
-**Action:** assert the specific outcome; un-skip, or delete
-the test and name the test that replaces it.
+**Action:** assert the specific outcome; un-skip, or delete the test and name the test that replaces it.
 
 **Ownership:** Go and Python skipped tests, and a skip a diff added in any language, are here, with or without a reason;
 slop-hunter does not report them.
@@ -291,10 +292,10 @@ A test that a behavior-preserving change turns red, because it asserts on implem
 **Evidence bar:** a **Breaking Refactor** — `inline applyDiscount into Total: the call-count assertion fails`.
 
 **Not a finding:** call counts at a boundary that the business cares about (one email, one charge, the number of
-attempts a retry policy makes); a same-package Go
-test that reads unexported state that no exported behavior shows; a call to a private function whose result is checked
-against an independent oracle; a message that users see, which is a contract; a log that is the contract (an audit
-log); SQL text when producing it is the unit's job (a query builder); a test's imports, whatever they reach.
+attempts a retry policy makes); a same-package Go test that reads unexported state that no exported behavior shows; a
+call to a private function whose result is checked against an independent oracle; a message that users see, which is a
+contract; a log that is the contract (an audit log); SQL text when producing it is the unit's job (a query builder); a
+test's imports, whatever they reach.
 
 **Action:** assert the observable outcome: the return value, the stored row, the sent message, the error kind.
 
@@ -471,9 +472,8 @@ Inert and Weak Tests (Weakened in diff), never a Coverage Gap. The unit's other 
 
 **Inverted relative to most hunters.** Test files are the main surface for six categories; production files are the
 anchor for Coverage Gaps. Both are read as context (Phase 1 step 4, Two surfaces). The test paths (Terms) are used
-unchanged. A test-support package outside
-test paths (Go `internal/testutil`) is production by path for every hunter: this hunter reads it as context and
-anchors no finding there.
+unchanged. A test-support package outside test paths (Go `internal/testutil`) is production by path for every hunter:
+this hunter reads it as context and anchors no finding there.
 
 ## Severity and Impact
 
@@ -599,10 +599,10 @@ Tests (Weakened in diff), at `<path> (deleted)`.
    findings anchor only at in-scope test files.
 
 5. **Record the test toolchain** per language, with the reference's detection section: the test framework and its
-   version and the double library. A version comes from
-   the lockfile or installed metadata. A manifest range (`package.json`, `pyproject.toml`) decides a gate only when
-   every version it admits falls on the same side of it. Go reads the `go` line of the module that contains the test.
-   An unknown version is recorded (`pytest version: unknown`), and the signals gated on it are skipped.
+   version and the double library. A version comes from the lockfile or installed metadata. A manifest range
+   (`package.json`, `pyproject.toml`) decides a gate only when every version it admits falls on the same side of it. Go
+   reads the `go` line of the module that contains the test. An unknown version is recorded (`pytest version: unknown`),
+   and the signals gated on it are skipped.
 
    TypeScript also records, for each group of test files, whether a checked-in command type-checks them: the command
    runs the compiler on a TypeScript project that includes the files, and the compiler's errors fail the command (the
@@ -713,14 +713,14 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 Read `references/report-format.md` for the report template and per-category table schemas.
 When the report merges several runs, read `references/merge-runs.md`.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

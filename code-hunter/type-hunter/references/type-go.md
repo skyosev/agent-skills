@@ -61,14 +61,13 @@ production type.
 
 - `[T any]` whose body compares or keys a map through `any` (`any(a) == any(b)`, `map[any]V` keyed by `any(v)`):
   `==` on a `T` itself does not compile → `comparable`
-- `[T any]` whose body orders values through a type switch or a `less` callback, since `<` on a `T` does not compile
-  → `cmp.Ordered` (**Go 1.21+**, read `go` directive in `go.mod`; below 1.21,
-  `golang.org/x/exp/constraints.Ordered` if already a dependency, else a hand-written union constraint)
 - `[T any]` whose body calls a method through `any(v).(fmt.Stringer)` or `any(v).(X)` → the interface as the constraint
 - **The type-switch form**: `func Encode[T any](v T)` whose body is `switch any(v).(type)` over concrete cases. The
   constraint is `any` and the body enumerates types — the generic is a disguised set of functions. Action: concrete
-  functions per case, an interface the cases implement, or a union constraint (`~int | ~string`) when the cases are
-  the union's members and the body's operations are permitted on all of them.
+  functions per case, an interface the cases implement, or a union constraint (`~int | ~string`) when the cases are the
+  union's members and the body's operations are permitted on all of them; `cmp.Ordered` when the cases order values
+  (**Go 1.21+**, read the `go` directive in `go.mod`; below 1.21, `golang.org/x/exp/constraints.Ordered` if already a
+  dependency).
 
 **Not a constraint question:** `payload.(map[string]any)` on decoded JSON is not covered here.
 
@@ -118,13 +117,12 @@ An embedding that promotes API surface the outer type's consumers should not hav
 **Action:** an unexported field (`mu sync.Mutex`; `c *http.Client`) and explicit delegation of the used methods.
 
 **Not findings:** a mutex embedded in an *unexported* struct, or held as an unexported field — a deliberately narrower
-line than golangci-lint's `embeddedstructfieldcheck`, which flags every embedded mutex; a choice, not a blind spot.
-Embedding that promotes exactly what the consumers call (`type reader struct { io.Reader }` whose consumers read). An
-embed whose promoted methods satisfy an interface the outer value is passed, assigned, or returned as
-(`type loggingWriter struct { http.ResponseWriter }` handed to `net/http`; `io.ReadCloser`): every method of that
-interface counts as used. A struct embedding an interface it implements
-only partly, with the embed left nil — solid-hunter's Broken Substitution (the nil embed panics on the unimplemented
-member); cross-reference, do not score.
+line than golangci-lint's `embeddedstructfieldcheck`, which with `forbid-mutex: true` flags every embedded mutex; a
+choice, not a blind spot. Embedding that promotes exactly what the consumers call (`type reader struct { io.Reader }`
+whose consumers read). An embed whose promoted methods satisfy an interface the outer value is passed, assigned, or
+returned as (`type loggingWriter struct { http.ResponseWriter }` handed to `net/http`; `io.ReadCloser`): every method of
+that interface counts as used. A struct embedding an interface it implements only partly, with the embed left nil —
+solid-hunter's Broken Substitution (the nil embed panics on the unimplemented member); cross-reference, do not score.
 
 **Ownership:** interface width per consumer is solid-hunter's Fat Interfaces; this category judges a struct's
 promoted method set.
@@ -140,7 +138,9 @@ EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob
 
 # Duplicated Type Declarations: struct and interface census (then compare field and method sets by concept,
 # project-wide)
-rg -H -n 'type\s+\w+\s+(struct|interface)' --type go $EXCLUDE -- $GO_FILES
+rg -H -n 'type\s+\w+(\[[^\]]*\])?\s+(struct|interface)\b' --type go $EXCLUDE -- $GO_FILES
+# grouped type blocks (read the members)
+rg -H -n '^type\s*\($' --type go $EXCLUDE -- $GO_FILES
 
 # Duplicated Type Declarations: repeated func types written inline
 rg -H -n --pcre2 '\bfunc\([^)]*\)\s*(\(?[\w.*\[\], ]+\)?)?\s*[,)\]{]' --type go $EXCLUDE -- $GO_FILES
@@ -188,10 +188,9 @@ For each type parameter:
 - Enumerate instantiations from call sites and declarations, tests marked. One production type, set closed → Generics
   That Never Vary; the Action names the test fake's replacement. Exported and published outside the tree → withdraw
   with a `Limitation`.
-- What does the body do with `T`? Opaque → no Loose finding. `any(a) == any(b)`, a `map[any]` key, an ordering through a
-  type switch or callback, a method through `any(v).(X)`, a type switch
-  → Loose, with the tightest constraint every instantiation satisfies and the `go.mod` gate checked for
-  `cmp.Ordered`.
+- What does the body do with `T`? Opaque → no Loose finding. `any(a) == any(b)`, a `map[any]` key, a method through
+  `any(v).(X)`, a type switch → Loose, with the tightest constraint every instantiation satisfies and the `go.mod` gate
+  checked for `cmp.Ordered`.
 
 For each `iota` block and each alias: apply the Enum Construct Mechanics and Alias vs Named Type Mechanics Go
 forms above.

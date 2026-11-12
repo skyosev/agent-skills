@@ -15,14 +15,15 @@ constant group with no named type, an exported struct promoting `Lock` and `Unlo
 yet, values travelling together with no type, a file accumulating unrelated types (→ smell-hunter); package organization
 (→ boundary-hunter's Generic Boundary Names); canonical import paths (→ boundary-hunter's Deep Imports); the *crossing*
 beside a cross-layer mirror (→ boundary-hunter's External Type Leaks; see Cross-layer mirror); optionality, unguarded
-narrowing, exhaustiveness, `as const` adoption for a value with no parallel declaration (→ invariant-hunter's Runtime
-Checks Promotable to Types), validation of external input into an enum, never-checked zero sentinels (→
-invariant-hunter); `any` / `Any` as a *value* type, `satisfies` in place of an `as T` (no hunter owns them); repeated
-logic and repeated runtime values, abstractions with one call site, reinvented runtime primitives (→ simplicity-hunter);
-runtime control flow (no hunter owns it); a struct embedding an interface it implements only partly, interface width (→
-solid-hunter); test design (→ test-hunter; type structure inside test files is out of scope, see Test-code scope);
-documentation restating types (→ slop-hunter); content validation at trust boundaries (→ security-hunter). Where
-ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+narrowing, exhaustiveness on an `if` / `else` chain, `as const` adoption for a value with no parallel declaration (→
+invariant-hunter's Runtime Checks Promotable to Types), validation of external input into an enum, never-checked zero
+sentinels (→ invariant-hunter); exhaustiveness of a TypeScript `switch` or a Python `match`, `any` / `Any` as a *value*
+type, `satisfies` in place of an `as T` (no hunter owns them); repeated logic and repeated runtime values, abstractions
+with one call site, reinvented runtime primitives (→ simplicity-hunter); runtime control flow (no hunter owns it); a
+struct embedding an interface it implements only partly, interface width (→ solid-hunter); test design (→ test-hunter;
+type structure inside test files is out of scope, see Test-code scope); documentation restating types (→ slop-hunter);
+content validation at trust boundaries (→ security-hunter). Where ownership is *contested*, the category's
+**Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -152,12 +153,12 @@ fits, drop.
 one, absent or differently typed in the other, both consumed); the divergence is named in Evidence.
 
 **Ownership:** the declaration-vs-value test (see Terms). simplicity-hunter keeps repeated logic and repeated runtime
-values, and its own rule "duplication derivable from an existing source of truth" for values; two declared types of
-one shape, a declared union beside a runtime array, and a manual type beside a schema are here. Values travelling
-together with no type are smell-hunter's Data Clumps. Any cross-layer mirror is out of scope here (see Terms). `as
-const` recommended to make a value the *derivation source* of a declared union is this category's Action; `as const`
-for a value with no parallel declaration stays invariant-hunter's Runtime Checks Promotable to Types, and `satisfies`
-in place of an `as T` its Unguarded Type Assertions.
+values, and its own rule "duplication derivable from an existing source of truth" for values; two declared types of one
+shape, a declared union beside a runtime array, and a manual type beside a schema are here. Values travelling together
+with no type are smell-hunter's Data Clumps. Any cross-layer mirror is out of scope here (see Terms). `as const`
+recommended to make a value the *derivation source* of a declared union is this category's Action; `as const` for a
+value with no parallel declaration stays invariant-hunter's Runtime Checks Promotable to Types; no hunter owns
+`satisfies` in place of an `as T`.
 
 ### Generics That Never Vary
 
@@ -261,12 +262,13 @@ comparison (`StrEnum` as vocabulary at 3.11+); drop the single member.
 
 **Severity:** Low for a missing `String()` on a formatted constant type, and for a single-member enum.
 
-**Ownership:** the existence-vs-construct test (see Terms). smell-hunter owns raw values compared with no constant
-group and names the remedy per language; this category owns the construct of an existing group and states no
-Enum-vs-`Literal` preference for Python beyond the mechanical markers. Validation of external input into an enum is
-invariant-hunter's (unguarded type claim at a trust boundary) or security-hunter's (content); a zero sentinel never
-checked is invariant-hunter's Zero-Value Traps. Value imports of an enum across modules are supporting evidence here,
-never a standalone finding and not boundary-hunter's.
+**Ownership:** the existence-vs-construct test (see Terms). smell-hunter owns raw values compared with no constant group
+and names the remedy per language; this category owns the construct of an existing group and states no Enum-vs-`Literal`
+preference for Python beyond the mechanical markers. Validation of external input into an enum is invariant-hunter's
+(Go: an unchecked `T(n)` conversion, Zero-Value Traps; Python: a `cast`, Unguarded Type Assertions) or security-hunter's
+(content); no hunter owns a TypeScript `as` into an enum. A zero sentinel never checked is invariant-hunter's Zero-Value
+Traps. Value imports of an enum across modules are supporting evidence here, never a standalone finding and not
+boundary-hunter's.
 
 ### Alias vs Named Type Mechanics *(Go, Python)*
 

@@ -54,10 +54,12 @@ rg -n --type ts '@deprecated' --glob '!**/node_modules/**' --glob '!**/dist/**' 
 
 ## Delegated to tools
 
-- ESLint with typescript-eslint, or Biome where a rule is named: deep nesting, branchy functions, nested ternaries,
-  and nested callbacks (`complexity`, `max-depth`, `no-nested-ternary`, `max-nested-callbacks`, or Biome
+- ESLint with typescript-eslint, or Biome where a rule is named: deep nesting, branchy functions, nested ternaries, and
+  nested callbacks (`complexity`, `max-depth`, `no-nested-ternary`, `max-nested-callbacks`, or Biome
   `noExcessiveCognitiveComplexity`, `noNestedTernary`); a guard the type already rules out
-  (`@typescript-eslint/no-unnecessary-condition`); a call to a deprecated symbol (`@typescript-eslint/no-deprecated`).
+  (`@typescript-eslint/no-unnecessary-condition`); a call to a deprecated symbol (`@typescript-eslint/no-deprecated`);
+  an unused function or constant that is not exported (`@typescript-eslint/no-unused-vars`, or Biome
+  `noUnusedVariables`).
 - knip: an export or a file that nothing imports.
 
 ## Phase 2 — complexity scans

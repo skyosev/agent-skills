@@ -81,7 +81,8 @@ doubles.
 - **Weak:** `To(HaveOccurred())` when the error kind is the contract; `NotTo(BeNil())` when a value is determined;
   `NotTo(HaveOccurred())` that ignores the result, judged with the specs that share its action; a counterfeiter
   `XxxReturns(…)` that answers every input, when the subject forwards its value and no spec checks `XxxArgsForCall`
-  and no `XxxStub` checks the input.
+  and no `XxxStub` checks the input. An async assertion on a function call (`Eventually(f())`, `Consistently(f())`)
+  receives the result of one call, so it samples one value: a candidate for an absence check before an async effect.
 - **Brittle:** `MatchError("text")` and `MatchError(ContainSubstring(…))` compare the message; `MatchError(ErrX)`
   uses `errors.Is` and is fine. Counterfeiter `XxxCallCount()` on an internal call.
 - **Divergent doubles:** `XxxReturns(nil, nil)` and `XxxReturnsOnCall(i, nil, nil)`.
@@ -105,6 +106,8 @@ rg -H -n --pcre2 '^\s*(It|Specify|Entry)\(' -- $GO_TESTS
 rg -H -n --pcre2 '^\s*Skip\(|\b(P|X)(It|Describe|Context|When|Entry|DescribeTable)\(|\bPending\b' -- $GO_TESTS
 # Weak: error and nil existence checks, fakes that answer any input
 rg -H -n --pcre2 '\.(To|Should)\(HaveOccurred\(\)\)|\.(NotTo|ToNot|ShouldNot)\((BeNil|HaveOccurred)\(\)\)|\.\w+Returns(OnCall)?\(' -- $GO_TESTS
+# Weak: an async assertion on one call's result
+rg -H -n --pcre2 '\b(Eventually|Consistently)\(\s*(?!func\b)[\w.]+\(' -- $GO_TESTS
 # Tautological Tests: an Equal-family matcher whose expected value is a call, not a nested matcher
 rg -H -n --pcre2 '\b(Equal|BeEquivalentTo|BeIdenticalTo)\(\s*(?!(Contain|Have|Be|Match|Consist|Point|With|Satisfy|And|Or|Not|Equal|Receive|Succeed|Panic)\w*\()[\w.]+\(' -- $GO_TESTS
 # Brittle Tests: message matches, call counts

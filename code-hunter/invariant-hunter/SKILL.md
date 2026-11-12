@@ -76,7 +76,7 @@ reference.
   makes `kind == 'leaf'` imply `config: Config`.
 - **A schema-validated boundary parse** whose downstream type is derived from the schema.
 
-**Evidence bar:** name the guard present (`none`, `isinstance on sibling`, `zod parse`) and, when one is present,
+**Evidence bar:** name the guard present (`none`, `isinstance on sibling`, `pydantic parse`) and, when one is present,
 why it does or does not reach the asserted property.
 
 **Action:** a `default` that rejects, or a deliberate fallback (Go type switch); guard or tightened upstream type
@@ -165,8 +165,8 @@ a **variant hierarchy** (dataclass or sealed data classes carrying no overridabl
 **Signals:**
 
 - A parallel boolean carrying the same fact as the discriminant (`kind` vs `isActive`)
-- An `if` / `elif` or `isinstance` chain over the discriminant (Python) whose consumer must cover every variant, with
-  no enforcement
+- An `if` / `elif` or `isinstance` chain (Python), or an `if` / `else` chain (TypeScript), over the discriminant whose
+  consumer must cover every variant, with no enforcement
 - Fields on every variant that are meaningful on some (TypeScript: missing `?: never`)
 - A call site that casts to a variant instead of narrowing by control flow
 
@@ -390,14 +390,14 @@ return mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

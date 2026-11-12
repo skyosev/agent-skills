@@ -189,7 +189,7 @@ globs in `$EXCLUDE` approximate the authoritative marker.
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
 # Unguarded Type Assertions: type switches (then check the interface is open and what follows the switch)
-rg -H -n 'switch\s+(\w+\s*:=\s*)?\w+\.\(type\)' --type go $EXCLUDE -- $GO_FILES
+rg -H -n 'switch\s+(\w+\s*:=\s*)?[^{;]+\.\(type\)' --type go $EXCLUDE -- $GO_FILES
 
 # Zero-Value Traps: exported structs with map/chan/func fields (then look for a constructor)
 rg -H -n -U --pcre2 'type\s+[A-Z]\w*\s+struct\s*\{[^}]*\b(map\[|chan\s|func\()' --type go $EXCLUDE -- $GO_FILES
@@ -197,9 +197,8 @@ rg -H -n -U --pcre2 'type\s+[A-Z]\w*\s+struct\s*\{[^}]*\b(map\[|chan\s|func\()' 
 # Zero-Value Traps: typed iota zero members (then check whether any consumer rejects the zero sentinel)
 rg -H -n --pcre2 '^\s*\w+\s+[A-Z]\w*\s*=\s*iota\b' --type go $EXCLUDE -- $GO_FILES
 
-
 # Context Misuse: functions that receive a context (then read their loops and blocking calls for a ctx check)
-rg -H -n --pcre2 'func\s+(\([^)]*\)\s*)?\w+\(\s*ctx\s+context\.Context' --type go $EXCLUDE -- $GO_FILES
+rg -H -n -U --pcre2 'func\s+(\([^)]*\)\s*)?\w+(\[[^\]]*\])?\(\s*ctx\s+context\.Context' --type go $EXCLUDE -- $GO_FILES
 
 # Race Conditions: goroutine launches and sync primitives (then map shared state to its accessors)
 rg -H -n '^\s*go\s+(func|\w+)' --type go $EXCLUDE -- $GO_FILES

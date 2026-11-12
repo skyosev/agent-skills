@@ -70,7 +70,8 @@ Vendored trees (`vendor/`), `testdata/`, lockfiles, and Markdown-only inputs are
   `controllers`, `cli`, `cmd`, `ui`, `web`. `cmd` is an edge-tier name in Go. Go has no `import-linter` equivalent
   that expresses an ordering.
 - **Prohibition sources**: `.go-arch-lint.yml` — a component's `mayDependOn` set that excludes the target, or a
-  `cannotDependOn` entry naming it. The rule is evidence for the edge it names and never becomes a tier.
+  `cannotDependOn` entry naming it; a golangci-lint `depguard` rule in `.golangci.*` whose `deny` list names the target
+  for files its `files` patterns match. Each rule is evidence for the edge it names and never becomes a tier.
 - **Policy**: `.go-arch-lint.yml` entries that explicitly permit an edge, and repository instructions. An edge no rule
   mentions is neither permitted nor forbidden.
 
@@ -168,7 +169,8 @@ Module resolution can need the network, and build errors or unresolvable tags ma
 from the import scan below and record it on the Graph line:
 `from import scan (go list errored: {message}; build tags not resolved)`. Findings then claim the scanned graph.
 
-No other tool is run. `go-arch-lint` is read as a **configuration** (`.go-arch-lint.yml`), never executed.
+No other tool is run. `.go-arch-lint.yml` and the `depguard` rules in `.golangci.*` are read as **configuration**,
+never executed.
 
 ## Phase 2 — graph build
 
@@ -213,7 +215,7 @@ rg -H -n --pcre2 '"[^"]+/(impl|internal|private|detail)(/[^"]+)?"' --type go $EX
 rg -H -n --pcre2 '^type\s+[A-Z]\w*\s*=\s*\w+\.' --type go $EXCLUDE -- $GO_FILES
 
 # Generic Boundary Names: generic package clauses (read the exports for capabilities)
-rg -H -n '^package\s+(util|utils|common|helpers|shared|misc|base|models|types|lib)$' --type go $EXCLUDE -- $GO_FILES
+rg -H -n '^package\s+(util|utils|common|helpers|shared|misc|base|models|types|lib)\b' --type go $EXCLUDE -- $GO_FILES
 
 # Publication signals — project-wide, one pass per module (root go.mod, go.work members, nested modules)
 for m in $(rg --files --glob '**/go.mod' --glob '!**/vendor/**' -- .); do
@@ -223,6 +225,9 @@ for m in $(rg --files --glob '**/go.mod' --glob '!**/vendor/**' -- .); do
 done
 rg -n --pcre2 '^package\s+(?!main\b)' --glob '**/doc.go' -- .
 ls -d examples/ 2>/dev/null
+
+# Prohibition sources and policy — project-wide; --hidden reaches .go-arch-lint.yml and .golangci.*
+rg -n --hidden 'mayDependOn|cannotDependOn|depguard|deny:' --glob '**/.go-arch-lint.yml' --glob '**/.golangci.*' --glob '!**/vendor/**' -- .
 ```
 
 **Use-as-interface search** (per interface-named method candidate, project-wide, reading not grepping): the type in a
@@ -243,7 +248,7 @@ For each exported identifier nominated:
 
 For each import edge:
 
-- Both endpoints' tiers recorded, and the edge points outward? Or does a `.go-arch-lint.yml` rule name it? → Dependency
+- Both endpoints' tiers recorded, and the edge points outward? Or does a `.go-arch-lint.yml` or `depguard` rule name it? → Dependency
   Direction Violations, Basis filled. No boundary source → nothing.
 - Does it reach an implementation sub-package from outside its parent? → Deep Imports `crossing`, unless direction
   already took the edge by precedence.

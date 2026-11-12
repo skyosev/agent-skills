@@ -16,18 +16,18 @@ In this skill, an **exception** is any failure a callee reports: a Go `error` va
 thrown value or promise rejection. Go panics are named panics.
 
 **Not covered (owned by other hunters):** nil dereferences (a result used before its error is checked included),
-zero-value traps, context misuse, races, exhaustiveness of a data variant set (a `default` arm that does nothing)
-(→ invariant-hunter); type-system bypasses (one inside a `catch` included), an unnarrowed catch binding (no hunter
-owns them); redundant
-wrapping words, linter suppressions (→ slop-hunter); duplicated error-handling code, reinvented `errors.Is` /
-`errors.As` walks, hand-rolled `errors.Join`, scattered `.catch()` calls (→ simplicity-hunter; `if err != nil`
-repetition is never complexity); not-implemented panics, throws, and raises in implementors, silent zero returns in
-one implementor of a contract type (→ solid-hunter's Broken Substitution); documentation of the failures callers
-match — `Raises:`, `@throws`, Go sentinels — when the design is sound (→ doc-hunter); `init()` that can fail
-(→ smell-hunter's `init()` Abuse); import edges, external types in exported signatures, a provable `ImportError` from
-an import cycle (→ boundary-hunter); error handling inside tests, missing error-path tests (→ test-hunter); internal
-detail in error responses and logs, auth decisions that fail open on an error (→ security-hunter). Where ownership is
-*contested*, the category's **Ownership:** note in What to Hunt is authoritative.
+zero-value traps, context misuse, races, exhaustiveness of a data variant set (a `default` arm that does nothing) (→
+invariant-hunter); type-system bypasses (one inside a `catch` included), an unnarrowed catch binding (no hunter owns
+them); redundant wrapping words, linter suppressions (→ slop-hunter); duplicated error-handling code, reinvented
+`errors.Is` / `errors.As` walks, hand-rolled `errors.Join` (→ simplicity-hunter; `if err != nil` repetition is never
+complexity); scattered `.catch()` calls (no hunter owns them); not-implemented panics, throws, and raises in
+implementors, silent zero returns in one implementor of a contract type (→ solid-hunter's Broken Substitution);
+documentation of the failures callers match — `Raises:`, `@throws`, Go sentinels — when the design is sound (→
+doc-hunter); `init()` that can fail (→ smell-hunter's `init()` Abuse); import edges, external types in exported
+signatures, a provable `ImportError` from an import cycle (→ boundary-hunter); error handling inside tests, missing
+error-path tests (→ test-hunter); internal detail in error responses and logs, auth decisions that fail open on an error
+(→ security-hunter). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is
+authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -141,11 +141,11 @@ the code that confirms or contradicts it.
 
 **Action:** propagate; or recover with a comment that states why the failure is safe.
 
-**Ownership:** suppressing the current task's
-own cancellation (`CancelledError` caught and not re-raised) is here: it breaks the caller's cancellation. A Go
-`return nil, nil` with no error received is not here: it is an absence contract (doc-hunter's Undocumented
-Contracts; a nil dereference that follows is invariant-hunter's Nil Pointer Risks). A `return nil, nil` in one
-implementor of an interface whose contract promises a value or an error is solid-hunter's Broken Substitution.
+**Ownership:** suppressing the current task's own cancellation (`CancelledError` caught and not re-raised) is here: it
+breaks the caller's cancellation. A Go `return nil, nil` with no error received is not here: it is an absence contract
+(doc-hunter's Undocumented Contracts; a nil dereference that follows is invariant-hunter's Nil Pointer Risks). A `return
+nil, nil` in one implementor of an interface whose contract promises a value or an error is solid-hunter's Broken
+Substitution.
 
 ### Orphaned Async Failures
 
@@ -372,10 +372,10 @@ on.
 **Signals:**
 
 - Go: `panic` on input validation or an I/O, DB, or network failure; `panic` in library code on a failure that a
-  caller's input can cause; a `Must*` helper on runtime input;
-  `recover` that continues normal execution; a panic in a goroutine that a handler spawns, with no `recover` in it;
-  a `recover` in HTTP middleware that does not re-panic `http.ErrAbortHandler` (net/http uses that panic to abort a
-  response on purpose; swallowing it logs a false panic and writes to an aborted response).
+  caller's input can cause; a `Must*` helper on runtime input; `recover` that continues normal execution; a panic in a
+  goroutine that a handler spawns, with no `recover` in it; a `recover` in HTTP middleware that does not re-panic
+  `http.ErrAbortHandler` (net/http uses that panic to abort a response on purpose; swallowing it logs a false panic and
+  writes to an aborted response).
 - Python: `sys.exit` / `os._exit` outside the entry point (`__main__`, a `[project.scripts]` target, a CLI command
   function).
 
@@ -427,16 +427,15 @@ One site, one finding. The rules, in order:
    Swallowed Errors. Logged at error level, then propagated or handled → Overbroad Handling.
 7. **A justifying comment** is judged with its site, in the category of the site. It is never a separate finding.
 8. **A log call that drops the stack** (`logger.error(e.message)`), or a message event with an interpolated message
-   (``Sentry.captureMessage(`job ${id} failed`)``), in a handler that is a
-   Swallowed Errors or Double Handling finding → that category; its Action also logs the error with its stack, which
-   also ends the message event. Broken Error Chains or Poor Error Context takes the log call only when the handler is
-   otherwise correct.
+   (``Sentry.captureMessage(`job ${id} failed`)``), in a handler that is a Swallowed Errors or Double Handling finding →
+   that category; its Action also logs the error with its stack, which also ends the message event. Broken Error Chains
+   or Poor Error Context takes the log call only when the handler is otherwise correct.
 9. **A `recover()` that carries on.** Its value discarded (`defer func() { recover() }()`) → Swallowed Errors
     (`overridden`). Its value read, then normal execution continues → Panic and Exit Misuse.
-10. **A catch-all that converts every failure into one narrower failure without its cause**
-    (`catch (e) { throw new NotFoundError(id) }`, `return err(new NotFound())`) → Overbroad Handling; its Action also
-    keeps the cause. Broken Error Chains takes the conversion only when the catch claims no narrower meaning (an
-    adapter catch-all that throws the adapter's own failure).
+10. **A catch-all that converts every failure into one narrower failure without its cause** (`catch (e) { throw new
+    NotFoundError(id) }`, `return err(new NotFound())`) → Overbroad Handling; its Action also keeps the cause. Broken
+    Error Chains takes the conversion only when the catch claims no narrower meaning (an adapter catch-all that raises
+    the adapter's own failure), in Python and for Result objects.
 
 ## Applicability
 
@@ -457,15 +456,15 @@ Every finding carries **both**. They answer different questions and routinely di
 
 **Severity — behavioral risk if left as-is.** It measures consequence, not confidence.
 
-- **Critical** — the finding names the triggering failure, the wrong outcome (data loss; corrupted or duplicated
-  state; success reported for a failed write; a process crash from external input), and why nothing contains it.
-  Examples: `_ = tx.Commit()` or `defer f.Close()` on a write path whose caller reports success;
+- **Critical** — the finding names the triggering failure, the wrong outcome (data loss; corrupted or duplicated state;
+  success reported for a failed write; a process crash from external input), and why nothing contains it. Examples:
+  `defer f.Close()` on a write path, or `with suppress(Exception):` around a write, whose caller reports success;
   `except Exception: return None` in `find_order` whose caller creates a new order on `None`, so a DB outage creates
   duplicates; a panic on request input in a goroutine the handler spawns.
 - **High** — a silent wrong result or a wrong status awaiting the first failure: a read path that swallows a failure
-  and returns empty; any error mapped to not-found or 404; a swallowed
-  `CancelledError` (the task can no longer be cancelled); an expected domain failure that reaches the generic 500; an
-  Orphaned Async Failure off the write path; a nil sentinel returned as `error`.
+  and returns empty; any error mapped to not-found or 404; a swallowed `CancelledError` (the task can no longer be
+  cancelled); an expected domain failure that reaches the generic 500; an Orphaned Async Failure off the write path; a
+  nil sentinel returned as `error`.
 - **Medium** — the failure is handled correctly, and diagnosing it costs more than it should: a cause, stack, or
   traceback lost (`errors.New(err.Error())`, `logger.error(e.message)`); a failure logged twice; a
   message with no input crossing a module boundary; an untranslated external failure with correct behavior today; a
@@ -566,9 +565,8 @@ Contextual; never derived from occurrence count.
 5. **Record the failure-handling context** per language (report-format.md says which Scope lines print):
    - **Language versions** that gate a remedy or a consequence: the `go` directive in `go.mod`; `requires-python`
      (or the lockfile's interpreter); tsconfig `target` and `lib`; the Node major from `engines.node` or `.nvmrc`,
-     else `unknown`. A remedy is proposed only when the
-     recorded version supports it (each reference's version gates). With a version `unknown`, the Action names the
-     version the remedy needs.
+     else `unknown`. A remedy is proposed only when the recorded version supports it (each reference's version gates).
+     With a version `unknown`, the Action names the version the remedy needs.
    - **Transport boundaries:** the transport frameworks and their boundary files (handlers, middleware, registered
      exception handlers; each reference's Transport frameworks section), and the non-request entry points (workers,
      CLI commands, scheduled jobs) from which Phase 3 traces transport errors. With no entry point recorded, every
@@ -623,14 +621,14 @@ return mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

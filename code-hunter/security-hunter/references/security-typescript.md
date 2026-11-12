@@ -86,7 +86,7 @@ judged by that version.
 ## Delegated to tools
 
 - ESLint with eslint-plugin-sonarjs: `rejectUnauthorized: false` (`sonarjs/unverified-certificate`); a TLS minimum or
-  protocol below 1.2 (`sonarjs/weak-ssl`); DES and RC4 (`sonarjs/no-weak-cipher`).
+  protocol below 1.2 (`sonarjs/weak-ssl`); DES, RC4 and Blowfish (`sonarjs/no-weak-cipher`).
 - `npm audit` (`pnpm audit`, `yarn npm audit`): a known vulnerability in a locked dependency.
 
 ## Phase 2 — security scans
@@ -133,8 +133,9 @@ rg -H -n -i --pcre2 '\.(role|roles|isAdmin|is_admin|admin|permissions?|scopes?|o
 # Sensitive Data Exposure: credential words in log calls; error detail in responses; client storage (public env names: security-common.md)
 rg -H -n -i --pcre2 '\b(console|logger|log|winston|pino|bunyan|debug)[\w.]*\.(log|info|debug|warn|error|trace|child|fatal)\([^\n]*\b(password|passwd|token|secret|authorization|cookie|api[_-]?key|ssn|card|req\.(body|headers)\b)' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'res\.(status\(\d+\)\.)?(json|send)\(\s*\{?[^\n]*\b((err(or)?|e)\.(message|stack)|stack\s*:|error\s*:\s*(err|e)\b|\.\.\.(err|e)\b)|(localStorage|sessionStorage)\.setItem\(\s*["\x27`][^"\x27`]*(token|jwt|session|secret|password|key|auth)' --type ts $EXCLUDE -- $TS_FILES
-# Weak Cryptography: primitives (then name the use); secret comparisons; hashing inventory
-rg -H -n -i --pcre2 'createHash\(\s*["\x27](md5|sha1)|createCipher\(|createCipheriv\(\s*["\x27]aes-\d+-ecb|Math\.random\(|\bmd5\(|crypto-js|\bsha1\(|pseudoRandomBytes|bcrypt\.(hash|hashSync)\([^,]+,\s*[1-9]\s*\)|\balgorithm\s*:\s*["\x27](HS256|none)' --type ts $EXCLUDE -- $TS_FILES
+# Weak Cryptography: primitives (then name the use; for createCipheriv, read the mode and whether the IV is static);
+# secret comparisons; hashing inventory
+rg -H -n -i --pcre2 'createHash\(\s*["\x27](md5|sha1)|createCipher(iv)?\(|Math\.random\(|\bmd5\(|crypto-js|\bsha1\(|pseudoRandomBytes|bcrypt\.(hash|hashSync)\([^,]+,\s*[1-9]\s*\)|\balgorithm\s*:\s*["\x27](HS256|none)' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n -i --pcre2 '\b\w*(token|secret|signature|sig|hmac|mac|digest|otp|hash)\w*\s*[!=]==?\s*[a-z_]' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 '\bbcrypt\b|argon2|scrypt|pbkdf2|hashPassword|comparePassword|password\w*Hash' --type ts $EXCLUDE -- $TS_FILES
 # Resource Exhaustion: regex from input; literal patterns with a nested or overlapping quantifier (then: run on boundary input?); body parsers and their limits; uploads; GraphQL servers and limits; limiters; fan-out; WebSocket servers

@@ -74,8 +74,9 @@ container are named in Action.
 
 - mypy (`enable_error_code = ["exhaustive-match"]`), or pyright (`reportMatchNotExhaustive`): a `match` with no arm
   for a variant.
-- mypy (`disallow_any_explicit = true`, `enable_error_code = ["ignore-without-code"]`), or ruff (`PGH003`): an
-  explicit `Any`, `cast(Any, x)` included; a `# type: ignore` with no error code.
+- mypy (`disallow_any_explicit = true`): an explicit `Any`, `cast(Any, x)` included.
+- mypy (`enable_error_code = ["ignore-without-code"]`), or ruff (`PGH003`, not in ruff's default set): a
+  `# type: ignore` with no error code.
 
 ## Idiom calibration
 

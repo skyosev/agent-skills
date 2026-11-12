@@ -37,8 +37,8 @@ git show "$MB:<deleted path>"                                                 # 
 
 - **Changed-line restriction.** Unexplained Business Rules, Non-Obvious Algorithms, and Unexplained Workarounds
   report only lines that the change added or modified. Untracked files are new in full. Undocumented Contracts reports
-  only declarations that the change added, or whose signature or body it
-  modified. Misleading Comments and Names reports text on changed lines, plus the two nominations below.
+  only declarations that the change added, or whose signature or body it modified. Misleading Comments and Names reports
+  text on changed lines, plus the two nominations below.
 - **Stale-text nominations** (Misleading Comments and Names), for every declaration whose signature or body the
   change modified:
   - its doc comment, when the change left the comment untouched.

@@ -44,7 +44,7 @@ nothing to search searches nothing (`rg` with no path would search the working d
 ALL_FILES=$(cat <run>/all.txt)
 
 # Hardcoded Secrets: connection strings with a password (the user part may be empty: redis://:pw@host), git+https URLs with a token; Authorization literals (gitleaks has no rule for either)
-rg -H -n --pcre2 '\b(postgres(ql)?|mysql|mongodb(\+srv)?|redis|amqp|mssql|https?)://[^/\s:@]*:[^@\s/]+@' -- $ALL_FILES
+rg -H -n --pcre2 '\b(postgres(ql)?|mysql|mongodb(\+srv)?|redis|amqp|mssql|https?)://[^/\s:@]*:[^@\s/]+@|\bhttps?://[^/\s:@]{20,}@' -- $ALL_FILES
 rg -H -n --pcre2 '(Authorization|authorization)["\x27]?\s*[:=]\s*["\x27`](Basic|Bearer) [A-Za-z0-9+/=._-]{16,}' -- $ALL_FILES
 
 # Every scan below excludes test paths: only Hardcoded Secrets runs over tests

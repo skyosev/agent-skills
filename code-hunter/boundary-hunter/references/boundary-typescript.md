@@ -61,9 +61,10 @@ are also ineligible.
   directory names from the fixed vocabulary — inner `domain`, `core`, `entities`; middle `application`, `usecase`,
   `usecases`; edge `infra`, `infrastructure`, `adapters`, `persistence`, `db`, `transport`, `http`, `handlers`,
   `controllers`, `cli`, `ui`, `web`, `components`, `pages`. Tiers annotate **files** by directory.
-- **Prohibition sources**: a `forbidden` rule in `.dependency-cruiser.{js,cjs,mjs,json}` / `dependency-cruiser.config.*`;
-  an Nx `@nx/enforce-module-boundaries` `depConstraints` entry; an `eslint-plugin-boundaries` rule. Each is evidence
-  for the edges it names. **None of them is a layer map** — a tag set is not an ordering.
+- **Prohibition sources**: a `forbidden` rule in `.dependency-cruiser.{js,cjs,mjs,json}` /
+  `dependency-cruiser.config.*`; an Nx `@nx/enforce-module-boundaries` `depConstraints` entry; an
+  `eslint-plugin-boundaries` rule (`boundaries/dependencies`, or `boundaries/element-types` in older configurations).
+  Each is evidence for the edges it names. **None of them is a layer map** — a tag set is not an ordering.
 - **Policy**: the same files where a rule **explicitly permits** an edge, plus repository instructions. An edge no
   rule mentions is neither permitted nor forbidden.
 
@@ -211,7 +212,7 @@ rg -n -A3 'node_modules/typescript"|^\s*/?"?typescript@|^\s+typescript:$' -- pac
 rg -H -n --pcre2 "from\s+['\"][^.'\"][^'\"]*['\"]" --type ts $EXCLUDE -- $TS_FILES
 
 # Contracts and policy — project-wide; --hidden reaches .dependency-cruiser.* and .eslintrc*
-rg -n --hidden 'forbidden|depConstraints|boundaries/element-types' --glob '**/.dependency-cruiser.*' --glob '**/dependency-cruiser.config.*' --glob '**/eslint.config.*' --glob '**/.eslintrc*' --glob '**/nx.json' --glob '**/project.json' --glob '!**/node_modules/**' -- .
+rg -n --hidden 'forbidden|depConstraints|boundaries/(dependencies|element-types)' --glob '**/.dependency-cruiser.*' --glob '**/dependency-cruiser.config.*' --glob '**/eslint.config.*' --glob '**/.eslintrc*' --glob '**/nx.json' --glob '**/project.json' --glob '!**/node_modules/**' -- .
 ```
 
 ## Phase 5 — TypeScript-specific evaluation

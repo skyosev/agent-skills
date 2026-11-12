@@ -52,21 +52,21 @@ Narration through a logger: `logger.debug('entering …')`, `logger.info('start'
 ## Delegated to tools
 
 - Prettier, or Biome's formatter: unformatted code.
-- ESLint with typescript-eslint, eslint-plugin-jsdoc and eslint-plugin-sonarjs, or Biome where a rule is named:
-  naming case and an `I` prefix (`@typescript-eslint/naming-convention`, or Biome `useNamingConvention`); import order
-  (eslint-plugin-simple-import-sort, or Biome's `organizeImports` assist); concatenation where a template fits
-  (`prefer-template`, or Biome `useTemplate`); `function` declarations against arrow constants (`func-style`); a
-  thrown non-`Error`, `catch (e: any)` and an empty `catch` (`@typescript-eslint/only-throw-error`, `no-explicit-any`,
-  `no-empty`, or Biome `useThrowOnlyError`, `noExplicitAny`, `noEmptyBlockStatements`); commented-out code
-  (`sonarjs/no-commented-code`); unused imports and locals (`@typescript-eslint/no-unused-vars`, or Biome
-  `noUnusedImports`, `noUnusedVariables`); `console` calls (`no-console`, or Biome `noConsole`, with an override for
-  CLI files); JSDoc types in a `.ts` file (`jsdoc/no-types`); a disable comment that suppresses nothing
-  (`linterOptions.reportUnusedDisableDirectives`; Biome reports it by default).
+- ESLint with typescript-eslint, eslint-plugin-jsdoc and eslint-plugin-sonarjs, or Biome where a rule is named: naming
+  case and an `I` prefix (`@typescript-eslint/naming-convention`, or Biome `useNamingConvention`, set to the project's
+  convention); import order (eslint-plugin-simple-import-sort, or Biome's `organizeImports` assist); concatenation where
+  a template fits (`prefer-template`, or Biome `useTemplate`); `function` declarations against arrow constants
+  (`func-style`, set to the project's convention); a thrown non-`Error`, `catch (e: any)` and an empty `catch`
+  (`@typescript-eslint/only-throw-error`, `no-explicit-any`, `no-empty`, or Biome `useThrowOnlyError`, `noExplicitAny`,
+  `noEmptyBlockStatements`); commented-out code (`sonarjs/no-commented-code`); unused imports and locals
+  (`@typescript-eslint/no-unused-vars`, or Biome `noUnusedImports`, `noUnusedVariables`); `console` calls (`no-console`,
+  or Biome `noConsole`, with an override for CLI files); JSDoc types in a `.ts` file (`jsdoc/no-types`); a disable
+  comment that suppresses nothing (`linterOptions.reportUnusedDisableDirectives`; Biome reports it by default).
 
 ## Idiom calibration
 
-Baseline rung 4 (the Style Drift order in SKILL.md): none. TypeScript has no language-wide style guide, and the
-presets a lint config extends belong to rung 1. No rung yields a convention → `baseline uncertain`.
+Baseline rung 4 (the Style Drift order in SKILL.md): none. TypeScript has no language-wide style guide. No rung yields a
+convention → `baseline uncertain`.
 
 Structural typing, `as const`, `satisfies`, discriminated unions, and type-only imports are the language working as
 designed — never drift.

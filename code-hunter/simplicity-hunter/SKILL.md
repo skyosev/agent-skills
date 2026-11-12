@@ -205,7 +205,7 @@ Guard ownership); default/`else` arms already ruled out.
 
 **Ownership:** commented-out code is not covered here — text is not a code path and has no liveness question. This
 category owns *live* code that cannot execute. Unused functions and constants are in each reference's Delegated to
-tools; exported dead symbols → boundary-hunter's Dead Exports.
+tools; exported dead symbols in Go and Python → boundary-hunter's Dead Exports.
 
 **Guard ownership with invariant-hunter.** A null / nil / None check the *preceding logic already guarantees* is here —
 delete the guard. A check the *type* already rules out is in each reference's Delegated to tools. A check compensating
@@ -227,16 +227,17 @@ Chesterton's Fence applies where there is a fence; history can be shallow, absen
 ### Over-Parameterized APIs
 
 Functions with many parameters, boolean flags, or option/config objects creating a combinatorial explosion.
-**Ownership:** boolean-parameter findings live here. solid-hunter claims only a boolean whose choice is **dispatched
-at two or more sites on an open set** — a two-member discriminant meeting the full Rigid Extension Points bar. A
-boolean dispatched at one site is here however likely it looks to grow.
+**Ownership:** boolean-parameter findings live here; in Go, a boolean that a condition tests is in `simplicity-go.md`'s
+Delegated to tools. solid-hunter claims only a boolean whose choice is **dispatched at two or more sites on an open
+set** — a two-member discriminant meeting the full Rigid Extension Points bar. A boolean dispatched at one site is here
+however likely it looks to grow.
 
 **Signals:**
 
 - **4+ parameters** (Go's `ctx context.Context` does not count) — nomination only. A finding requires judgment on
   cohesion, call-site readability, and actual branching — not the count alone.
-- Booleans creating branching burden, ambiguous call sites, or reachable combinations readers must reason about.
-  Caller count is not a complexity measure.
+- Booleans creating branching burden, ambiguous call sites, or reachable combinations readers must reason about (Python,
+  TypeScript). Caller count is not a complexity measure.
 - Option/config objects with mostly unused fields; catch-all kwargs / options pass-throughs.
 - **Constant arguments** — a parameter every caller passes with the same value (nil, zero, or one constant). The
   finding cites every call site.
@@ -282,8 +283,6 @@ once empty). The survivor is already written: the remedy moves call sites onto i
 One finding per site. The reported finding's row note (report format) names the other reading in one clause.
 
 - **Go interface with no live seam** → Interface Pollution (simplicity-go.md), never also Unnecessary Abstractions.
-- **A function that mixes concerns and nests 3+ levels** → Mixed Concerns; name the nesting in its row note.
-  Extracting the concerns usually flattens it.
 - **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
   Concerns, not an Unnecessary Abstraction.
 - **Strata:** zero live sites → not covered here (unused code is in each reference's Delegated to tools); near-identical
@@ -532,14 +531,14 @@ it covers, and add the coverage counts without counting a seed twice.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 
