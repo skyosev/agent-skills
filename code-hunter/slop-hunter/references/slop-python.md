@@ -56,8 +56,8 @@ Narration: `logger.debug("entering …")`, `logger.info("starting …")`, `loggi
   `.format()` where an f-string fits (`UP031`, `UP032`); `os.path` where `pathlib` fits (`PTH`); a loop that builds a
   transformed list (`PERF401`); a bare or blind `except`, and `except: pass` (`E722`, `BLE001`, `S110`); commented-out
   code (`ERA001`); a leftover `pass` (`PIE790`); unused imports and locals (`F401`, `F841`); `print` (`T201`, with a
-  per-file ignore for CLI modules); a `# noqa` that suppresses nothing (`RUF100`). Of these, only `E722`, `F401` and
-  `F841` are in ruff's default set.
+  per-file ignore for CLI modules); a `# noqa` that suppresses nothing (`RUF100`). `ERA001`, `PERF401`, `T201`, the
+  pep8-naming case rules (`N8xx`) and the `os.path` rules of `PTH` are not in ruff's default set.
 
 ## Idiom calibration
 

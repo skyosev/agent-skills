@@ -71,9 +71,9 @@ globs in `$EXCLUDE` approximate the authoritative marker.
 ```bash
 EXCLUDE='--glob !**/*_test.go --glob !**/vendor/** --glob !**/testdata/** --glob !**/*.pb.go --glob !**/*_gen.go --glob !**/*_generated.go'
 
-# Swallowed Errors (defaulted): one value with no error in it, or a bare return, after err != nil (then read whether
+# Swallowed Errors (defaulted): values that do not return `err`, or a bare return, after err != nil (then read whether
 # the function has an error result); no `if` anchor, so the inline form `if _, err := f(); err != nil {` matches
-rg -H -n -U --pcre2 '\berr\s*!=\s*nil\s*\{\s*return(\s+(?![^\n}]*\b[eE]rr)[^\n,]+)?\s*\}' --type go $EXCLUDE -- $GO_FILES
+rg -H -n -U --pcre2 '\berr\s*!=\s*nil\s*\{\s*return(\s+(?![^\n}]*\b[eE]rr)[^\n}]+)?\s*\}' --type go $EXCLUDE -- $GO_FILES
 # Swallowed Errors (logged-only) and Double Handling: a handler that logs first (then read whether it returns,
 # continues, or defaults)
 rg -H -n -U --pcre2 '\berr\s*!=\s*nil\s*\{\s*(log|slog|[\w.]*[lL]og(ger)?)\.\w+\(' --type go $EXCLUDE -- $GO_FILES

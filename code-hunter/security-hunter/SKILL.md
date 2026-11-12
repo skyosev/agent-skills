@@ -14,15 +14,16 @@ whose `sub` selects the account, `router.delete("/admin/users/:id", h)` beside a
 interpreted, stored, or decided on; no credential lives in a committed file; every protected action is protected on
 every route.**
 
-**Not covered (owned by other hunters):** type-system bypasses (`as any`, `as unknown as T`, `@ts-ignore`,
-`strict: false`) and Go bare type assertions (no hunter owns them); the unguarded type claim at a trust boundary, races
-on goroutine shared state, the unchecked conversion of external input to a named constant type (→ invariant-hunter); the
-wrong status for a failure, the handler shape of a fail-open catch, panics on input (→ exception-hunter); linter
-suppressions (`#nosec`, `# nosec`, `eslint-disable security/…`) and narration (→ slop-hunter); Primitive Obsession for
-identity types (→ smell-hunter); concurrency structure more complex than its workload (→ simplicity-hunter); weak
-patterns inside tests, tests that assert insecure behavior (→ test-hunter). Check-then-act races on persistent state (a
-balance read, then a debit) and request-reachable deadlocks are reported by no hunter. Where ownership is *contested*,
-the category's **Ownership:** note in What to Hunt is authoritative.
+**Not covered (owned by other hunters):** type-system bypasses (`as any`, `as unknown as T`, `@ts-ignore`, `strict:
+false`), a TypeScript `as T` on input, and Go bare type assertions (no hunter owns them); the unguarded type claim at a
+trust boundary in Python (`cast`) or in a Go type switch over an open interface, races on goroutine shared state, the
+unchecked conversion of external input to a named constant type (→ invariant-hunter); the wrong status for a failure, a
+fail-open catch that only logs or returns a default, panics on input (→ exception-hunter); a catch that only passes (no
+hunter owns it); linter suppressions (`#nosec`, `# nosec`, `eslint-disable security/…`) and narration (→ slop-hunter);
+Primitive Obsession for identity types (→ smell-hunter); concurrency structure more complex than its workload (→
+simplicity-hunter); weak patterns inside tests, tests that assert insecure behavior (→ test-hunter). Check-then-act
+races on persistent state (a balance read, then a debit) and request-reachable deadlocks are reported by no hunter.
+Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -120,8 +121,8 @@ connection string, the service an `Authorization` value is sent to).
 **Action:** read it from the environment or a secret manager; rotate the committed value (the repository's history
 holds it); add the file pattern to `.gitignore` when a file was committed.
 
-**Ownership:** a credential literal in a comment, in AI narration, or in a test fixture is here (doc-hunter,
-slop-hunter, and test-hunter route secrets here).
+**Ownership:** a credential literal of these kinds in a comment, in AI narration, or in a test fixture is here
+(doc-hunter, slop-hunter, and test-hunter route these kinds here).
 
 **Severity:** Critical when production code or the deployed configuration reads the literal; High when the trace did
 not find its use (a connection string in a comment, a stray script); Low for a credential to a local or sandbox host
@@ -166,7 +167,8 @@ autoescape, `textContent`, a sanitizer; a host allowlist for outbound URLs; `yam
 `pickle`; `Object.create(null)` maps, `hasOwnProperty` reads, and key allowlists for merges. A branded type for the
 validated string is an option the Action may name, never the finding.
 
-**Ownership:** an unguarded cast on the same path is invariant-hunter's (both findings stand at different sites).
+**Ownership:** an unguarded Python `cast` on the same path is invariant-hunter's (both findings stand at different
+sites); no hunter owns a TypeScript `as` or a Go bare type assertion there.
 
 ### Unvalidated Boundary Input
 
@@ -210,7 +212,8 @@ persistence (`schema.pick(...)` / `.strict()`, `whitelist: true`, `extra = "forb
 strips to), never TypeScript's `Pick<T, K>`, which is a type and removes no property at runtime; reject, never coerce
 or default.
 
-**Ownership:** the unguarded type claim is invariant-hunter's; this category is the content.
+**Ownership:** the unguarded type claim is invariant-hunter's in Python (`cast`) and in a Go type switch over an open
+interface; no hunter owns it otherwise. This category is the content.
 
 ### Insecure Configuration
 
@@ -346,8 +349,8 @@ A primitive that does not provide the property its use needs.
 - A non-cryptographic RNG (`math/rand`, `math/rand/v2`, Python `random`, `Math.random`, `uuid1`) for a `token`,
   `session id`, `reset code`, `nonce`, or `salt`.
 - `==` / `===` / `bytes.Equal` on a `signature`, `hmac`, `token`, or `otp` (a timing leak).
-- In TypeScript, ECB mode or a static IV for `encryption`, and `createCipher` (a key derived from a password with MD5,
-  no IV); in every language, a hand-rolled hash or cipher.
+- For `encryption`: a static IV or nonce (Python, TypeScript); ECB mode, and `createCipher`, which derives the key from
+  a password with MD5 and uses no IV (TypeScript); Blowfish (Go). In every language, a hand-rolled hash or cipher.
 - JWT verification that lets the token choose between HMAC and a public key (`algorithm confusion`), at the library
   versions and key forms the language references' version gates name.
 
@@ -368,7 +371,8 @@ role, no finding.
 
 **Action:** `bcrypt` / `scrypt` / `argon2id` via the framework's hasher; `crypto/rand` (`rand.Text` on Go ≥ 1.24),
 `secrets.token_urlsafe`, `crypto.randomBytes` / `randomUUID`; `subtle.ConstantTimeCompare`, `hmac.compare_digest`,
-`crypto.timingSafeEqual`; AES-GCM or a library's authenticated encryption; a pinned algorithm list.
+`crypto.timingSafeEqual`; AES-GCM or a library's authenticated encryption, with a random IV or nonce per message; a
+pinned algorithm list.
 
 **Ownership:** plaintext password storage is Sensitive Data Exposure (`storage`); routing rules 3 and 4 split the
 rest.
@@ -655,10 +659,10 @@ history); a per-route middleware fix on one of forty routes is Low; a global bod
    reading.
 
 5. **Record the security context** per language (report-format.md says which Scope lines print):
-   - **Language versions:** the `go` directive and any `//go:debug` directive; `requires-python`; the Node major from
-     `engines.node` or `.nvmrc`, else `unknown`. Library versions are resolved in Phase 3, only for candidates that
-     depend on them. A remedy is proposed only when the recorded version supports it; with a version `unknown`, a
-     default is judged by the reference's stated default and the Action names the version the remedy needs.
+   - **Language versions:** the `go` directive; `requires-python`; the Node major from `engines.node` or `.nvmrc`, else
+     `unknown`. Library versions are resolved in Phase 3, only for candidates that depend on them. A remedy is proposed
+     only when the recorded version supports it; with a version `unknown`, a default is judged by the reference's stated
+     default and the Action names the version the remedy needs.
    - **Boundaries** and **Auth:** the boundaries each loaded reference's Boundary inventory lists, found with its
      inventory scans, with counts and files; and how auth is applied to them (global, per route, a framework default,
      or none found), with the files that apply it.
@@ -727,14 +731,14 @@ return mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

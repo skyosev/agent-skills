@@ -10,13 +10,13 @@ Audit code for **design that resists change**, in the five SOLID categories belo
 designed for change?"; anything else belongs to another hunter.
 
 **Not covered (owned by other hunters):** whether an abstraction should exist at all, function-body mixed concerns,
-boolean parameters dispatched at one site (→ simplicity-hunter); file-level accumulation, misplaced entity
-transitions, a class that should be a function, the *write* to a mutable global (→ smell-hunter); exhaustiveness arms
-and narrowing on data variant sets (→ invariant-hunter); import direction between layers and external types in domain
-signatures (→ boundary-hunter); package naming and directory legibility (→ boundary-hunter); test design
-(→ test-hunter); AI-generated noise and cosmetic style (→ slop-hunter). Where ownership is *contested*, the
-category's **Ownership:** note in What to Hunt is authoritative. Cross-reference a candidate another hunter owns
-instead of scoring it.
+boolean parameters dispatched at one site (→ simplicity-hunter; Go: no hunter owns them); file-level accumulation,
+misplaced entity transitions, a class that should be a function, the *write* to a mutable global (→ smell-hunter);
+exhaustiveness arms and narrowing on data variant sets (→ invariant-hunter); import direction between layers and
+external types in domain signatures (→ boundary-hunter); package naming and directory legibility (→ boundary-hunter);
+test design (→ test-hunter); AI-generated noise and cosmetic style (→ slop-hunter). Where ownership is *contested*, the
+category's **Ownership:** note in What to Hunt is authoritative. Cross-reference a candidate another hunter owns instead
+of scoring it.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -154,10 +154,11 @@ recommended — the finding then names the cost instead.
 **Ownership:** three-way split by the openness test. Here: scattered dispatch on an **open variant set** whose arms
 share one responsibility. smell-hunter's Shotgun Surgery keeps **non-variant** scattering — adding a field touches
 mappers, validators and serializers; a config concept spanning layers; a rename that is find-and-replace — including
-scattering only git history reveals. invariant-hunter keeps **exhaustiveness**: the missing arm, no design change
-(Leaky Discriminated Unions in Python and TypeScript; in Go no hunter scores it, see `solid-go.md`). The last two are
-orthogonal to this one; a single union can carry one finding of each at different anchors. A boolean dispatched at
-one site is simplicity-hunter's Over-Parameterized APIs.
+scattering only git history reveals. invariant-hunter keeps **exhaustiveness** on an `if` / `else` or `isinstance`
+chain: the missing arm, no design change (Leaky Discriminated Unions in Python and TypeScript). No hunter scores a
+missing arm in a TypeScript `switch`, a Python `match`, or a Go type switch over a sealed set (see `solid-go.md`). The
+last two are orthogonal to this one; a single union can carry one finding of each at different anchors. A boolean
+dispatched at one site is simplicity-hunter's Over-Parameterized APIs (Go: no hunter owns it).
 
 ### Broken Substitution (LSP)
 
@@ -199,10 +200,11 @@ it is no DIP finding either.
 **Action:** a narrower abstraction or composition — the type stops claiming what it cannot honor. Where the consumer
 branch stays for now, the Action names the guard form.
 
-**Ownership:** narrowing on a contract type to special-case an implementor is here, **whatever the guard form** — a
-bare `x.(T)` in that role is one Broken Substitution finding, the guard noted in Action, and the only finding at that
-site. Narrowing on a data variant set, guarded or not, and assertions from `any` / open data (JSON, config,
-`interface{}` payloads) are invariant-hunter's in Python and not covered here in Go and TypeScript (see `solid-go.md`).
+**Ownership:** narrowing on a contract type to special-case an implementor is here, **whatever the guard form** — a bare
+`x.(T)` in that role is one Broken Substitution finding, the guard noted in Action, and the only finding at that site.
+Narrowing on a data variant set, guarded or not, and assertions from `any` / open data (JSON, config, `interface{}`
+payloads) are invariant-hunter's in Python. In Go, invariant-hunter keeps a type switch over an open interface with no
+rejecting `default`; the other Go forms and the TypeScript forms are not covered here (see `solid-go.md`).
 
 ### Fat Interfaces (ISP)
 

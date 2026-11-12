@@ -17,12 +17,13 @@ public docs (→ doc-hunter); comments that call the code a hack or a workaround
 dependency defect but not when the workaround can go, whatever the marker (→ doc-hunter, Unexplained Workarounds); names
 that the code contradicts (→ doc-hunter, Misleading Comments and Names); comments over non-trivial code (→ smell-hunter,
 Comments as Deodorant); live but unreachable logic (→ simplicity-hunter, Dead Code Paths); unused functions and
-constants (no hunter owns them); exported dead symbols (→ boundary-hunter, Dead Exports); generic package / module names
-(→ boundary-hunter, Generic Boundary Names); stuttering names as package design (no hunter owns them); type-checker
-suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain correctness and
-swallowed errors (→ exception-hunter); discarded error returns (no hunter owns them); narration that leaks secrets (→
-security-hunter); test quality (→ test-hunter). Where ownership is *contested*, the category's **Ownership:** note in
-What to Hunt is authoritative.
+constants (no hunter owns them); exported dead symbols in Go and Python (→ boundary-hunter, Dead Exports); generic
+package / module names (→ boundary-hunter, Generic Boundary Names); stuttering names as package design (no hunter owns
+them); type-checker suppressions (`# type: ignore`, `@ts-ignore`, `@ts-expect-error`) (no hunter owns them); error-chain
+correctness and swallowed errors (→ exception-hunter); discarded error returns (no hunter owns them); narration that
+leaks a secret: a log call, or a connection string or an `Authorization` value in a comment (→ security-hunter); other
+secrets in comments (no hunter owns them); test quality (→ test-hunter). Where ownership is *contested*, the category's
+**Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -78,7 +79,7 @@ A comment that restates trivial code, a name, or a language construct.
 **Ownership — the comment ownership rule** (also governs Hedging and Narration):
 
 - Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
-  construct another hunter audits (a discarded error, a zero-value contract) → that hunter.
+  construct another hunter audits (a swallowed error, a zero-value contract) → that hunter.
 - Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
 - Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
   go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
@@ -122,8 +123,7 @@ formatter or a lint rule enforces is not judged here: each reference lists it un
 **Convention baseline, resolved per file, in this order — the first source that yields a convention wins:**
 
 1. Configuration that states a convention judged here, such as a docstring `convention` in Ruff's pydocstyle
-   settings. Ruff and ESLint resolve the nearest config, not one repo-wide file; a monorepo with two configs has two
-   baselines.
+   settings. Ruff resolves the nearest config, not one repo-wide file; a monorepo with two configs has two baselines.
 2. Repository instructions: `CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, `.editorconfig`, convention docs.
 3. The dominant pattern in comparable established code nearby. Two styles split evenly is no dominant pattern.
 4. The language style guide, named in the reference.
@@ -131,7 +131,8 @@ formatter or a lint rule enforces is not judged here: each reference lists it un
 No source yields a convention → no finding; record `baseline uncertain: <concern>` in Scope. Prescribing a
 convention is not an audit. A finding whose baseline source cannot be named is not reportable.
 
-**Signals** are per language (see the reference): naming idioms, error-handling pattern, idiom choice.
+**Signals:** `slop-go.md` lists the Go signals. In Python and TypeScript, judge only a convention that no rule in the
+reference's Delegated to tools enforces.
 
 **Action:** Conform.
 
@@ -160,8 +161,8 @@ a language idiom the reference's Trivially Dead Code section lists as intentiona
 
 **Ownership:** live-but-unreachable *logic* (guards already guaranteed, stale flags) is simplicity-hunter's Dead Code
 Paths, which demands liveness evidence; zero-call helpers, unused functions, and unused constants are no hunter's.
-Exported dead symbols are boundary-hunter's Dead Exports. Type-checker suppressions, reason or not, are not covered
-here. `_ = f()` where `f` returns an `error` is not covered here. Coverage pragmas (`# pragma: no cover`,
+Exported dead symbols in Go and Python are boundary-hunter's Dead Exports. Type-checker suppressions, reason or not, are
+not covered here. `_ = f()` where `f` returns an `error` is not covered here. Coverage pragmas (`# pragma: no cover`,
 `/* istanbul ignore … */`, `/* c8 ignore … */`, `/* v8 ignore … */`) and skipped tests (`t.Skip()`,
 `@pytest.mark.skip`), reason or not, are test-hunter's: whether a test can fail is one line, one hunter. TypeScript
 skips outside a diff and `.only` are no hunter's.
@@ -185,10 +186,11 @@ Speculative, apologetic, or self-referential text, and logging that narrates con
 **Not a finding:** logging with operational intent — request IDs, durations, error context. Only flow narration is
 noise.
 
-**Ownership:** narration that leaks a secret or PII is security-hunter's; cross-reference, severity is theirs. The
-comment ownership rule (Redundant Comments) applies: a workaround comment that names no cause, or names a defect but
-not when the workaround can go, is doc-hunter's Unexplained Workarounds; one that excuses the project's own design is
-smell-hunter's Comments as Deodorant.
+**Ownership:** a narrating log call that leaks a secret or PII is security-hunter's Sensitive Data Exposure, and a
+connection string or an `Authorization` value in a comment is its Hardcoded Secrets; cross-reference, severity is
+theirs. No hunter owns other secrets in a comment. The comment ownership rule (Redundant Comments) applies: a workaround
+comment that names no cause, or names a defect but not when the workaround can go, is doc-hunter's Unexplained
+Workarounds; one that excuses the project's own design is smell-hunter's Comments as Deodorant.
 
 ### Unnecessary Error Wrapping *(Go only)*
 
@@ -358,14 +360,14 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

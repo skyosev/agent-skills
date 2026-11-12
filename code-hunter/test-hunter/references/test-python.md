@@ -61,6 +61,8 @@ printf '%s\n' $PY_FILES | grep -Ev "$TEST_RE" > <run>/python-prod.txt || echo /d
   until it passes, any failure counts as expected.
 - **`pytest.xfail()` called unconditionally in a test body** (Never executes): the rest of the body never runs.
 - **A `Test*` class that defines `__init__`** (Never executes): pytest does not collect it and only warns.
+- **A check after the raising call in a `pytest.raises` block** (Never executes): the block exits at the raise, so
+  a statement after that call never runs. Setup before that call is fine.
 - **Collection:** a marker that `addopts` deselects (`-m "not integration"`) with no command that selects it; a test
   directory under `norecursedirs` or `--ignore`.
 - **Shared state:** a patcher started with `.start()` and no `stop()` or `addCleanup`; pytest-mock's `mocker` undoes
@@ -138,9 +140,11 @@ rg -H -n --pcre2 '@pytest\.mark\.xfail\b(?![^)]*strict\s*=\s*True)|pytest\.xfail
 rg -H -n --pcre2 '^\s+def\s+__init__\(' -- $PY_TESTS
 rg -H -n --pcre2 '^\s*except(\s+(Exception|BaseException|AssertionError)\b[^:]*)?\s*:' -- $PY_TESTS
 rg -H -n 'async def test_|pytest\.mark\.(asyncio|anyio|trio)|pytestmark' -- $PY_TESTS
+# Never executes: a pytest.raises block with a second statement (read whether it comes after the raising call)
+rg -H -n -U --pcre2 'with\s+pytest\.raises\([^\n]*:\n([ \t]+)\S[^\n]*\n\1\S' -- $PY_TESTS
 # Weak: existence, truthiness, and type-only checks; broad raises; argument-free interaction checks
 rg -H -n --pcre2 'assert\s+[\w.]+\s+is\s+not\s+None\s*$|assert\s+[\w.()]+\s*$|assert\s+isinstance\(' -- $PY_TESTS
-rg -H -n --pcre2 'pytest\.raises\(\s*(Exception|BaseException)\s*\)|\.assert_called(_once)?\(\)' -- $PY_TESTS
+rg -H -n --pcre2 'pytest\.raises\(\s*(Exception|BaseException)\s*\)|assertRaises\(\s*(Exception|BaseException)\s*[,)]|\.assert_called(_once)?\(\)' -- $PY_TESTS
 
 # Brittle Tests: private attributes, message matches, log and repr proxies, call counts, change detectors
 rg -H -n --pcre2 '\b(?!self\b)\w+\._[a-z]\w*' -- $PY_TESTS

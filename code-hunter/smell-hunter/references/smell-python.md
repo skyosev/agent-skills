@@ -12,7 +12,6 @@ Contents: Applicability of conditional categories · Generated-code eligibility 
 | Anemic Domain Model | **yes** | entity/service split is common in Python codebases |
 | Class Abuse | **yes** | classes standing in for modules and functions |
 
-
 ## Generated-code eligibility
 
 A file is generated (ineligible for reporting) only when identified by an authoritative in-file marker **where one
@@ -123,7 +122,7 @@ TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/test_*.py --glob !**/*_test.py --glob !*
 rg -nH --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type py $EXCLUDE -- $PY_FILES
 
 # Data clumps: 3+ parameters besides self or cls, multi-line included — test setup belongs to test-hunter
-rg -nHU --pcre2 'def\s+\w+\s*\((?:\s*(?:self|cls)\b[^,)]*,)?+(?:(?:[^,()\[\]]|\[[^\[\]]*\]|\([^()]*\))*,){2,}[^)]*\)' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
+rg -nHU --pcre2 'def\s+\w+\s*\((?:\s*(?:self|cls)\b[^,)]*,)?+(?:(?:[^,()\[\]]|\[[^\[\]]*\]|\([^()]*\))*,){2,}\s*[^\s)][^)]*\)' --type py $TEST_OWNED_EXCLUDE -- $PY_PROD
 
 # Primitive obsession: two bare str/int params in sequence, float money, raw status strings
 rg -nH --pcre2 'def\s+\w+\s*\([^)]*:\s*str\s*,[^)]*:\s*str' --type py $EXCLUDE -- $PY_FILES

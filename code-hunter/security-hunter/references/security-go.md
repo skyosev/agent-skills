@@ -12,7 +12,7 @@ Contents: Applicability · Generated-code and test-path eligibility · Language 
 | Insecure Configuration | **yes** | CORS middleware, `http.Cookie`, octal file modes on a secret file |
 | Auth Gaps | **yes** | router middleware and groups, gRPC interceptors, golang-jwt parsing, webhook signatures, fail-open middleware |
 | Sensitive Data Exposure | **yes** | log calls with credential words or a whole request; `err.Error()` and `debug.Stack()` in responses |
-| Weak Cryptography | **yes** | `crypto/md5`, `crypto/sha1`, `math/rand`, `==` / `bytes.Equal` on a MAC, `bcrypt.MinCost` |
+| Weak Cryptography | **yes** | `crypto/md5`, `crypto/sha1`, `golang.org/x/crypto/blowfish`, `math/rand`, `==` / `bytes.Equal` on a MAC, `bcrypt.MinCost` |
 | Resource Exhaustion | **yes, no ReDoS** | `io.ReadAll(r.Body)`, multipart forms, decompression, goroutines in a loop, credential-endpoint limiters; `regexp` is RE2 |
 | Dependency and Supply-Chain Risks | **yes** | `go.mod` / `go.work` `replace`, `go.sum`, `GOSUMDB` / `GONOSUMDB` / `GOPRIVATE` |
 
@@ -113,7 +113,7 @@ rg -H -n -i --pcre2 'hmac\.(New|Equal)\(|subtle\.ConstantTimeCompare\(|x-hub-sig
 rg -H -n -i --pcre2 '\b(log|slog|logger|zap|logrus|zerolog|l)[\w.]*\.(Print\w*|Info\w*|Debug\w*|Warn\w*|Error\w*|Fatal\w*|Msg\w*|With)\([^\n]*\b(password|passwd|token|secret|authorization|cookie|api[_-]?key|ssn|card)' --type go $EXCLUDE -- $GO_FILES
 rg -H -n --pcre2 'http\.Error\(\s*\w+,\s*(err|e)\.Error\(\)|Write\(\[\]byte\((err|e)\.Error\(\)|debug\.Stack\(\)|%\+v"\s*,\s*(r|req)\b|c\.JSON\([^)]*err\.Error\(\)' --type go $EXCLUDE -- $GO_FILES
 # Weak Cryptography: imports and primitives (then name the use); secret comparisons
-rg -H -n --pcre2 '"crypto/(md5|sha1)"|"math/rand(/v2)?"|x509\.InsecureAlgorithm|bcrypt\.MinCost' --type go $EXCLUDE -- $GO_FILES
+rg -H -n --pcre2 '"crypto/(md5|sha1)"|"golang\.org/x/crypto/blowfish"|"math/rand(/v2)?"|x509\.InsecureAlgorithm|bcrypt\.MinCost' --type go $EXCLUDE -- $GO_FILES
 rg -H -n -i --pcre2 '\b\w*(token|secret|signature|sig|hmac|mac|digest)\w*\s*[!=]=\s*\w|\bbytes\.Equal\(\s*\w*(sig|mac|hash|digest)' --type go $EXCLUDE -- $GO_FILES
 # Resource Exhaustion: unbounded body reads and their limits; goroutines in a loop (then: per request? bounded?); decompression; limiters
 rg -H -n --pcre2 '(io|ioutil)\.ReadAll\(\s*(r|req)\.Body|http\.MaxBytesReader|MaxBytesHandler|ParseMultipartForm\(|FormFile\(' --type go $EXCLUDE -- $GO_FILES
@@ -136,9 +136,8 @@ spans several statements before `next`.
   arguments as options?
 - For each `text/template` import: is the output written to an `http.ResponseWriter`? Does the package serve HTTP at
   all?
-- For each explicit mode that is group- or other-readable (`0644`, `0640`, `0755`, and every world-writable mode):
-  does the file hold a secret, key, or token? A world-readable file of personal data is Sensitive Data Exposure
-  (`storage`, routing rule 12).
+- For each explicit mode that is group- or other-readable (`0644`, `0640`, `0755`): does the file hold a secret, key, or
+  token? A world-readable file of personal data is Sensitive Data Exposure (`storage`, routing rule 12).
 - For each `for … { go … }`: is the loop over a client-sized list, or per request? Is there a pool, a semaphore, or
   `errgroup.SetLimit`?
 - For each fail-open chain: does the error branch reach `next` or the handler without writing a denial?

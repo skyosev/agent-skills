@@ -10,9 +10,9 @@ Language-only categories appended by a language reference (Go: Interface Polluti
 the table schemas supplied in that reference.
 
 **Row notes.** Under each table, one note per row, headed `#N`: the exact code the row cites, in a fenced block; then
-each comment, commit or record that the row uses as evidence, quoted; then one clause for each item that applies —
-the other reading a Within-skill precedence rule set aside, the nesting a Mixed Concerns row absorbs, the answer to a
-two-behavior signal (Duplication rule 2), a blocked probe, or a "remedy unresolved" counterexample (Drifted copies).
+each comment, commit or record that the row uses as evidence, quoted; then one clause for each item that applies — the
+other reading a Within-skill precedence rule set aside, the answer to a two-behavior signal (Duplication rule 2), a
+blocked probe, or a "remedy unresolved" counterexample (Drifted copies).
 
 **Limitation lines.** One per open published unit whose negative claims were withdrawn:
 `Limitation: {unit} open; {the signal that opened it}; consumer set not closed`. One per other withdrawn finding (an
@@ -56,7 +56,7 @@ if (!body.email || !EMAIL_RE.test(body.email)) throw new ValidationError('email'
 
 | # | Location | Hand-rolled | Primitive | Toolchain | Severity | Impact | Action |
 | - | -------- | ----------- | --------- | --------- | -------- | ------ | ------ |
-| 1 | file:line | loop contains | `slices.Contains` | go 1.21 | Low | Medium | Replace |
+| 1 | file:line | error messages joined into one string | `errors.Join` | go 1.20 | Low | Medium | Replace |
 
 ### Unnecessary Abstractions
 
@@ -68,7 +68,7 @@ if (!body.email || !EMAIL_RE.test(body.email)) throw new ValidationError('email'
 
 | # | Location | Code | Evidence | Severity | Impact | Action |
 | - | -------- | ---- | -------- | -------- | ------ | ------ |
-| 1 | file:line | `legacyHandler()` | 0 call sites; not in registry | Low | High | Delete |
+| 1 | file:line | `if cfg.LegacyMode` branch | `LegacyMode` false in every config; no override | Low | High | Delete |
 
 ### Over-Parameterized APIs
 

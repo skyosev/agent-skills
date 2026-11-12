@@ -9,11 +9,10 @@ Contents: Applicability of universal categories · Generated-code and test-path 
 | Unguarded Type Assertions | **no** | `as T`, `x!`, object-literal `as`, and `JSON` casts are delegated |
 | Loose Optionality | **yes** | `?:` fields and parameters |
 | Defensive Access in Non-Boundary Code | **yes** | `?.` / `??` on always-present values |
-| Leaky Discriminated Unions | **yes** | discriminated unions, `?: never`; `switch` exhaustiveness and casts to a variant are delegated |
+| Leaky Discriminated Unions | **yes** | discriminated unions, `?: never`, an `if` / `else` chain over the discriminant; `switch` exhaustiveness and casts to a variant are delegated |
 | Runtime Checks Promotable to Types | **yes** | type predicates, assertion functions, validated-state brands, `satisfies`, `as const` (adoption only) |
 
-**No language-only categories.** Catch-block handling — empty catches, catch-and-log, `return null` on error,
-`Error.cause` — is exception-hunter's.
+**No language-only categories.** Catch-block handling — catch-and-log, `return null` on error — is exception-hunter's.
 
 ## Generated-code and test-path eligibility
 
@@ -65,11 +64,13 @@ evidence.
 
 ## Delegated to tools
 
-- ESLint with typescript-eslint (type-aware): an assertion that narrows, `as unknown as T`, and a cast from `any`
-  such as `(await res.json()) as T` (`no-unsafe-type-assertion`); `x!` (`no-non-null-assertion`); an object literal
-  cast with `as` (`consistent-type-assertions` with `objectLiteralTypeAssertions: "never"`); a `switch` over a union
-  with a missing case (`switch-exhaustiveness-check`); `any` (`no-explicit-any`); `@ts-ignore`, `@ts-nocheck`, and
-  `@ts-expect-error` with no description (`ban-ts-comment`).
+- ESLint with typescript-eslint (type-aware), or Biome where a rule is named: an assertion that narrows, `as unknown as
+  T`, and a cast from `any` such as `(await res.json()) as T` (`no-unsafe-type-assertion`); `x!`
+  (`no-non-null-assertion`, or Biome `noNonNullAssertion`); an object literal cast with `as`
+  (`consistent-type-assertions` with `objectLiteralTypeAssertions: "never"`); a `switch` over a union with a missing
+  case (`switch-exhaustiveness-check`); `any` (`no-explicit-any`, or Biome `noExplicitAny`); `@ts-ignore`,
+  `@ts-nocheck`, and `@ts-expect-error` with no description (`ban-ts-comment`, or Biome `noTsIgnore` for `@ts-ignore`
+  only).
 
 ## Idiom calibration
 
@@ -90,9 +91,11 @@ rg -H -n --pcre2 '^\s*(readonly\s+)?\w+\?\s*:|\|\s*undefined\b|Partial<' --type 
 # Defensive Access
 rg -H -n '\?\.|\?\?' --type ts $EXCLUDE -- $TS_FILES
 
-# Leaky Discriminated Unions: discriminants and never guards (then look for a parallel flag or a leaking field)
+# Leaky Discriminated Unions: discriminants and never guards (then look for a parallel flag or a leaking field);
+# discriminant comparisons (then read whether an if / else chain must cover every variant)
 rg -H -n --pcre2 "\b(kind|type|tag|variant)\s*:\s*['\"]\w+['\"]" --type ts $EXCLUDE -- $TS_FILES
 rg -H -n '\?\s*:\s*never\b' --type ts $EXCLUDE -- $TS_FILES
+rg -H -n --pcre2 "\.(kind|type|tag|variant)\s*[!=]==?\s*['\"]\w+['\"]" --type ts $EXCLUDE -- $TS_FILES
 
 # Runtime Checks Promotable to Types: boolean validators, predicates, assertion functions, satisfies, as const
 rg -H -n --pcre2 'function\s+(is|has|valid|check)\w*\([^)]*\)\s*:\s*boolean' --type ts $EXCLUDE -- $TS_FILES

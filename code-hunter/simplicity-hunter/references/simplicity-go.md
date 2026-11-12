@@ -71,8 +71,9 @@ source-level complexity, and carries a do-not-copy-a-non-zero-Builder constraint
 
 ## Dead code — ownership and liveness hooks
 
-**Ownership:** `_ = x` on a non-error binding is slop-hunter's; unused parameters, unused struct fields, and
-`_ = f()` on an error are not covered here. A nil guard the preceding logic already guarantees is here: Go has no non-optional pointer type, so invariant-hunter's Defensive Access does not apply.
+**Ownership:** `_ = x` on a non-error binding is slop-hunter's; unused parameters, unused struct fields, and `_ = f()`
+on an error are not covered here. A nil guard the preceding logic already guarantees is here: Go has no non-optional
+pointer type, so invariant-hunter's Defensive Access does not apply.
 
 **Liveness hooks** beyond the shared channels (SKILL.md Terms): build tags (`//go:build`, `// +build`); `init`;
 `//go:linkname`; cgo `//export`; a run-time interface check (`x.(interface{ validate() error })`) that calls an
@@ -106,8 +107,8 @@ rg -n --type go '// Deprecated:' --glob '!**/vendor/**' .
 
 ## Delegated to tools
 
-- golangci-lint: a loop that a newer standard call replaces, such as `slices.Contains` (`modernize`); an unused
-  unexported function or constant (`unused`); deep nesting and long branch chains (`nestif`, `gocognit`, gocritic
+- golangci-lint: a loop that a newer standard call replaces, such as `slices.Contains` (`modernize`, or `go fix`); an
+  unused unexported function or constant (`unused`); deep nesting and long branch chains (`nestif`, `gocognit`, gocritic
   `ifElseChain`); a boolean parameter that a condition tests (revive `flag-parameter`); a call to a deprecated symbol
   (staticcheck `SA1019`).
 

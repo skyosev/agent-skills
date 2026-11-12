@@ -58,8 +58,8 @@ the set is open.
 - A consumer branch that compensates: `if (repo instanceof InMemoryRepo) return; // no transactions`
 
 `if (store instanceof PostgresStore) store.vacuum()` where `vacuum` is outside the contract unlocks an extra —
-no finding. Narrowing on a **discriminated union** (`if (node.kind === 'leaf')`, `instanceof` over union members with
-no shared behavioral contract) is invariant-hunter's, not here.
+no finding. Narrowing on a **discriminated union** (`if (node.kind === 'leaf')`, `instanceof` over union members with no
+shared behavioral contract) is not covered here.
 
 ### Fat Interfaces — TypeScript forms
 

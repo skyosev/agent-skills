@@ -87,10 +87,11 @@ Narration logging: `log.Print*` / `log.*` / `slog.*` / `zap` / `logrus` calls wh
 
 ## Delegated to tools
 
-- golangci-lint: unformatted code (formatter `gofmt` or `gofumpt`); import grouping (formatter `gci` with the
-  project's sections, or `goimports` with `local-prefixes`); naming case and initialisms such as `userId` (staticcheck
-  `ST1003`); commented-out code (gocritic `commentedOutCode`); unused parameters (revive `unused-parameter`); unused
-  struct fields (`unused`); a `//nolint` that suppresses nothing (`nolintlint` with `allow-unused: false`).
+- golangci-lint: unformatted code (formatter `gofmt` or `gofumpt`); import grouping (formatter `gci` with the project's
+  sections, or `goimports` with `local-prefixes`); naming case and initialisms such as `userId` (staticcheck `ST1003`,
+  enabled in staticcheck `checks`); commented-out code (gocritic `commentedOutCode`, listed in gocritic
+  `enabled-checks`); unused parameters (revive `unused-parameter`); unused struct fields (`unused`); a `//nolint` that
+  suppresses nothing (`nolintlint` with `allow-unused: false`; it reports a directive only for an enabled linter).
 
 ## Idiom calibration
 
@@ -143,9 +144,9 @@ For each `fmt.Errorf` candidate:
 
 For each `//nolint` or `#nosec`:
 
-- Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real
-  (`errcheck` on a dropped error)? Then the noise hides a finding (SKILL.md Severity). Score only the bare
-  suppression; cross-reference a real gosec finding to security-hunter.
+- Is there a trailing reason? Bare → Trivially Dead Code. Is the suppressed linter reporting something real (`errcheck`
+  on a dropped error)? Then the noise hides a finding (SKILL.md Severity). Score only the bare suppression;
+  cross-reference a real finding in a class security-hunter hunts to security-hunter.
 
 For each `_ = x`:
 

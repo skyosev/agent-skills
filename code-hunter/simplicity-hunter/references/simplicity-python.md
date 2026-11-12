@@ -75,8 +75,9 @@ rg -n --type py 'DeprecationWarning|@deprecated|warnings\.warn' \
 
 ## Delegated to tools
 
-- ruff: a loop that `any()`, `all()`, `min()`, `max()` or `itertools.pairwise` replaces, and a `try`-`except`-`pass`
-  where `contextlib.suppress` fits (`SIM110`, `PLR1730`, `RUF007`, `SIM105`); a function too complex to read (`C901`).
+- ruff: a loop or an `if` statement that `any()`, `all()`, `min()`, `max()` or `itertools.pairwise` replaces, and a
+  `try`-`except`-`pass` where `contextlib.suppress` fits (`SIM110`, `PLR1730`, `RUF007`, `SIM105`); a function too
+  complex to read (`C901`).
 - vulture: an unused function, class, or constant.
 - pyright: a guard the type already rules out (`reportUnnecessaryComparison`); a call to a deprecated symbol
   (`reportDeprecated`).

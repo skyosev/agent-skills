@@ -102,18 +102,19 @@ marks a category that is n/a in some language; each language reference's Applica
   recorded source — never inferred from the graph, from fan-in, or from who imports an external.
 - **Boundary source** — what a Dependency Direction Violations or External Type Leaks finding needs before it exists:
   either the layer map (an ordering violated) or an **explicit prohibition** naming the edge or the external — an
-  `import-linter` `forbidden` / `independence` contract, a dependency-cruiser `forbidden` rule, an Nx
-  module-boundary constraint, a go-arch-lint `mayDependOn` set that excludes the target, a repository instruction.
-  **No boundary source → both categories are withdrawn** with a Scope line. A prohibition is evidence for the edge it
-  names; it never becomes a tier for any other edge.
+  `import-linter` `forbidden` / `independence` contract, a dependency-cruiser `forbidden` rule, an
+  eslint-plugin-boundaries `boundaries/dependencies` rule, an Nx module-boundary constraint, a go-arch-lint
+  `mayDependOn` set that excludes the target, a golangci-lint `depguard` `deny` entry, a repository instruction. **No
+  boundary source → both categories are withdrawn** with a Scope line. A prohibition is evidence for the edge it names;
+  it never becomes a tier for any other edge.
 - **Policy** — an explicit dependency rule the repository already states: instructions, or a contract configuration
   (`.dependency-cruiser.{js,cjs,mjs,json}`, `dependency-cruiser.config.*`, `eslint-plugin-boundaries` and Nx
   `@nx/enforce-module-boundaries` tags, `[tool.importlinter]` / `.importlinter` contracts of every type,
-  `.go-arch-lint.yml`). Policy is evaluated on edges, not turned into tiers: an edge a contract **explicitly permits**
-  is withdrawn with a `Policy:` line; an edge a contract **explicitly forbids** is a Dependency Direction Violations
-  finding with the rule as its boundary source; an edge no rule mentions is neither permitted nor forbidden. An edge
-  instructions forbid and a configuration permits is a finding whose Evidence names the conflict; instructions
-  outrank configuration.
+  `.go-arch-lint.yml`, `depguard` rules in `.golangci.*`). Policy is evaluated on edges, not turned into tiers: an edge
+  a contract **explicitly permits** is withdrawn with a `Policy:` line; an edge a contract **explicitly forbids** is a
+  Dependency Direction Violations finding with the rule as its boundary source; an edge no rule mentions is neither
+  permitted nor forbidden. An edge instructions forbid and a configuration permits is a finding whose Evidence names the
+  conflict; instructions outrank configuration.
 - **Inward** — toward the layer map's inner tier. Edge layers *are* the wrapping layer; external types in their own
   signatures are not leaks.
 - **External type** — a type whose shape the project does not own. First-party is the whole workspace (every
@@ -142,14 +143,14 @@ marks a category that is n/a in some language; each language reference's Applica
 
 ### Dead Exports *(conditional)*
 
-An export with no external consumer.
+An export with no external consumer, in Go and Python.
 
 **Signals:**
 
 - An exported function, type, or constant with zero import sites outside its unit
 - An exported constructor for a type nothing outside the unit uses
-- A barrel or `__init__` re-export no external module imports
-- `export * from './internal'`, `from .impl import *`
+- An `__init__` re-export no external module imports
+- `from .impl import *`
 - An exported symbol imported only by test files
 
 **Evidence bar:** enumerate consumers project-wide **by reading, not by regex alone** — Go methods and grouped
@@ -187,9 +188,9 @@ A consumed export exposing *how* the unit works, not *what* it provides.
 
 **Evidence bar:** the exposed member fails the **rewrite test** with the reason stated, **and** at least one external
 consumer reads it (Medium) or mutates it (High), named `file:line`. Python judges any consumed non-underscore name,
-whatever `__all__` says; for an `__init__.py` re-exporting a `_name`, the stated reason is
-`marked private by its own _ prefix`, and no further rewrite test applies. Exposed but untouched → Dead Exports at
-member granularity, Low. Reported in open (published) units too — the consumer is in the tree.
+whatever `__all__` says; for an `__init__.py` re-exporting a `_name`, the stated reason is `marked private by its own _
+prefix`, and no further rewrite test applies. Exposed but untouched → Dead Exports at member granularity, Low (Go,
+Python). Reported in open (published) units too — the consumer is in the tree.
 
 **Action:** unexport the member; expose the behavior it served through a method or an owned type. The consumer's
 dependence is the reason, cited.
@@ -268,7 +269,7 @@ A runtime import cycle on the module graph whose module-level read of a partner 
 - **Runtime cycle** — a cycle that still exists after every erased edge is removed from the graph. A cycle that
   disappears when erased edges are removed is **type-only**, even when some of its edges are runtime imports: `A → B`
   runtime plus `B → A` type-only is not a runtime cycle, because after erasure nothing points back. A type-only cycle
-  cannot fail at import and is not judged here.
+  cannot fail at import and is not judged here. A cycle's **Kind** is this classification: `runtime` or `type-only`.
 - **Provable failure** — a runtime cycle's Failure value decided by reading: module `b` has, at module level, a read
   of a binding from cycle partner `a` — `from a import X`, `a.X`, or a call at module level into a function whose body
   reads `a.X` (one hop) — and `a` defines `X` *after* the statement that imports `b`. From the entry that starts at
@@ -360,14 +361,14 @@ solid-hunter's Responsibility Sprawl, including the split's design.
 
 Per import edge: a Cyclic Dependencies finding > Dependency Direction Violations > Deep Imports. Per exported member: a
 member failing the rewrite test with a consumer touching it is Leaked Internals; exposed but untouched is Dead Exports
-at member granularity. A member that External Type Leaks also claims is routed by its consumers, never by Severity. With
-Dead Exports, it stays Dead Exports: unexporting takes the external type out of the API. With Leaked Internals, it is
-External Type Leaks when a consumer in an inward unit touches it — that consumer needs the owned replacement type, and
-the Action names it `file:line` — else Leaked Internals. An import edge that Dependency Direction Violations claims and
-an exported signature in the same unit that External Type Leaks claims for a type from that edge's target are two
-findings, each naming the other in one clause: fixing the signature leaves the edge wherever unexported code still uses
-the target. The reported finding's Evidence cell names the other readings in one clause, or its Action cell where the
-table has no Evidence column.
+at member granularity (Go, Python). A member that External Type Leaks also claims is routed by its consumers, never by
+Severity. With Dead Exports, it stays Dead Exports: unexporting takes the external type out of the API. With Leaked
+Internals, it is External Type Leaks when a consumer in an inward unit touches it — that consumer needs the owned
+replacement type, and the Action names it `file:line` — else Leaked Internals. An import edge that Dependency Direction
+Violations claims and an exported signature in the same unit that External Type Leaks claims for a type from that edge's
+target are two findings, each naming the other in one clause: fixing the signature leaves the edge wherever unexported
+code still uses the target. The reported finding's Evidence cell names the other readings in one clause, or its Action
+cell where the table has no Evidence column.
 
 ## Test-code scope
 
@@ -570,14 +571,14 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 

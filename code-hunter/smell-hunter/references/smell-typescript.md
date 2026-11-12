@@ -147,9 +147,9 @@ TEST_OWNED_EXCLUDE="$EXCLUDE --glob !**/*.test.* --glob !**/*.spec.* --glob !**/
 rg -nH --pcre2 '\b[a-z]\w+\.[a-z]\w+\.[a-z]\w+' --type ts $EXCLUDE -- $TS_FILES
 
 # Data clumps: signatures with 3+ parameters, multi-line included — test setup belongs to test-hunter
-rg -nHU --pcre2 'function\s+\w+\s*\((?:[^,)]*,){2,}[^)]*\)' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
-rg -nHU --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?\((?:[^,)]*,){2,}[^)]*\)\s*(?:=>|:)' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
-rg -nHU --pcre2 '^\s+(?:(?:public|private|protected|readonly|static|async)\s+)*(?!(?:if|for|while|switch|catch|return)\b)(?:constructor|\w+)\s*\((?:(?:[^,()<>]|<[^<>]*>|\([^()]*\))*,){2,}[^)]*\)\s*(?::[^{;]+)?\{' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nHU --pcre2 'function\s+\w+\s*(?:<[^<>]*>)?\((?:(?:[^,()<>]|=>|<[^<>]*>|\([^()]*\))*,){2,}\s*[^\s)][^)]*\)' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nHU --pcre2 '(?:const|let)\s+\w+\s*=\s*(?:async\s+)?(?:<[^<>]*>)?\((?:(?:[^,()<>]|=>|<[^<>]*>|\([^()]*\))*,){2,}\s*[^\s)][^)]*\)\s*(?:=>|:)' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
+rg -nHU --pcre2 '^\s+(?:(?:public|private|protected|readonly|static|async)\s+)*(?!(?:if|for|while|switch|catch|return)\b)(?:constructor|\w+)\s*(?:<[^<>]*>)?\((?:(?:[^,()<>]|=>|<[^<>]*>|\([^()]*\))*,){2,}\s*[^\s)][^)]*\)\s*(?::[^{;]+)?\{' --type ts $TEST_OWNED_EXCLUDE -- $TS_PROD
 
 # Primitive obsession: two bare string/number params in sequence, number money, raw status strings
 rg -nH --pcre2 'function\s+\w+\s*\([^)]*:\s*string\s*,[^)]*:\s*string' --type ts $EXCLUDE -- $TS_FILES

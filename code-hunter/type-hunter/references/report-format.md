@@ -7,8 +7,7 @@ lines resolved so far and its `Audit completed` line, nothing else. A category w
 table, or "none found" line; a thin report is a valid result.
 
 **No Toolchain lines.** Linters report only two narrow forms of these categories (SKILL.md, No toolchain step); the
-Scope block carries none, and no type-checker
-configuration is recorded.
+Scope block carries none, and no type-checker configuration is recorded.
 
 **Enumeration line.** Present when any instantiation or duplicate was found by reading rather than by scan. States
 what was searched (explicit type arguments, call sites read, declaration census) and how the set was closed.

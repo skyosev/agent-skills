@@ -12,7 +12,7 @@ Contents: Applicability · Generated-code and test-path eligibility · Language 
 | Insecure Configuration | **yes** | Django and Flask settings, CORS, `@csrf_exempt`, cookie flags, octal modes on a secret file |
 | Auth Gaps | **yes** | DRF `permission_classes`, FastAPI `Depends`, Flask-Login, PyJWT `decode` options, webhook signatures, fail-open `except` |
 | Sensitive Data Exposure | **yes** | `print` and `logging` calls with credential words or the request; `traceback.format_exc()` and `str(e)` in responses |
-| Weak Cryptography | **yes** | `hashlib.md5` / `sha1`, `random`, `uuid1`, `==` on a MAC, the password hasher |
+| Weak Cryptography | **yes** | `hashlib.md5` / `sha1`, `random`, `uuid1`, `==` on a MAC, a static IV or nonce, the password hasher |
 | Resource Exhaustion | **yes** | regex from input and literal nested quantifiers; `request.body()` and upload limits; decompression and `Image.open`; limiters |
 | Dependency and Supply-Chain Risks | **yes** | `requirements*.txt`, `pyproject.toml`, lockfiles |
 
@@ -127,8 +127,10 @@ rg -H -n --pcre2 '\b0o[0-7]?[0-7](?:[4-7][0-7]|[0-7][4-7])\b' --type py $EXCLUDE
 # Sensitive Data Exposure: credential words in prints and logs; exception text in responses
 rg -H -n -i --pcre2 '\b(print|log\w*\.(info|debug|warning|warn|error|exception|critical))\([^\n]*\b(password|passwd|pw|token|secret|authorization|cookie|api[_-]?key|ssn|card|request\.(json|form|data|headers|body))\b' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 'traceback\.(format_exc|print_exc)\(|["\x27](error|detail|message)["\x27]\s*:\s*(str\(|repr\(|f["\x27][^"\x27]*\{(e|err|exc)\b)|detail\s*=\s*(str\(|repr\(|f["\x27][^"\x27]*\{(e|err|exc)\b)|PROPAGATE_EXCEPTIONS\s*=\s*True' --type py $EXCLUDE -- $PY_FILES
-# Weak Cryptography: primitives (then name the use); secret comparisons; hashing inventory
+# Weak Cryptography: primitives (then name the use); cipher constructions (then read whether the IV or nonce is a
+# constant); secret comparisons; hashing inventory
 rg -H -n -i --pcre2 'hashlib\.(md5|sha1)\(|hashlib\.new\(\s*["\x27](md5|sha1)|\brandom\.(random|randint|choice|choices|randrange|getrandbits|sample|uniform)\(|\buuid\.uuid1\(' --type py $EXCLUDE -- $PY_FILES
+rg -H -n --pcre2 '\bmodes\.(CBC|CFB8?|OFB|CTR|GCM)\(|\b(AES|DES3|ChaCha20)\.new\(|\b(AESGCM|AESCCM|ChaCha20Poly1305)\(' --type py $EXCLUDE -- $PY_FILES
 rg -H -n -i --pcre2 '\b\w*(token|secret|signature|sig|hmac|mac|digest|otp|password_hash)\w*\s*[!=]=\s*\w' --type py $EXCLUDE -- $PY_FILES
 rg -H -n --pcre2 'make_password\(|check_password\(|\bbcrypt\.|argon2|pbkdf2_hmac\(|scrypt\(|PasswordHasher|CryptContext|PASSWORD_HASHERS' --type py $EXCLUDE -- $PY_FILES
 # Resource Exhaustion: regex from input; literal patterns with a nested or overlapping quantifier (then: run on boundary input?); body reads and their limits; decompression and image decoding; limiters

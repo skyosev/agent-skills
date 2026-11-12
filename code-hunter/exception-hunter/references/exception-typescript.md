@@ -57,10 +57,11 @@ The versions are tsconfig `target` and `lib`, and the Node major from `engines.n
   ignored (`no-misused-promises`); a `catch` that cannot run because a `return` inside its `try` has no `await`
   (`return-await`, `in-try-catch`); a thrown or rejected non-`Error` (`only-throw-error`,
   `prefer-promise-reject-errors`, or Biome `useThrowOnlyError`); an empty `catch` (`no-empty`, or Biome
-  `noEmptyBlockStatements`); a jump in `finally` (`no-unsafe-finally`, or Biome `noUnsafeFinally`); a `catch` that
-  only re-throws (`no-useless-catch`, or Biome `noUselessCatch`); a re-throw without `cause` (`preserve-caught-error`,
-  with `errorClassNames` listing the project's error classes); `process.exit` outside the entry point
-  (`unicorn/no-process-exit`). The typescript-eslint rules need type-aware linting (`parserOptions.projectService`).
+  `noEmptyBlockStatements`); a jump in `finally` (`no-unsafe-finally`, or Biome `noUnsafeFinally`); a `catch` that only
+  re-throws (`no-useless-catch`, or Biome `noUselessCatch`); a re-throw without `cause` (`preserve-caught-error`, with
+  `errorClassNames` listing the project's error classes, or Biome `useErrorCause`, enabled under `style`);
+  `process.exit` outside the entry point (`unicorn/no-process-exit`). The typescript-eslint rules need type-aware
+  linting (`parserOptions.projectService`).
 
 ## Phase 2 — exception scans
 
@@ -78,7 +79,7 @@ rg -H -n --pcre2 '^\s*new\s+\w*Error\(.*\);?\s*$' --type ts $EXCLUDE -- $TS_FILE
 rg -H -n --pcre2 'retryIf|shouldRetry|p-retry|axios-retry|async-retry|\bretries\s*:' --type ts $EXCLUDE -- $TS_FILES
 rg -H -n --pcre2 'AbortError|signal\.aborted|ABORT_ERR' --type ts $EXCLUDE -- $TS_FILES
 # Overbroad Handling and Broken Error Chains: a new error thrown in a catch (then read whether it claims one meaning for
-# every failure that reaches the catch, and whether it keeps the cause)
+# every failure that reaches the catch)
 rg -H -n -U --pcre2 'catch\s*\(\s*(\w+)[^)]*\)\s*\{[^}]*?throw\s+new\s+\w+\([^;]*;' --type ts $EXCLUDE -- $TS_FILES
 # Broken Error Chains: stack dropped at a log call; custom error classes (then read super())
 rg -H -n --pcre2 '(console|log\w*)\.\w+\([^)]*\b(e|err|error|ex)\.message\b' --type ts $EXCLUDE -- $TS_FILES

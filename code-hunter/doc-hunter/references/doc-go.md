@@ -53,8 +53,8 @@ rg -l --type go --glob '!**/vendor/**' --glob '!**/testdata/**' --glob '!**/_*/*
 
 ## Delegated to tools
 
-- golangci-lint: a numeric literal with no name (`mnd`); an exported symbol's doc comment that does not start with
-  its name, as when it names another symbol (staticcheck `ST1020`, `ST1021`, `ST1022`).
+- golangci-lint: a numeric literal with no name (`mnd`); an exported symbol's doc comment that does not start with its
+  name, as when it names another symbol (staticcheck `ST1020`, `ST1021`, `ST1022`, enabled in staticcheck `checks`).
 - golangci-lint's `revive`, only when a Library unit is in scope (SKILL.md Terms): an exported symbol or a package
   with no doc comment (`exported`, `package-comments`).
 

@@ -12,19 +12,19 @@ a doc that says "returns ErrNotFound" over `return nil, nil`, a `GetRate` that i
 reader needs before changing the code is in the code, its names, or its comments, and every comment and name is
 true.**
 
-**Not covered (owned by other hunters):** redundant comments, verbose docs (`jsdoc/informative-docs` included), vague
-`TODO` / `FIXME` / `XXX` work items, hedging, and task history in comments (→ slop-hunter); "what" comments over
-non-trivial code (Comments as Deodorant), call order of the project's own API (Temporal Coupling), duration integers,
-floating-point money, and raw status strings, also when a comment states the allowed values (Primitive Obsession),
-stuttering names (no hunter owns them); comments that justify a nil or zero-value contract, an invariant that a runtime
-check already enforces (→ invariant-hunter); comments that justify a discarded error, Go reachable panics, `None` /
-`undefined` returned for an error (→ exception-hunter); Go errors discarded by `_ =` (no hunter owns them); empty
-catches and discarded promises are not covered here; code that needs a "what" comment, intentional complexity whose
-stated reason is stale (→ simplicity-hunter); unused code under `// IMPORTANT: do not remove` (→ boundary-hunter for an
-export, else no hunter); an implementation that breaks a *documented* interface contract (→ solid-hunter); Go aliases
-without a migration comment (→ type-hunter); generic package names (→ boundary-hunter); doctests and Go `Example`
-functions (→ test-hunter); comments that leak secrets (→ security-hunter). Where ownership is *contested*, the
-category's **Ownership:** note in What to Hunt is authoritative.
+**Not covered (owned by other hunters):** redundant comments, verbose docs, vague `TODO` / `FIXME` / `XXX` work items,
+hedging, and task history in comments (→ slop-hunter); "what" comments over non-trivial code (Comments as Deodorant),
+call order of the project's own API (Temporal Coupling), duration integers, floating-point money, and raw status
+strings, also when a comment states the allowed values (Primitive Obsession), stuttering names (no hunter owns them);
+comments that justify a nil or zero-value contract, an invariant that a runtime check already enforces (→
+invariant-hunter); comments that justify a swallowed error, Go reachable panics, `None` / `undefined` returned for an
+error (→ exception-hunter); Go errors discarded by `_ =` (no hunter owns them); empty catches and discarded promises are
+not covered here; code that needs a "what" comment, intentional complexity whose stated reason is stale (→
+simplicity-hunter); unused code under `// IMPORTANT: do not remove` (→ boundary-hunter for an export, else no hunter);
+an implementation that breaks a *documented* interface contract (→ solid-hunter); Go aliases without a migration comment
+(→ type-hunter); generic package names (→ boundary-hunter); doctests and Go `Example` functions (→ test-hunter); a
+connection string or an `Authorization` value in a comment (→ security-hunter); other secrets in comments (no hunter
+owns them). Where ownership is *contested*, the category's **Ownership:** note in What to Hunt is authoritative.
 
 Hunter names are unsuffixed. A hunter not installed under that name is installed per language
 (`perf-hunter-py`, `perf-hunter-ts`): route to the one matching the finding's language.
@@ -82,7 +82,7 @@ Rules of the standard:
 **Comment ownership rule** (shared with slop-hunter and smell-hunter; the first match wins):
 
 - Comment contradicts the code it describes → doc-hunter (Misleading Comments and Names), unless it only justifies a
-  construct another hunter audits (a discarded error, a zero-value contract) → that hunter.
+  construct another hunter audits (a swallowed error, a zero-value contract) → that hunter.
 - Comment calls the code a hack or a workaround but names no cause → doc-hunter (Unexplained Workarounds).
 - Comment states an external constraint but not its source, or a dependency defect but not when the workaround can
   go → doc-hunter (Unexplained Business Rules or Unexplained Workarounds).
@@ -658,14 +658,14 @@ mode (e.g. a party-mode orchestrator) overrides this default.
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes
-of defect this hunter leaves to that tool. Do not hunt those classes, run the tool, or read its configuration. Check
-only whether the tool is set up, with one `rg` per tool: its configuration file, its section in a shared file
-(`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations (Priority Order)` with the
-bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and every line of the loaded
-sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that states a condition prints
-only when the condition holds. The block prints on every run, also when every tool is set up: a tool can be set up
-with a rule off, and naming the rule costs one line.
+**Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
+defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
+learn which rules are on. Check only whether the tool is set up, with one `rg` per tool: its configuration file, its
+section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a CI workflow. End `## Recommendations
+(Priority Order)` with the bold label `**Tooling.**`, the sentence `This hunter does not check the classes below.`, and
+every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
+states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
+a tool can be set up with a rule off, and naming the rule costs one line.
 
 ## Operating Constraints
 
