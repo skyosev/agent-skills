@@ -27,7 +27,7 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
 | Category | Core signal | Action |
 | -------- | ----------- | ------ |
 | Duplication | Repeated logic across production functions, modules, packages | Eliminate from an existing source of truth; shared helper is the fallback |
-| Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive | Replace — only if all six gates hold |
+| Reinvented Primitives | Hand-rolled equivalent of a stdlib / present-dependency primitive; a dependency that a stdlib primitive replaces | Replace — only if all six gates hold |
 | Unnecessary Abstractions | Wrapper, manager, registry, factory serving one call site | Inline |
 | Dead Code Paths | Unreachable branch, stale flag, guard the preceding logic already guarantees | Delete, with liveness evidence |
 | Over-Parameterized APIs | 4+ params, boolean flags, constant arguments, mostly-unused config objects | Split by use case |
@@ -62,8 +62,8 @@ Hunter names are unsuffixed. A hunter not installed under that name is installed
   `__main__.py` and `[project.scripts]` are **not** application signals — libraries ship CLIs that way. No release
   workflows or tags are read. The question is asked per exported symbol, from the unit that exports it. On an open
   unit, the claims that need every consumer are **withdrawn**, with one Scope `Limitation` line per unit: a dead public
-  name (Dead Code Paths), an interface with no live seam (Unnecessary Abstractions, Interface Pollution), and a
-  parameter every caller passes the same value (Over-Parameterized APIs).
+  name (Dead Code Paths), an interface with no live seam (Unnecessary Abstractions, Interface Pollution), a parameter
+  every caller passes the same value (Over-Parameterized APIs), and a step every call site repeats (Duplication).
 
 ## Not a finding on these grounds alone
 
@@ -119,6 +119,10 @@ Declarations; repeated logic and repeated runtime values stay here. Test code: s
 **Signals:** two near-identical bodies differing only in a value or branch; multiple implementations of the same
 algorithm; identical non-trivial error-handling or validation *logic* repeated across handlers.
 
+**A step every call site repeats.** Each caller of one function does the same step before or after the call: it
+normalizes the argument, or it unwraps or checks the result. The Action moves the step into the function and adds no
+helper. The finding cites every call site.
+
 **Not a finding:** trust-boundary input validation repeated across sibling handlers — each boundary may need
 independent enforcement. It *is* a finding when the validation logic itself is duplicated and could be a single shared
 schema still invoked at every boundary.
@@ -160,7 +164,8 @@ unresolved".
 ### Reinvented Primitives
 
 Project code reimplementing a stdlib (or already-present dependency) primitive with equivalent semantics, when the
-toolchain already supports it. Primitive lists and gates live in the language reference.
+toolchain already supports it. Also a **replaceable dependency**: a third-party dependency that the project uses only
+for what a stdlib primitive does. Primitive lists and gates live in the language reference.
 
 **Gates — all must hold:**
 
@@ -174,6 +179,12 @@ toolchain already supports it. Primitive lists and gates live in the language re
 
 A version differing on any gate is not a Reinvented Primitives finding. **Action:** replace with the primitive and call
 it directly.
+
+**Replaceable dependency.** The gates hold at every use. The finding anchors at an import in the target scope and
+lists every import site in the repository, with the functions used there. The Action replaces each use and removes
+the dependency from the manifest; when a liveness channel (Terms) still reaches the dependency, the Action says so
+and keeps the manifest entry. A dependency that a tool reports is in each reference's Delegated to tools; in
+TypeScript that is the whole class.
 
 ### Unnecessary Abstractions
 
@@ -302,9 +313,9 @@ One finding per site. The reported finding's row note (report format) names the 
 - **A wrapper whose whole body re-implements a primitive** (a manual `Promise` around a promisified API, a
   context-manager class that `contextlib` covers) → Reinvented Primitives, never also Unnecessary Abstractions. The
   Action calls the primitive at each call site and deletes the wrapper.
-- **A hand-rolled helper and the primitive it re-implements, both live** → Coexisting Generations when its evidence
-  bar holds with the primitive as the survivor (a deprecation or migration that names it). Otherwise, and always in
-  diff scope (Phase 4 is skipped), → Reinvented Primitives.
+- **A hand-rolled helper or a replaceable dependency, and the primitive it re-implements, both live** → Coexisting
+  Generations when its evidence bar holds with the primitive as the survivor (a deprecation or migration that names
+  it). Otherwise, and always in diff scope (Phase 4 is skipped), → Reinvented Primitives.
 
 ## Test-code scope
 
@@ -421,8 +432,16 @@ Phase 2 regex scans. They are approximate: they miss and over-match, so they onl
 
 A scan with many hits runs first with `-c` (hits per file); open the files with the most hits first. Group hits by
 enclosing function: one function is one candidate. Judge each finding under the rules of its own file's language —
-including language-only categories the reference appends. Done when every scan has run and every hit belongs to a
-candidate.
+including language-only categories the reference appends.
+
+**Diff scope: list what the diff adds.** The scans nominate few categories, and a diff is short enough to list in
+full. For each loaded language, read `git diff -U0 "$(cat <run>/mb)" -- $(cat <run>/<lang>.txt)`; an untracked file
+is added whole. List each unit that the diff adds: a function, a parameter or an option, a branch on a flag, a
+wrapper, a class or an interface, and a dependency in a manifest that `<run>/scope.txt` holds. Each added unit is a
+candidate for the category that owns it. A unit that the diff removes at one place and adds unchanged at another was
+moved, not added. Record `Added units: {n} listed` in Scope.
+
+Done when every scan has run and every hit belongs to a candidate, and in diff scope every added unit is listed.
 
 ### Phase 3: Scan for Duplication
 

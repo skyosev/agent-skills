@@ -69,6 +69,18 @@ first `$(go env GOROOT)/api/go1.N.txt` file that lists it.
 **Carve-out:** `strings.Builder` is deliberately **excluded** — it is a performance transformation, usually increases
 source-level complexity, and carries a do-not-copy-a-non-zero-Builder constraint.
 
+**Replaceable dependencies.** A direct `go.mod` requirement that is not in the table is a candidate when the standard
+library at the project's Go version has each function that the project uses.
+
+| Dependency | Primitive | Toolchain gate |
+| ---------- | --------- | -------------- |
+| `github.com/pkg/errors` | `fmt.Errorf` with `%w`, `errors.Is`, `errors.As` | Go 1.13+ |
+| `go.uber.org/multierr`, `github.com/hashicorp/go-multierror` | `errors.Join` | Go 1.20+ |
+
+Exact semantic parity includes designed-in differences: `pkg/errors.Wrap(nil, …)` returns nil, where
+`fmt.Errorf("…: %w", nil)` returns an error; `pkg/errors` records a stack trace that `%+v` prints; `errors.Join`
+writes one message per line and keeps a nested join, where `multierr` flattens and writes `; `.
+
 ## Dead code — ownership and liveness hooks
 
 **Ownership:** `_ = x` on a non-error binding is slop-hunter's; unused parameters, unused struct fields, and `_ = f()`
@@ -107,10 +119,10 @@ rg -n --type go '// Deprecated:' --glob '!**/vendor/**' .
 
 ## Delegated to tools
 
-- golangci-lint: a loop that a newer standard call replaces, such as `slices.Contains` (`modernize`, or `go fix`); an
-  unused unexported function or constant (`unused`); deep nesting and long branch chains (`nestif`, `gocognit`, gocritic
-  `ifElseChain`); a boolean parameter that a condition tests (revive `flag-parameter`); a call to a deprecated symbol
-  (staticcheck `SA1019`).
+- golangci-lint: a loop that a newer standard call replaces, such as `slices.Contains` (`modernize`, or `go fix`); a
+  `golang.org/x/exp` function that the standard library replaces (`exptostd`); an unused unexported function or
+  constant (`unused`); deep nesting and long branch chains (`nestif`, `gocognit`, gocritic `ifElseChain`); a boolean
+  parameter that a condition tests (revive `flag-parameter`); a call to a deprecated symbol (staticcheck `SA1019`).
 
 ## Error-handling note
 
@@ -137,6 +149,10 @@ rg -Hn -U --pcre2 '(\bgo\s+[\w.]+\(.*\)|^\s*\}\(.*\))\s*\n\s*(<-\s*\w|\w+\.Wait\
 # Reinvented-primitive candidates: hand-rolled forms, not existing uses (confirm toolchain + parity before reporting)
 rg -Hn 'errors\.Unwrap\(' --type go $EXCLUDE -- $GO_FILES                                        # errors.Is / As walk
 rg -Hn --pcre2 '\w+\s*=\s*append\(\w+,\s*err\)' --type go $EXCLUDE -- $GO_FILES                  # errors.Join
+
+# Replaceable-dependency candidates: imports of the table's dependencies. Then read go.mod (root and nested) for the
+# other direct requirements.
+rg -Hn '"(github\.com/pkg/errors|go\.uber\.org/multierr|github\.com/hashicorp/go-multierror)"' --type go $EXCLUDE -- $GO_FILES
 ```
 
 ## Phase 3 — Duplication list and exclude

@@ -28,6 +28,20 @@ Contents: Generated-code eligibility · Reinvented Primitives · Dead code — o
 Exact semantic parity includes designed-in differences: `functools.lru_cache` imposes hashability and carries
 concurrency, eviction, and repeated-concurrent-call semantics.
 
+**Replaceable dependencies.** A dependency in `pyproject.toml` or `requirements*.txt` that is not in the table is a
+candidate when the standard library at the lowest Python that the project supports has each function that the project
+uses. A backport imported only as the fallback for a Python version that the project still supports fails gate 1.
+
+| Dependency | Primitive | Toolchain gate |
+| ---------- | --------- | -------------- |
+| `pytz` | `zoneinfo` | Python 3.9+ |
+| `tomli` | `tomllib` | Python 3.11+ |
+| `importlib_metadata`, `importlib_resources`, `backports.*` | the stdlib module that each one backports | the Python version whose module has each function used |
+
+Designed-in differences: a `pytz` zone needs `localize()` and `normalize()`, where a `zoneinfo` zone is passed as
+`tzinfo=` and resolves an ambiguous time with `fold`, not `is_dst`; `zoneinfo` reads the system time-zone database and
+needs the `tzdata` package where the system has none.
+
 ## Dead code — ownership and liveness hooks
 
 **Ownership:** an unused function, class, or constant is in Delegated to tools (vulture), public or not. Unused
@@ -77,7 +91,8 @@ rg -n --type py 'DeprecationWarning|@deprecated|warnings\.warn' \
 
 - ruff: a loop or an `if` statement that `any()`, `all()`, `min()`, `max()` or `itertools.pairwise` replaces, and a
   `try`-`except`-`pass` where `contextlib.suppress` fits (`SIM110`, `PLR1730`, `RUF007`, `SIM105`); a function too
-  complex to read (`C901`).
+  complex to read (`C901`); an import of `mock`, or of a `typing_extensions` name that the standard library has
+  (`UP026`, `UP035`).
 - vulture: an unused function, class, or constant.
 - pyright: a guard the type already rules out (`reportUnnecessaryComparison`); a call to a deprecated symbol
   (`reportDeprecated`).
@@ -105,6 +120,10 @@ rg -Hn '^\s*(async\s+)?def\s' --type py $EXCLUDE -- $PY_FILES | awk -F: '$1 == f
 rg -Hn --pcre2 '\[(\w+)\]\s*=\s*\w+\.get\(\1,\s*0\)\s*\+\s*1' --type py $EXCLUDE -- $PY_FILES               # Counter
 rg -Hn -U --pcre2 'if ([\w.]+) not in ([\w.]+):\s*\n\s+\2\[\1\]\s*=\s*(\[\]|\{\}|set\(\)|0)\s*$' --type py $EXCLUDE -- $PY_FILES  # defaultdict
 rg -Hn -U --pcre2 'if (\w+) in (\w+):\s*\n\s+return \2\[\1\]' --type py $EXCLUDE -- $PY_FILES               # functools.cache
+
+# Replaceable-dependency candidates: imports of the table's dependencies. Then read pyproject.toml and
+# requirements*.txt for the other dependencies.
+rg -Hn --pcre2 '^\s*(?:import|from)\s+(?:pytz|tomli|importlib_metadata|importlib_resources|backports)\b' --type py $EXCLUDE -- $PY_FILES
 ```
 
 ## Phase 3 — Duplication list and exclude

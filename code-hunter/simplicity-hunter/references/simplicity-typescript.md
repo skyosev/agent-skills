@@ -61,6 +61,7 @@ rg -n --type ts '@deprecated' --glob '!**/node_modules/**' --glob '!**/dist/**' 
   an unused function or constant that is not exported (`@typescript-eslint/no-unused-vars`, or Biome
   `noUnusedVariables`).
 - knip: an export or a file that nothing imports.
+- eslint-plugin-depend: a dependency that a runtime or language primitive replaces (`depend/ban-dependencies`).
 
 ## Phase 2 — complexity scans
 
