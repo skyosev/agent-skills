@@ -63,7 +63,7 @@ Add a section only when you can name the reader who needs it and the TL;DR does 
 
 - **What other repos must do**: the change another service, the front end or another team must make, with the file or field. Check each request against that repo first; drop the ones already done.
 - **Risk**: a change that is hard to undo (migration, deleted data, removed API field), or one that reaches further than the diff suggests (other screens, other consumers).
-- **Please confirm (who)**: what a named person must decide before merge, as a numbered list at the end of the TL;DR. Each item is one statement with real values that they can answer with yes or no. An open question becomes the statement of what the PR does now. Above the list, say whether they must run anything and where the values of each item come from. The reasons go in the fold, numbered to match.
+- **Please confirm**: what a named person must decide before merge, at the end of the TL;DR. Each item is one statement with real values that they can answer with yes or no. An open question becomes the statement of what the PR does now. Number the items only when there are two or more; the reasons then go in the fold, numbered to match. Say where the values of each item come from. Say what the person must run only when they must run something.
 - **Screenshots** of a visual change, each with a one-line caption that says what to look at.
 - Any section the repo's PR template or AGENTS.md requires.
 
