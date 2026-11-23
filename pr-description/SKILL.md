@@ -13,10 +13,12 @@ Rewrite the description of the PR named in the arguments. With no argument, use 
 
 Write for a reviewer who has not read the ticket, the spec, the brainstorm, or this conversation, and who gives the description two minutes before opening the diff.
 
-- Do not reuse ticket titles or spec phrases as if the reader knows them. Say what they mean.
-- Prefer plain words to new terms. Define a term, in parentheses where it first appears, only when the description uses it again.
-- Give each concept one name and keep it. "Working hours" and "working time" for one thing make the reader wonder whether they are two things.
-- Use the names the code and the UI use, so the reader can search for them. If the repo has a `GLOSSARY.md`, use its terms.
+Before you draft, write the reader line: who reads this description, and which words they already know (the terms of their trade, the product's names, the stack). Add a second reader who must act on it, such as a domain expert who signs off. Every other word is new to them: the names of internal files, tools, conventions, test sets and scores, ticket titles, spec phrases, and words this conversation made up.
+
+- Give a new word its meaning in parentheses where it first appears, or say the plain thing instead. Define it only when the description uses it again.
+- Use the names the code and the UI use, so the reader can search for them. A code name does not explain itself: it is a new word like any other.
+- Give each concept one name and keep it. "Working hours" and "working time" for one thing make the reader wonder whether they are two things. When the code, the ticket and a tool each name it differently, use the name the reader already uses (the repo's `GLOSSARY.md`, else the ticket), give the code's name once in parentheses, and keep that name in every PR this one links to.
+- Number a list only when another sentence refers to its items by number. Cite a numbered list from outside ("ruling 4") by its own numbers.
 - Write each abbreviation out, or replace it with its plain name ("DH" → "the hub"). Keep only abbreviations the code or the UI shows.
 
 ## Shape
@@ -49,9 +51,9 @@ The visible part is the overview: a reviewer who never opens the fold must still
 
 ### TL;DR
 
-1. **Problem:** one or two sentences, general: the cause in plain words, then what the user sees because of it. Not a single case.
+1. **Problem:** one or two sentences, general: the cause in plain words, then what the user sees because of it. Not a single case. When the PR changes something the reader may not know (test data, a tool, a convention), first say in one sentence what it is and what it is for. "The user" is then whoever uses it, such as the person who reads the test score.
 2. **Solution:** one or two sentences, general: what the system now does. State it as a rule, so the reader can predict any case from it.
-3. **Example:** one case with real values (times, names, amounts), as Before / After of what the user sees. Pick the case that shows the change most clearly, or the one where a reader would guess wrong. Give only the values the case needs.
+3. **Example:** one case with real values (times, names, amounts), as Before / After of what the user sees. Before shows the Problem and After shows the Solution: pick the case that shows this most clearly, and among such cases the one where a reader would guess wrong. A case that goes the other way belongs under Risk. Give only the values the case needs.
 
 Problem and Solution alone must tell the reader the purpose of the PR. The Example only makes it concrete. A small `diff` sketch of the change belongs in the TL;DR; when a later screenshot shows the same, keep the sketch and let the screenshot carry the detail.
 
@@ -61,6 +63,7 @@ Add a section only when you can name the reader who needs it and the TL;DR does 
 
 - **What other repos must do**: the change another service, the front end or another team must make, with the file or field. Check each request against that repo first; drop the ones already done.
 - **Risk**: a change that is hard to undo (migration, deleted data, removed API field), or one that reaches further than the diff suggests (other screens, other consumers).
+- **Please confirm (who)**: what a named person must decide before merge, as a numbered list at the end of the TL;DR. Each item is one statement with real values that they can answer with yes or no. An open question becomes the statement of what the PR does now. Above the list, say whether they must run anything and where the values of each item come from. The reasons go in the fold, numbered to match.
 - **Screenshots** of a visual change, each with a one-line caption that says what to look at.
 - Any section the repo's PR template or AGENTS.md requires.
 
@@ -118,8 +121,16 @@ Why it works:
 
 Three passes, in this order:
 
-1. **Facts.** Check each claim against the diff. Note what you corrected and what you could not verify.
-2. **Clarity.** Read the draft as the reader above. List each sentence the reader could not picture or act on, and rewrite it. A rewrite replaces the sentence; it does not add an explanation beside it. If the fix needs a new term, use a plain word instead. Check the TL;DR first, then each sentence that paraphrases a ticket or spec, then each sentence with a word from writing rule 2.
+1. **Facts.** Check each claim against the diff. A claim the diff cannot show (the state of a test, another repo, a measured number, what happened before) needs its own check, which you name, or it goes. Compare each count with the list or table it counts. Note what you corrected and what you could not verify.
+2. **Clarity.** You cannot read your own draft as the reader: you know what every word means. Dispatch a cold reader: a fresh subagent that gets the path of the draft and the reader line, and no diff, ticket or conversation. Ask it to read only that file and to report:
+   - the problem and the change in its own words, and which part of that it guessed;
+   - every word it needed and the text did not explain, with the sentence;
+   - every sentence it read twice;
+   - words that may name one thing;
+   - numbers or claims that do not agree;
+   - what the text asks whom to do before merge.
+
+   Tell it to list every case and to suggest no rewrite. Then act on each finding: fix it, or skip it because the reader line covers the word. A rewrite replaces the sentence; it does not add an explanation beside it. If the fix needs a new term, use a plain word instead. Dispatch a second cold reader only when the first one restated the problem or the change wrongly. When you cannot dispatch a subagent, list every noun the draft uses for a thing in the project, and beside each the sentence that says what it is; a noun without such a sentence is a finding.
 3. **Length.** For each sentence, ask: does an earlier sentence or term already say or imply it? Can the reader get it faster from the diff? Would the reader miss it if it went? Cut it unless the answers are no, no, yes. Then apply the Solution to each case the description lists: a case it already predicts is a repeat, so cut it unless it is the Example. Then check the fold line: move to the visible part each folded fact that a reviewer must act on before merge, and fold each visible section that only some reviewers need. If the visible part is still longer than one screen (about 300 words), check that each visible optional section names its reader. This is a signal to check, not a limit: a PR with two fixes may need more.
 
 A rewrite of a short description that already passes these checks stays about as long as it was. Each sentence you add must fix a wrong or missing fact, not restate one.
@@ -130,7 +141,7 @@ Clarity adds words; length cuts them. The balance is right when the TL;DR alone 
 
 1. Write the draft to a file in the scratchpad.
 2. Show the user:
-   - the clarity list, one line per sentence (**before → after**);
+   - the reader line, and the clarity list: one line per finding of the cold reader that you fixed (**before → after**), and the count you skipped;
    - for a rewrite, the cut list: each fact from the old description that you dropped, one line each, with the reason (in the diff, repeats X, history, no reader);
    - any fact you corrected or could not verify;
    - the word count, old → new, for the visible part and the fold;
