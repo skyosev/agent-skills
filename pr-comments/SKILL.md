@@ -15,7 +15,7 @@ You create drafts only: one pending review on GitHub, draft notes on GitLab. Onl
 ## 1. Read the pull request
 
 ```bash
-$P threads <pr>   # the head commit, every existing thread, your own drafts
+$P threads <pr>   # the head commit, the title and description, every existing thread, your own drafts
 $P diff <pr>      # the diff that the comments are checked against
 ```
 
@@ -48,16 +48,22 @@ On GitHub the general comments join the summary in the text of the pending revie
 ## 4. Write each comment
 
 ```
-**<label> (<decoration>):** <the problem in one sentence>
+**<label> (<decoration>):** <the problem in one or two sentences; for an `issue`, what a person or a caller sees go wrong>
 
-<What goes wrong, with the evidence that the review gives.>
+**Example:** <one case with real values: what was done, what was expected, what came out>
+
+**Cause:** <why it goes wrong, with the evidence that the review gives>
 
 **Fix:** <the change in words>   (or a suggestion block in place of this paragraph)
 
 **Trade-off:** <what the fix costs>
 ```
 
-The Fix and Trade-off paragraphs exist only when the review gives one: a finding with no fix has no Fix paragraph, and "Trade-off: none" gives no Trade-off paragraph.
+The Example, Cause, Fix and Trade-off paragraphs exist only when the review gives one: a finding with no case that has values has no Example paragraph, a finding whose first sentence already says the cause has no Cause paragraph, a finding with no fix has no Fix paragraph, and "Trade-off: none" gives no Trade-off paragraph.
+
+Cases that differ on two things (a request and a state, an input and a result) go in a table.
+
+A comment with more than about 300 words folds what only the person who makes the fix needs into a `<details>` block: the rules for corner cases, the callers to change, the list of tests. The first sentence, the Example, the Cause and the Fix in its shortest form stay outside the block. The summary of the block names its content. Leave a blank line after `</summary>` and before `</details>`, or the Markdown inside shows as raw text.
 
 | Label | Use it when |
 | --- | --- |
@@ -69,17 +75,39 @@ The Fix and Trade-off paragraphs exist only when the review gives one: a finding
 
 The decoration is `(blocking)` for a finding in the highest severity group of the review (must-fix, critical, blocker) and for a missing requirement, and `(non-blocking)` for the rest. A `question` has no decoration.
 
-The reader is the author of the change, who has not seen the review:
+The reader is the author of the change. The author knows the code: its identifiers, and the words that its comments and its UI use. The author has not seen the review, and reads each comment alone, in its own thread.
 
-- Keep the facts, the evidence and the fix of the review. Every claim in the comment comes from the review. The one addition you can make is a place (`path:line`) that you checked in the head commit, such as the caller of a renamed function.
-- Replace each reference to another finding ("finding 3") with what that finding says.
+- Keep the facts, the evidence and the fix of the review. Every claim in the comment comes from the review. The one addition you can make is what you checked in the head commit: a place (`path:line`), such as the caller of a renamed function, or what the code does today where the review proposes a change.
+- Keep the facts, not the words. The Reader section and the Writing rules of the `pr-description` skill (`../pr-description/SKILL.md`, from this skill's directory) apply to every comment. A word that the review made up for a thing is new to the author: use the name that the code or the UI gives the thing, or say the plain thing. Give each thing one name in all comments.
+- A claim about the pull request itself (its title, its description, its commits) must hold for the pull request as `threads` and `git log` show it now. The review can be older: correct the claim, or drop it.
+- Each comment stands alone:
+  - Replace each reference to another finding ("finding 3") with what that finding says.
+  - When a comment uses a thing that another comment proposes (a new function, a field, a state), it says in one sentence what the thing is, and names that other comment by its place ("the review comment on `path:line`").
+  - When the fix of a comment works only after the fix of another comment, it says what holds in the code today.
+  - Two comments on different problems do not describe them with the same words.
 - A sentence that speaks to the person who asked for the review ("the findings you supplied") speaks to the author instead, or goes.
 - Inline code is for names: an identifier, a path, a short value. A line of code, an error message or an output that the comment quotes stands in a code block of its own.
 - Quote code only from other places: the diff already shows the commented lines.
 
 A suggestion block holds the full new text of the commented lines, with their indentation. An empty block deletes them. Use one only when the review gives the exact replacement and the code still works after that block alone is applied. Say every other fix in words: a rename with callers elsewhere, a fix that needs a second edit.
 
-## 5. Check, then create the drafts
+## 5. Check that the author can read the comments
+
+You know what every word means, so you cannot read the comments as the author does. Write the summary and all comments to one file, each under a line with its place. Then dispatch one cold reader: a fresh subagent that gets the path of that file and the reader line, and no diff, review or conversation.
+
+The reader line says who the author is and which words the author knows: everything in backticks, the words that the code's comments and the UI use, the terms of the trade, and the linked tickets. Without this the cold reader reports every name in the code.
+
+Ask the cold reader to report, for each comment:
+
+- the problem and the fix in its own words, and which part of that it guessed;
+- every word it needed and the text did not explain, with the sentence;
+- words that may name one thing, in the comment and across the comments;
+- claims or numbers that do not agree, in the comment and across the comments;
+- what the comment asks the author to do.
+
+Tell it to list every case and to suggest no rewrite. Then act on each finding: fix it, skip it because the reader line covers the word, or report it because the review itself holds the disagreement (two findings that ask for different things). A fix replaces the sentence; it does not add an explanation beside it, and it changes no fact. When you cannot dispatch a subagent, list every noun that the comments use for a thing in the project and that is not an identifier, and beside each the sentence that says what it is; a noun without such a sentence is a finding. Dispatch a second cold reader only when the first one restated a problem or a fix wrongly.
+
+## 6. Check, then create the drafts
 
 Write `comments.json`, one object per comment with the keys from step 3:
 
@@ -99,6 +127,11 @@ $P post <pr> comments.json             # creates the drafts
 
 Run the real `post` after the dry run accepts every comment, and one time only: a second run creates every draft again. If it reports failed comments, post those alone.
 
-## 6. Report
+## 7. Report
 
-Give the user one table with a row per finding: its label, and its place or the reason it has no comment. Then give the link that `post` printed, and say that nothing is published until they submit the review there.
+Give the user one table with a row per finding: its label, and its place or the reason it has no comment. Then give:
+
+- one line for each finding of the cold reader that you fixed (before → after), and the count that you skipped;
+- each claim of the review that you corrected or dropped, with the reason;
+- each disagreement between findings that the review itself holds;
+- the link that `post` printed, and that nothing is published until they submit the review there.

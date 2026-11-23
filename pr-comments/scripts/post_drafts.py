@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Draft review comments on a GitHub pull request or a GitLab merge request.
 
-    post_drafts.py threads <pr>                         the head commit, existing threads, your own drafts
+    post_drafts.py threads <pr>                         the head commit, the title and description, existing threads, your own drafts
     post_drafts.py diff <pr>                            the diff that comments are checked against
     post_drafts.py post <pr> <comments.json> --dry-run  check every comment, write nothing
     post_drafts.py post <pr> <comments.json>            check every comment, then create the drafts
@@ -242,6 +242,7 @@ class GitHub:
     def load(self):
         pull = self.api(f"repos/{self.repo}/pulls/{self.number}")
         self.head, self.url = pull["head"]["sha"], pull["html_url"]
+        self.title, self.description = pull["title"], pull["body"]
         self.blob_url, self.range_join = f"{self.url.split('/pull/')[0]}/blob/{self.head}", "-L"
         # ponytail: GitHub refuses this diff above 20,000 lines or 300 files; build it from git when a PR that big shows up.
         code, self.diff, err = run(["gh", "api", "--hostname", self.host, f"repos/{self.repo}/pulls/{self.number}",
@@ -351,6 +352,7 @@ class GitLab:
         merge_request = self.api(self.base)
         self.refs, self.url = merge_request["diff_refs"], merge_request["web_url"]
         self.head = self.refs["head_sha"]
+        self.title, self.description = merge_request["title"], merge_request["description"]
         self.blob_url, self.range_join = f"{self.url.split('/-/merge_requests/')[0]}/-/blob/{self.head}", "-"
         self.diff = self.api(f"{self.base}/raw_diffs", raw=True)
 
@@ -439,6 +441,8 @@ def main(argv):
             return 0
         if command == "threads":
             print(f"head {host.head}")
+            print(f"title {host.title}")
+            print("description " + ((host.description or "").strip().replace("\n", "\n    ") or "(none)"))
             for state, where, author, text in host.threads():
                 print(f"{state:<17} {where:<40} @{author:<16} {preview(text)}")
             return 0
