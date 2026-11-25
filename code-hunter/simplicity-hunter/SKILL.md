@@ -346,6 +346,14 @@ and frequently-read file, is High impact.
 
 ### Phase 1: Gain Context
 
+**Area mode** splits a large diff over agents, one per package area. It applies to a diff scope outside **Party
+mode**, in a session with a sub-agent tool. There, the budget sentence of **Persist run state.** (from "If the
+resolved surface exceeds the context budget" to the end of that paragraph) waits until step 4 ends. Then run
+`bash <skill>/scripts/split-areas.sh <run>`, where `<skill>` is the directory this SKILL.md was read from. When it
+prints `areas: <n>`, read `references/area-mode.md` and follow it: area mode replaces the budget sentence for this
+scope. When it prints `no area mode`, continue as written, the budget sentence included. On any other output, add the
+Scope line `Area mode: failed — <its message>` and continue as written.
+
 1. **Resolve the raw manifest.** Scope may be:
    - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
      `references/diff-scope.md`.

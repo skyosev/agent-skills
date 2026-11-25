@@ -37,8 +37,12 @@ verified}`.
 - {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
 - {Limitation: … — one line per withdrawal, see Limitation lines}
 - {not read: {n} files — context budget}
-- {Read split: {n} agents by {unit} — merged by this session}
-- Audit completed: {N} findings
+- {not read in full: {file} — {the lines read, or not opened} — area mode, one per file}
+- {Area mode: failed — {the split script's message}}
+- {Read split: {n} agents by {directory | file list | package area} — merged by this session}
+  - {{k}: {completed | failed — not audited | not started} — {files} files, {bytes} bytes ({production} production)
+    — {units} — area mode, one per area}
+- Audit completed: {N} findings{ — partial: area {k} not audited | not started — area mode, one per such area}
 
 ## Findings
 
