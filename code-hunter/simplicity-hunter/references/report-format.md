@@ -12,7 +12,8 @@ the table schemas supplied in that reference.
 **Row notes.** Under each table, one note per row, headed `#N`: the exact code the row cites, in a fenced block; then
 each comment, commit or record that the row uses as evidence, quoted; then one clause for each item that applies — the
 other reading a Within-skill precedence rule set aside, the answer to a two-behavior signal (Duplication rule 2), a
-blocked probe, or a "remedy unresolved" counterexample (Drifted copies).
+blocked probe, a "remedy unresolved" counterexample (Drifted copies), what the verifier changed in the Action (area
+mode), or the reason of another area that the row stays against (area mode).
 
 **Limitation lines.** One per open published unit whose negative claims were withdrawn:
 `Limitation: {unit} open; {the signal that opened it}; consumer set not closed`. One per other withdrawn finding (an
@@ -38,11 +39,15 @@ verified}`.
 - {Limitation: … — one line per withdrawal, see Limitation lines}
 - {not read: {n} files — context budget}
 - {not read in full: {file} — {the lines read, or not opened} — area mode, one per file}
+- {dropped (verifier | disagreement): {location} — {claim in one clause} — {rule} — {evidence} — area mode, one per
+  dropped row}
 - {Area mode: failed — {the split script's message}}
 - {Read split: {n} agents by {directory | file list | package area} — merged by this session}
   - {{k}: {completed | failed — not audited | not started} — {files} files, {bytes} bytes ({production} production)
-    — {units} — area mode, one per area}
-- Audit completed: {N} findings{ — partial: area {k} not audited | not started — area mode, one per such area}
+    — {units}{ — verified | 0 rows | verifier failed | verifier not started — completed areas only} — area mode, one
+    per area}
+- Audit completed: {N} findings{ — partial: area {k} not audited | not started | not verified — area mode, one per
+  such area}
 
 ## Findings
 
