@@ -15,6 +15,9 @@ and your area number `<k>`.
 - **No production files.** When every eligible file of your area is a test file, Phase 3 has no seeds. Record
   `Duplication coverage: 0 of 0 seed functions searched` and skip Phase 3.
 - **Nobody answers.** Ask nothing. Record each decision in Scope.
+- **Drops that cite another area.** For each candidate that you drop and that cites a file outside your area, write
+  one Scope line: `dropped: <locations> — <rule> — <evidence>`. The merge reads these lines against the rows of the
+  other areas.
 - **Return.** Your final reply is the report: this is the caller's return mode under Phase 6. Its first line is
   `area <k>: <N> findings`. The report ends after `## Findings`: the merge writes the Recommendations and the Tooling
   block once for all areas.
