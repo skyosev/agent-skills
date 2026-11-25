@@ -1,8 +1,8 @@
 # Area agent
 
 The session that started you split one diff audit into package areas. You audit one area with this whole hunter, and
-that session merges the area reports. Your prompt names the repository root `<root>`, the snapshot directory
-`<snap>`, the report file `<out>` and your area number `<k>`.
+that session merges the area reports. Your prompt names the repository root `<root>`, the snapshot directory `<snap>`
+and your area number `<k>`.
 
 - **Scope.** Start every call at `<root>`. Run SKILL.md in **Party mode**, with `<snap>` as the snapshot. When
   **Persist run state.** writes `scope.txt` to your own run directory `<run>`, write the `mb:` value of
@@ -15,5 +15,6 @@ that session merges the area reports. Your prompt names the repository root `<ro
 - **No production files.** When every eligible file of your area is a test file, Phase 3 has no seeds. Record
   `Duplication coverage: 0 of 0 seed functions searched` and skip Phase 3.
 - **Nobody answers.** Ask nothing. Record each decision in Scope.
-- **Return.** Save the report as `<out>`. It ends after `## Findings`: the merge writes the Recommendations and the
-  Tooling block once for all areas. Then reply with one line: `area <k>: <N> findings`.
+- **Return.** Your final reply is the report: this is the caller's return mode under Phase 6. Its first line is
+  `area <k>: <N> findings`. The report ends after `## Findings`: the merge writes the Recommendations and the Tooling
+  block once for all areas.

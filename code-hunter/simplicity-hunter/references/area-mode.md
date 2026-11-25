@@ -22,15 +22,16 @@ each agent this prompt and nothing else:
 
 ```text
 Read <skill>/references/area-agent.md, then <skill>/SKILL.md, and follow them.
-Repository: <root>. Snapshot: <run>/a<k>. Report: <run>/a<k>/report.md. Area <k> of <n>.
+Repository: <root>. Snapshot: <run>/a<k>. Area <k> of <n>.
 ```
 
 ## Merge
 
-Merge when every agent has returned its `area <k>:` line or has ended. Read each `<run>/a<k>/report.md`. Phase 6
-"Merging a split run" applies to every row, together with these steps.
+Merge when every agent has ended. Each agent's final reply is its area report. Phase 6 "Merging a split run" applies to
+every row, together with these steps. Copy each row's cells and row note as its area wrote them, and read code only
+where steps 3 and 4 ask for it.
 
-1. **Status.** An area is `completed` when its report holds an `Audit completed` line. An agent that ended without one
+1. **Status.** An area is `completed` when its reply holds an `Audit completed` line. An agent that ended without one
    leaves its area `failed — not audited`, and its rows stay out of the merge. An agent that could not start leaves
    its area `not started`. Start no agent again.
 2. **One row per finding.** Two locations are near when they are in the same file and at most 3 lines apart. Two rows
