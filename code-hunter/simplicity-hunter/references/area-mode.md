@@ -15,8 +15,8 @@ this session, the orchestrator, merges their reports. For this scope, area mode 
 
 ## Spawn
 
-Start one general-purpose agent per area, all in one message. Pass this session's model as the agent's model. A
-sub-agent does not get the skill text that this session loaded, so its prompt carries absolute paths: `<skill>` is
+Start one general-purpose agent per area, all in one message. Pass no model and no effort: the session's sub-agent
+settings choose them. A sub-agent does not get the skill text that this session loaded, so its prompt carries absolute paths: `<skill>` is
 the directory this SKILL.md was read from, `<root>` is the repository root, and `<run>` is the run directory. Give
 each agent this prompt and nothing else:
 
