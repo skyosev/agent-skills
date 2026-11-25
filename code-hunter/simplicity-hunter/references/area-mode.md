@@ -5,7 +5,7 @@ Contents: What the split wrote · Spawn · Save and verify · Merge
 `scripts/split-areas.sh` split this diff into package areas. One agent audits each area with this whole hunter, a
 verifier checks the rows of each area, and this session, the orchestrator, merges their reports. For this scope, area
 mode replaces the budget sentence of **Persist run state.**: the areas answer the context budget, so ask nothing about
-it. Phase 1 step 5 and Phases 2 to 5 run in the area agents. Phase 5 runs again in the verifiers.
+it. Phase 1 step 5 and Phases 2 to 5 run in the area agents. Phase 1 step 5 and Phase 5 run again in the verifiers.
 
 ## What the split wrote
 
@@ -55,22 +55,25 @@ wrote them, and read code only where steps 3, 5 and 6 ask for it.
 1. **Status.** An area is `completed` when its reply holds an `Audit completed` line. An area agent that ended without
    one leaves its area `failed — not audited`, and its rows stay out of the merge. An area agent that could not start
    leaves its area `not started`. Start no agent again. A completed area also gets a verifier status:
-   - `verified` when its verifier's reply is complete: it starts with
-     `verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed`, gives exactly one verdict for each row of the area,
-     and its three counts add up to the area's rows;
+   - `verified` when its verifier's reply is complete: its first line that is not a code fence starts with
+     `verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed`, it gives exactly one verdict for each row of the
+     area, and its three counts add up to the area's rows;
    - `0 rows` when the area has none;
    - `verifier failed` when the reply is not complete;
    - `verifier not started` when the verifier could not start.
 
    The rows of an area with `verifier failed` or `verifier not started` stay in the merge unchecked.
-2. **Verdicts.** Apply the verdicts of each `verified` area. A `drop` row leaves the tables and gets its
-   `dropped (verifier)` Scope line. A `fix` row takes the new Action, and its row note says in one clause what the
-   verifier changed. A `keep` row stays as its area wrote it.
+2. **Verdicts.** Apply the verdicts of each `verified` area. A verdict line names its row as `<Category> #<n>`, in the
+   area report's own numbering. In a `fix` line, the new Action is all the text after the second ` — `. A verdict
+   applies only to its own area's row: another area's copy of the same finding keeps its own verdict, and step 4
+   merges the copies that stay. A `drop` row leaves the tables and gets its `dropped (verifier)` Scope line. A `fix`
+   row takes the new Action, and its row note says in one clause what the verifier changed. A `keep` row stays as its
+   area wrote it.
 3. **Disagreement.** When an area's `dropped:` line or another Scope note drops a candidate with a reason, and another
-   area reports that candidate as a row, open the code that the row cites and judge the row against that reason. Drop
-   the row when the reason holds under a named rule of SKILL.md or the language reference, and write its
-   `dropped (disagreement)` Scope line. Otherwise the row stays, and its row note names the other area's reason in one
-   clause.
+   area reports that candidate as a row that step 2 keeps, open the code that the row cites and judge the row against
+   that reason. Drop the row when the reason holds under a named rule of SKILL.md or the language reference, and write
+   its `dropped (disagreement)` Scope line. Otherwise the row stays, and its row note names the other area's reason in
+   one clause.
 4. **One row per finding.** This step and the next two take the rows that steps 2 and 3 keep. Two locations are near
    when they are in the same file and at most 3 lines apart. Two rows from two areas are one finding, whatever their
    categories, when a location of one is near a location of the other, or when both name the same dependency. Phase 6's
@@ -95,10 +98,11 @@ wrote them, and read code only where steps 3, 5 and 6 ask for it.
      the same text, else once per area as `<line> (area <k>)`. Every `not read in full` line is kept as it is.
    - One line per row that step 2 or 3 drops:
      `dropped (verifier): <location> — <claim in one clause> — <rule> — <evidence>` or
-     `dropped (disagreement): <location> — <claim in one clause> — <rule> — <evidence>`.
+     `dropped (disagreement): <location> — <claim in one clause> — <rule> — <evidence>`. `<location>` is the row's
+     anchor, one `file:line`.
    - `Read split: <n> agents by package area — merged by this session`, with one sub-line per area from
-     `<run>/areas.txt`, its status after the number. The sub-line of a completed area ends with ` — verified`,
-     ` — 0 rows`, ` — verifier failed` or ` — verifier not started`.
+     `<run>/areas.txt`, its status after the number. `<n>` counts the areas, not the verifiers. The sub-line of a
+     completed area ends with ` — verified`, ` — 0 rows`, ` — verifier failed` or ` — verifier not started`.
 10. **Recommendations.** Write `## Recommendations (Priority Order)` over the merged rows, ending with one Tooling
     block (Phase 6, "Delegated to tools").
 11. **Save** as Phase 6 says.

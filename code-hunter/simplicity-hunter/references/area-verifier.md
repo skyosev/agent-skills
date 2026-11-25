@@ -24,7 +24,8 @@ prompt names the repository root `<root>`, the area report `<report>` and the ar
 2. Check the category's evidence bar in What to Hunt, and the **Reporting gate.** For a consolidation, check
    Duplication rule 2 in full: count the lines before and after the Action, count the concepts, and check for one
    stable behavior.
-3. Check the **Contracts:** clause of **Behavior parity**: every direct caller, tests included, defines the contract.
+3. Check the row's claim under the **Contracts:** clause of **Behavior parity**: every direct caller, tests included,
+   defines the contract.
 4. Run Phase 5 again on the Action as written. Open again each signature that it cites. Run the **Remedy check**
    (Reuses, Shared locals, Call sites, Lost callers), with one `rg` per name that the Action deletes or renames.
    Check **Behavior parity**. A parity clause marked **shown** must hold for the inputs it names. An output, error or
@@ -35,8 +36,7 @@ prompt names the repository root `<root>`, the area report `<report>` and the ar
 Give each row one verdict: `keep`, `drop` or `fix`.
 
 - A drop names a rule as SKILL.md or the language reference names it, and cites `file:line` evidence.
-- A fix rewrites the Action only. Run Phase 5's checks again on the new wording: SKILL.md says "An Action rewritten
-  after review gets this check again".
+- A fix rewrites the Action only. Run item 4 of "Each row, in this order" again on the new wording.
 - When no wording of the Action keeps parity or names what changes, the **Behavior parity** rule applies: "the Action
   says what changes, or the finding is dropped".
 - Add no row, and widen no claim.
@@ -44,7 +44,7 @@ Give each row one verdict: `keep`, `drop` or `fix`.
 
 ## Reply
 
-Your final reply is this block and nothing else:
+Your final reply is the lines of this block, without the fence, and nothing else:
 
 ```text
 verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed
@@ -53,6 +53,6 @@ verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed
 <Category> #<n>: fix — <evidence> — <new Action text>
 ```
 
-`<Category>` is the row's `###` heading in `<report>`, and `<n>` is its `#` cell. Give one line per row, in the order
-of `<report>`. The three counts add up to the rows of `<report>`. Write `<rule>`, and the `<evidence>` of a fix,
-without ` — `. The new Action is the rest of its line, so it may hold ` — `.
+`<Category>` is the text of the row's `###` heading in `<report>`, without the `###`, and `<n>` is its `#` cell. Give
+one line per row, in the order of `<report>`. The three counts add up to the rows of `<report>`. Write the `<evidence>`
+of a fix without ` — `. The new Action is the rest of its line, so it may hold ` — `.
