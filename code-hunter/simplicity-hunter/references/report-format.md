@@ -17,7 +17,8 @@ each comment, commit or record that the row uses as evidence, quoted; then one c
 other reading a Within-skill precedence rule set aside, the answer to a two-behavior signal (Duplication rule 2), a
 blocked probe, or a "remedy unresolved" counterexample (Drifted copies). In a run with more than one reader
 (`references/orchestrator.md`), the first line of each note is the row-note line, which holds every clause that the
-merge adds; the reader's note follows, its first line without its `#N — ` head:
+merge adds; a joined row may have a `Merge:` line next; the reader's note follows, its first line without its `#N — `
+head:
 
 ```text
 #<N> — Found by: <Claude | Codex | both> — from: <keys> — Claude checker: <keep | fix | drop | failed | not started> — Codex checker: <…>{ — dispute: dropped by <the Claude checker | the Codex checker | both checkers> under <rule>; kept: <reason>}{ — Action changed: <what changed>, by <the Claude checker | the Codex checker | this session>}{ — another area dropped it: <reason>}
