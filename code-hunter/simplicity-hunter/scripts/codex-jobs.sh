@@ -7,14 +7,15 @@
 # A job is a folder that holds prompt.md. The job reads that prompt, and writes its reply to <job>/reply.md, its
 # output to <job>/log.txt and its scratch files to <job>/tmp. Go builds with its cache in <job>/tmp/go-build, because
 # Go's default cache under the home folder is read-only in the sandbox. Codex's sandbox lets it write inside the job
-# folder only. The script removes <job>/tmp when the job ends, because a Go build cache can take hundreds of megabytes.
+# folder only. When the job ends, the script removes everything in <job> except prompt.md, log.txt and reply.md: a Go
+# build cache can take hundreds of megabytes, and Codex may ignore TMPDIR and make its own scratch folder in <job>.
 # All jobs start together. The script ends when every job has ended, and then prints one line per job, in argument
 # order, with the absolute path:
 #   <job>: ok                   exit code 0 and a reply that is not empty
 #   <job>: failed — timed out   the time cap stopped the job
 #   <job>: failed — exit <n>    Codex exited with n
 #   <job>: failed — empty reply Codex exited with 0 and wrote no reply
-# "ok" says only that the process ended well. It does not say that the reply is right: the caller checks the reply.
+# "ok" says only that the process ended well. It does not say that the reply is right: check-replies.sh checks it.
 #
 # Exit 0: every job ended, whatever its status. Exit 2: no job, or a job without prompt.md; no job has started.
 # Exit 129, 130 or 143: HUP, INT or TERM stopped the launcher, and it sent TERM to every job that still ran.
@@ -63,8 +64,11 @@ run_jobs() {
   for i in "${!jobs[@]}"; do
     job=${jobs[i]} rc=0
     wait "${pids[i]}" || rc=$?
-    # A folder that the job made read-only must not cost the status lines of the jobs after it.
-    rm -rf "$job/tmp" 2>/dev/null || true
+    # A Go module cache is read-only, so the folder is made writable first. A failed removal must not cost the
+    # status lines of the jobs after it.
+    chmod -R u+w "$job" 2>/dev/null || true
+    find "$job" -mindepth 1 -maxdepth 1 ! -name prompt.md ! -name log.txt ! -name reply.md \
+      -exec rm -rf {} + 2>/dev/null || true
     if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
       echo "$job: failed — timed out"
     elif [ "$rc" != 0 ]; then
@@ -92,19 +96,25 @@ for ((i = 0; i < ${#args[@]}; i++)); do
   [ "${args[i]}" = -C ] && dir=${args[i+1]}
   [ "${args[i]}" = -o ] && reply=${args[i+1]}
 done
-date +%s.%N > "$dir/start"
-printf '%s\n' "$@" > "$dir/args.txt"
-echo "TMPDIR=$TMPDIR" >> "$dir/args.txt"
-echo "GOCACHE=$GOCACHE" >> "$dir/args.txt"
-[ -d "$TMPDIR" ] && echo "tmpdir: exists" >> "$dir/args.txt"
-cat > "$dir/stdin.txt"
-case $(head -n 1 "$dir/stdin.txt") in
+# What the stub saw goes next to the job folder, because the launcher keeps only its own three files in it.
+seen=$dir.seen
+mkdir -p "$seen"
+date +%s.%N > "$seen/start"
+printf '%s\n' "$@" > "$seen/args.txt"
+echo "TMPDIR=$TMPDIR" >> "$seen/args.txt"
+echo "GOCACHE=$GOCACHE" >> "$seen/args.txt"
+[ -d "$TMPDIR" ] && echo "tmpdir: exists" >> "$seen/args.txt"
+cat > "$seen/stdin.txt"
+case $(head -n 1 "$seen/stdin.txt") in
   ok) echo reply > "$reply" ;;
   "exit 3") exit 3 ;;
   empty) : > "$reply" ;;
-  sleep) sleep 30 & echo "$$ $!" > "$dir/pid"; wait ;;
+  sleep) sleep 30 & echo "$$ $!" > "$seen/pid"; wait ;;
   silent) ;;
   read-only) mkdir "$TMPDIR/ro" && touch "$TMPDIR/ro/f" && chmod 555 "$TMPDIR/ro"; echo reply > "$reply" ;;
+  litter)
+    mkdir -p "$dir/.run/go-mod" "$dir/notes" && touch "$dir/.run/go-mod/f" "$dir/notes/f"
+    chmod 555 "$dir/.run/go-mod"; echo reply > "$reply" ;;
 esac
 STUB
   chmod +x "$stub/codex"
@@ -146,16 +156,15 @@ $root/j1/reply.md
 TMPDIR=$root/j1/tmp
 GOCACHE=$root/j1/tmp/go-build
 tmpdir: exists"
-  [ "$(cat j1/args.txt)" = "$want" ] || { echo "j1/args.txt differs:"; cat j1/args.txt; return 1; }
-  [ -z "$(find j1 j2 j3 j4 j5 -name tmp)" ] || { echo "a job left its tmp folder"; return 1; }
+  [ "$(cat j1.seen/args.txt)" = "$want" ] || { echo "j1.seen/args.txt differs:"; cat j1.seen/args.txt; return 1; }
   [ -f j1/reply.md ] && [ -f j1/log.txt ] || { echo "j1 lost its reply or log"; return 1; }
-  cmp -s j1/stdin.txt j1/prompt.md || { echo "j1 stdin differs from prompt.md"; return 1; }
+  cmp -s j1.seen/stdin.txt j1/prompt.md || { echo "j1 stdin differs from prompt.md"; return 1; }
 
-  for pid in $(cat j4/pid); do
+  for pid in $(cat j4.seen/pid); do
     ! kill -0 "$pid" 2>/dev/null || { echo "pid $pid of j4 is alive"; return 1; }
   done
 
-  cat j?/start | sort -n | awk 'NR == 1 { first = $1 } { last = $1 } END { exit !(NR == 5 && last - first < 1) }' ||
+  sort -n j?.seen/start | awk 'NR == 1 { first = $1 } { last = $1 } END { exit !(NR == 5 && last - first < 1) }' ||
     { echo "start times are more than 1 second apart"; return 1; }
 
   mkdir ok2 bad2
@@ -163,28 +172,31 @@ tmpdir: exists"
   rc=0
   (run_jobs 2 ok2 bad2) > /dev/null 2>&1 || rc=$?
   [ "$rc" = 2 ] || { echo "missing prompt.md: exit $rc, want 2"; return 1; }
-  [ -z "$(find ok2 bad2 -name args.txt)" ] || { echo "a job started before the check"; return 1; }
+  [ ! -e ok2.seen ] && [ ! -e bad2.seen ] || { echo "a job started before the check"; return 1; }
 
   # Bash runs a function inside $(…) without set -e. So these cases start the launcher in its own process, as its
   # callers do, where set -e and the signal traps apply.
-  mkdir ro after
-  echo read-only > ro/prompt.md; echo ok > after/prompt.md
-  out=$(bash "$self" ro after 2>&1) ||
-    { echo "a read-only folder in a job's tmp stopped the launcher:"; echo "$out"; return 1; }
+  mkdir ro litter after
+  echo read-only > ro/prompt.md; echo litter > litter/prompt.md; echo ok > after/prompt.md
+  out=$(bash "$self" ro litter after 2>&1) ||
+    { echo "a read-only folder in a job folder stopped the launcher:"; echo "$out"; return 1; }
   [ "$out" = "$root/ro: ok
-$root/after: ok" ] || { echo "status lines after a read-only tmp folder differ:"; echo "$out"; return 1; }
+$root/litter: ok
+$root/after: ok" ] || { echo "status lines after a read-only folder differ:"; echo "$out"; return 1; }
+  out=$(find j1 j2 j3 j4 j5 ro litter after -mindepth 1 ! -name prompt.md ! -name log.txt ! -name reply.md)
+  [ -z "$out" ] || { echo "job folders hold more than prompt.md, log.txt and reply.md:"; echo "$out"; return 1; }
 
   mkdir slow
   echo sleep > slow/prompt.md
   bash "$self" slow > /dev/null & launcher=$!
-  for _ in $(seq 50); do [ -s slow/pid ] && break; sleep 0.1; done
-  [ -s slow/pid ] || { echo "the sleep job never started"; return 1; }
+  for _ in $(seq 50); do [ -s slow.seen/pid ] && break; sleep 0.1; done
+  [ -s slow.seen/pid ] || { echo "the sleep job never started"; return 1; }
   rc=0
   kill -TERM "$launcher"
   wait "$launcher" || rc=$?
   [ "$rc" = 143 ] || { echo "a stopped launcher exits $rc, want 143"; return 1; }
-  for _ in $(seq 50); do kill -0 $(cat slow/pid) 2>/dev/null || break; sleep 0.1; done
-  for pid in $(cat slow/pid); do
+  for _ in $(seq 50); do kill -0 $(cat slow.seen/pid) 2>/dev/null || break; sleep 0.1; done
+  for pid in $(cat slow.seen/pid); do
     ! kill -0 "$pid" 2>/dev/null || { echo "pid $pid of a stopped launcher's job is alive"; return 1; }
   done
   echo "selftest ok"

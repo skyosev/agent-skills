@@ -116,6 +116,7 @@ The run folder:
 <run>/areas.txt                        the split: one line per scope, "<k>: <files> files, <bytes> bytes (<prod> production) — <units>"
 <run>/a<k>/scope.txt, scope-meta.txt   the snapshot of scope k; the whole diff is a1
 <run>/a<k>/r<i>.md                     report r<i> of scope k
+<run>/a<k>/claude-check.md             the Claude checker's verdict list of scope k
 <run>/codex/a<k>-r<i>/                 the Codex reader job of report r<i>: prompt.md, reply.md, log.txt
 <run>/codex/a<k>-check/                the Codex checker job of scope k
 ```
@@ -148,11 +149,10 @@ Each reply arrives when its reader ends. Write each Claude reader's reply verbat
 Code refuses a report file from a sub-agent, so this session writes it. When the launcher ends, copy the `reply.md`
 of each `ok` job to `<run>/a<k>/r<i>.md`. So the checkers' paths do not name the LLM.
 
-A report is `completed` when it starts with `area <k>: <N> findings` for its own scope, its Findings tables hold
-exactly N rows, and it has an `Audit completed` line. Else its reader is `failed — <what>`: the launcher's status
-(`timed out`, `exit <n>`, `empty reply`), or the first of these that fails: `no header`, `<m> rows, not <N>`,
-`no Audit completed line`. A reader whose agent could not start, or whose job has no status line, is `not started`.
-Start no reader again. The findings of a failed report are neither checked nor merged.
+A reader's status is the line that `bash <skill>/scripts/check-replies.sh report <k> <run>/a<k>/r<i>.md` prints:
+`completed`, or `failed — <what>`. Never judge a report by eye. A Codex reader whose job is not `ok` keeps the
+launcher's status. A reader whose agent could not start, or whose job has no status line, is `not started`. Start no
+reader again. The findings of a failed report are neither checked nor merged.
 
 ## Checkers
 
@@ -173,7 +173,8 @@ Read <skill>/references/checker.md, then <skill>/SKILL.md and <skill>/references
 Repository: <root>. Scope <k>. Reports: r1 <run>/a<k>/r1.md, r2 <run>/a<k>/r2.md.
 ```
 
-A checker's reply is its verdict list. A Codex checker's reply is its job's `reply.md`.
+A checker's reply is its verdict list. Write each Claude checker's reply verbatim to `<run>/a<k>/claude-check.md`,
+as for a Claude reader's reply. A Codex checker's reply is `<run>/codex/a<k>-check/reply.md`.
 
 ```text
 verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed
@@ -182,17 +183,13 @@ verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed
 <report ID> <Category> #<n>: fix — <evidence> — <new Action text>
 ```
 
-Read each line without a leading `- `, `*` and backticks. A verdict list is complete when its first line that is not
-a code fence starts with `verify <k>:` for its own scope, it gives exactly one verdict for each finding of each report
-that the checker got, its three counts add up to those findings, each `drop` names a rule and evidence, and each
-`fix` has new Action text after its second ` — `. A verdict repeated in place of another finding's leaves that
-finding without one.
+Read each line without a leading `- `, `*` and backticks.
 
-A checker is `completed` when its verdict list is complete. Else it is `failed — <what>`: the launcher's status, or
-the first problem of `no verify header`, `header names area <j>`, `no verdict for <finding>`, `two verdicts for
-<finding>`, `a verdict for unknown <finding>`, `counts add up to <x> of <y> findings`, `drop without a rule:
-<finding>` and `fix without a new Action: <finding>`. A checker that could not start is `not started`. In a scope
-without findings, each checker is `no findings`. Start no checker again.
+A checker's status is the line that `bash <skill>/scripts/check-replies.sh verdicts <k> <reply> <report>...` prints,
+where `<reply>` is the checker's reply and the reports are the files that its prompt lists, in that order:
+`completed`, or `failed — <what>`. Never judge a verdict list by eye. A Codex checker whose job is not `ok` keeps the
+launcher's status. A checker that could not start is `not started`. In a scope without findings, each checker is
+`no findings`. Start no checker again.
 
 ## Merge
 
@@ -201,8 +198,9 @@ finding is `<report ID> <Category> #<n>`, so two reports of one scope can both h
 `area <k> r<i> <Category> #<n>`: its scope, its report, its `###` heading and its `#` cell. The whole diff is area 1.
 Copy each row's cells and row note as its reader wrote them.
 
-1. **Verdicts.** Only complete verdict lists count. A verdict applies only to its own report's finding: another
-   report's copy of the same finding keeps its own verdicts, and step 4 joins the copies. For each finding:
+1. **Verdicts.** Only the verdict lists of `completed` checkers count. A verdict applies only to its own report's
+   finding: another report's copy of the same finding keeps its own verdicts, and step 4 joins the copies. For each
+   finding:
 
    | Claude checker | Codex checker | Result |
    |---|---|---|
