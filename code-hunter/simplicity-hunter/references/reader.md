@@ -1,8 +1,8 @@
-# Area agent
+# Reader
 
-The session that started you split one diff audit into package areas. You audit one area with this whole hunter, and
-that session merges the area reports. Your prompt names the repository root `<root>`, the snapshot directory `<snap>`
-and your area number `<k>`.
+The session that started you splits one diff audit into reading scopes: the whole diff, or package areas. You audit
+one scope with this whole hunter, and that session merges the reports. Your prompt names the repository root `<root>`,
+the snapshot directory `<snap>` and your area number `<k>`. The whole diff is area 1 of 1.
 
 - **Scope.** Start every call at `<root>`. Run SKILL.md in **Party mode**, with `<snap>` as the snapshot. When
   **Persist run state.** writes `scope.txt` to your own run directory `<run>`, write the `mb:` value of
