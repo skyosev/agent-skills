@@ -6,8 +6,8 @@ line appears only when its condition holds. A run that stops early (empty scope,
 lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
 table, or "none found" line; a thin report is a valid result.
 
-In a `{braced}` Scope line, a closing clause that starts `— only` or `— one` states when the line appears or how many
-such lines there are. It is a note for you, never part of the line.
+In a `{braced}` Scope line or braced part of a line, a closing clause that starts `— only` or `— one` states when the
+line appears or how many such lines there are. It is a note for you, never part of the line.
 
 Language-only categories appended by a language reference (Go: Interface Pollution, Channel & Goroutine Overuse) use
 the table schemas supplied in that reference.
