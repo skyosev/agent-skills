@@ -6,7 +6,8 @@
 #
 # A job is a folder that holds prompt.md. The job reads that prompt, and writes its reply to <job>/reply.md, its
 # output to <job>/log.txt and its scratch files to <job>/tmp. Go builds with its cache in <job>/tmp/go-build, because
-# Go's default cache under the home folder is read-only in the sandbox. Codex's sandbox lets it write inside the job folder only.
+# Go's default cache under the home folder is read-only in the sandbox. Codex's sandbox lets it write inside the job
+# folder only. The script removes <job>/tmp when the job ends: a Go build leaves about 187 MB there and /tmp is RAM.
 # All jobs start together. The script ends when every job has ended, and then prints one line per job, in argument
 # order, with the absolute path:
 #   <job>: ok                   exit code 0 and a reply that is not empty
@@ -53,6 +54,7 @@ run_jobs() {
   for i in "${!jobs[@]}"; do
     job=${jobs[i]} rc=0
     wait "${pids[i]}" || rc=$?
+    rm -rf "$job/tmp"
     if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
       echo "$job: failed — timed out"
     elif [ "$rc" != 0 ]; then
@@ -83,6 +85,7 @@ date +%s.%N > "$dir/start"
 printf '%s\n' "$@" > "$dir/args.txt"
 echo "TMPDIR=$TMPDIR" >> "$dir/args.txt"
 echo "GOCACHE=$GOCACHE" >> "$dir/args.txt"
+[ -d "$TMPDIR" ] && echo "tmpdir: exists" >> "$dir/args.txt"
 cat > "$dir/stdin.txt"
 case $(head -n 1 "$dir/stdin.txt") in
   ok) echo reply > "$reply" ;;
@@ -129,9 +132,11 @@ sandbox_workspace_write.exclude_tmpdir_env_var=true
 $root/j1/reply.md
 -
 TMPDIR=$root/j1/tmp
-GOCACHE=$root/j1/tmp/go-build"
+GOCACHE=$root/j1/tmp/go-build
+tmpdir: exists"
   [ "$(cat j1/args.txt)" = "$want" ] || { echo "j1/args.txt differs:"; cat j1/args.txt; return 1; }
-  [ -d j1/tmp ] || { echo "j1/tmp missing"; return 1; }
+  [ -z "$(find j1 j2 j3 j4 j5 -name tmp)" ] || { echo "a job left its tmp folder"; return 1; }
+  [ -f j1/reply.md ] && [ -f j1/log.txt ] || { echo "j1 lost its reply or log"; return 1; }
   cmp -s j1/stdin.txt j1/prompt.md || { echo "j1 stdin differs from prompt.md"; return 1; }
 
   for pid in $(cat j4/pid); do
