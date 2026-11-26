@@ -68,9 +68,8 @@ Steps 2 to 4 give the automatic shape, when the request has no word that sets th
   reader. A word of the reply replaces each word of the request that sets the same thing: `single` replaces
   `areas 4`. Run Shape again on the same `<run>`; the split first removes every `<run>/a<k>/`.
 - After "go", or at once when the run does not wait, a run with one reader continues SKILL.md as written, from
-  Phase 1 step 5. Its report has no `Run:` line, also when it waited for "go". Under `no agents`, where the budget
-  sentence of **Persist run state.** offers a split over sub-agents, read alone instead. A run with more than one
-  reader goes on to Readers.
+  Phase 1 step 5. Under `no agents`, where the budget sentence of **Persist run state.** offers a split over
+  sub-agents, read alone instead. A run with more than one reader goes on to Readers.
 
 ## The run plan
 

@@ -6,6 +6,9 @@ line appears only when its condition holds. A run that stops early (empty scope,
 lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
 table, or "none found" line; a thin report is a valid result.
 
+In a `{braced}` Scope line, a closing clause that starts `— only` or `— one` states when the line appears or how many
+such lines there are. It is a note for you, never part of the line.
+
 Language-only categories appended by a language reference (Go: Interface Pollution, Channel & Goroutine Overuse) use
 the table schemas supplied in that reference.
 
@@ -49,34 +52,35 @@ verified}`.
 - References loaded: {go, python, typescript as present}
 - {Codex: not available — {the last line of the failed check} — only when the Codex check of run modes failed}
 - Duplication coverage: {searched} of {total} seed functions searched
-- {Duplication coverage ({Claude | Codex} {n}): {searched} of {total} seed functions searched — run modes with more
-  than one reader, one per reader position, in place of the line above}
+- {Duplication coverage ({Claude | Codex} {n}): {searched} of {total} seed functions searched — only in run modes
+  with more than one reader, one per reader position, in place of the line above}
 - {Added units: {n} listed — only for diff scope}
-- {Added units ({Claude | Codex} {n}): {n} listed — run modes with more than one reader, one per reader position, in
-  place of the line above}
+- {Added units ({Claude | Codex} {n}): {n} listed — only in run modes with more than one reader, one per reader
+  position, in place of the line above}
 - {excluded — no reference for .<ext>: {count} files — one line per unsupported extension in the manifest}
 - {Deleted in diff: {list} — only for diff scope with deletions}
 - {Coexisting generations: skipped — requires codebase or path scope — only for diff scope}
 - {Limitation: … — one line per withdrawal, see Limitation lines}
 - {not read: {n} files — context budget}
-- {not read in full: {file} — {the lines read, or not opened} (area {k}, {Claude | Codex} {n}) — run modes, one per
-  file}
+- {not read in full: {file} — {the lines read, or not opened} (area {k}, {Claude | Codex} {n}) — only in run modes,
+  one per file}
 - {dropped (checkers): {location} — {claim in one clause} — {rule} — {evidence} — by {the Claude checker | the Codex
-  checker | both checkers} — from: {area {k} r{i} {Category} #{n}; …} — run modes, one per dropped defect}
-- {dropped (dispute): {the fields of dropped (checkers)} — run modes, one per dropped defect}
+  checker | both checkers} — from: {area {k} r{i} {Category} #{n}; …} — only in run modes, one per dropped defect}
+- {dropped (dispute): {the fields of dropped (checkers)} — only in run modes, one per dropped defect}
 - {dropped (disagreement): {location} — {claim in one clause} — {rule} — {evidence} — from: {area {k} r{i} {Category}
-  #{n}; …} — run modes, one per dropped defect}
+  #{n}; …} — only in run modes, one per dropped defect}
 - {Run modes: split failed — {the split script's message}}
 - {Read split: {n} agents by {directory | file list} — merged by this session}
 - {Run: {whole diff | {n} areas by package}, {automatic | requested: {the words}} — per {area | scope} {N} Claude
   reader(s) ({LLM alias}, xhigh){ and {N} Codex reader(s) (gpt-6.2-sol, high)} — {Claude checker | Claude and Codex
-  checkers} — {waited for "go" | unattended} — merged by this session — run modes with more than one reader}
+  checkers} — {waited for "go" | unattended} — merged by this session — only in run modes with more than one
+  reader; a one-reader run writes none, also after it waited for "go"}
   - {{area {k} | whole diff}: {files} files, {bytes} bytes ({production} production) — {units} — one per scope}
     - {r{i} ({Claude | Codex} {n}): {completed | failed — {what} | not started} — one per reader}
     - {Claude checker: {completed | failed — {what} | not started | no findings}}
     - {Codex checker: {completed | failed — {what} | not started | no findings} — only when Codex readers ran}
 - Audit completed: {N} findings{ — partial: {scope} not audited | {scope} {position} not audited | {scope} {position}
-  not started | {scope} not verified — run modes, one per case; {scope} is area {k} or whole diff, {position} is
+  not started | {scope} not verified — only in run modes, one per case; {scope} is area {k} or whole diff, {position} is
   Claude {n} or Codex {n}}
 
 ## Findings
