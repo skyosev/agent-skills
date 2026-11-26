@@ -178,6 +178,7 @@ $root/after: ok" ] || { echo "status lines after a read-only tmp folder differ:"
   echo sleep > slow/prompt.md
   bash "$self" slow > /dev/null & launcher=$!
   for _ in $(seq 50); do [ -s slow/pid ] && break; sleep 0.1; done
+  [ -s slow/pid ] || { echo "the sleep job never started"; return 1; }
   rc=0
   kill -TERM "$launcher"
   wait "$launcher" || rc=$?

@@ -260,7 +260,8 @@ Copy each row's cells and row note as its reader wrote them.
    Action that this session writes or changes: a merge of two fixes, a joined finding, step 6, a fix extended to
    another site. A checker's fix taken word for word is not checked again: its checker has run both. The
    `Action changed:` clause names a checker when the Action is that checker's new Action word for word, and
-   `this session` when the merge wrote it.
+   `this session` when the merge wrote it. Every row whose Action differs from its kept copy's gets the `Action changed`
+   clause.
 8. **Layout.** Category sections in report-format.md order, with no empty section. Number each table from 1, and
    fix every `#<n>`.
 9. **Count.** `Audit completed: <N> findings` counts the rows. Add one ending per case:
