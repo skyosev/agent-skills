@@ -346,13 +346,15 @@ and frequently-read file, is High impact.
 
 ### Phase 1: Gain Context
 
-**Area mode** splits a large diff over agents, one per package area. It applies to a diff scope outside **Party
-mode**, in a session with a sub-agent tool. There, the budget sentence of **Persist run state.** (from "If the
-resolved surface exceeds the context budget" to the end of that paragraph) waits until step 4 ends. Then run
-`bash <skill>/scripts/split-areas.sh <run>`, where `<skill>` is the directory this SKILL.md was read from. When it
-prints `areas: <n>`, read `references/area-mode.md` and follow it: area mode replaces the budget sentence for this
-scope. When it prints `no area mode`, continue as written, the budget sentence included. On any other output, add the
-Scope line `Area mode: failed — <its message>` and continue as written.
+**Run modes** can split a diff audit over readers: Claude sub-agents and Codex jobs that each audit a reading
+scope, the whole diff or one package area. Checkers then judge their findings again, and this session merges the
+reports. Run modes apply to a diff scope outside **Party mode**, in a session with a sub-agent tool. There, the
+budget sentence of **Persist run state.** (from "If the resolved surface exceeds the context budget" to the end of
+that paragraph) waits until step 4 ends. Then read `references/orchestrator.md` and follow it. It reads the
+request's words and the diff's size, and decides whether this session reads alone, as written here, or merges the
+reports of several readers. A caller that runs this hunter in `claude -p` with the word `unattended` also sets
+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: without it, Claude Code can stop background agents after 10 minutes of
+idle waiting, once no background command runs.
 
 1. **Resolve the raw manifest.** Scope may be:
    - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
