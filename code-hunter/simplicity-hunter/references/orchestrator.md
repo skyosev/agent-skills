@@ -8,9 +8,9 @@ whole diff, or one package area. A checker judges every finding of every report 
 context. With more than one reader, Phase 1 step 5 and Phases 2 to 5 run in the readers, and Phase 1 step 5 and
 Phase 5 run again in the checkers. This session judges disputes and joins duplicates, so it writes none of the
 reports: it reads no code for findings, and opens code only where a merge step asks. The readers answer the context
-budget, so ask nothing about it. With one reader, this session is the reader: today's run, as SKILL.md describes it.
-`<skill>` is the directory that SKILL.md was read from, `<root>` is the repository root, and `<run>` is the run
-directory of **Persist run state.**
+budget, so ask nothing about it. With one reader, this session is the reader: the one-reader run, as SKILL.md
+describes it. `<skill>` is the directory that SKILL.md was read from, `<root>` is the repository root, and `<run>` is
+the run directory of **Persist run state.**
 
 ## Words
 
@@ -21,8 +21,8 @@ The words are plain words in the request; there is no flag parser.
 | `single` | one reading scope: the whole diff |
 | `areas N` | split into N areas, also on a diff of up to 160 KB |
 | `readers N` | N readers of each LLM for each reading scope (default 1). With Codex, `readers 2` means 2 Claude and 2 Codex readers per scope |
-| `no codex` | no Codex readers or checker, as when Codex is not available: today's run on the whole diff, and Claude readers with the Claude checker on areas |
-| `no agents` | today's run: this session reads alone, with no sub-agents, no Codex and no checkers. This also holds when the budget sentence would otherwise split the reading over sub-agents |
+| `no codex` | no Codex readers or checker, as when Codex is not available: the one-reader run on the whole diff, and Claude readers with the Claude checker on areas |
+| `no agents` | the one-reader run: this session reads alone, with no sub-agents, no Codex and no checkers. This also holds when the budget sentence would otherwise split the reading over sub-agents |
 | `confirm`, `unattended` | wait for "go" even with one reader; never wait |
 
 - A word sets up the run only when the request uses it to set up the run. "Check the 2 areas I changed" is not
@@ -44,7 +44,7 @@ The words are plain words in the request; there is no flag parser.
    the check: Codex does not run. When Codex is not available, add the Scope line
    `Codex: not available — <the last line of the output, or "codex is not on PATH">`. The plan shows the same reason.
 4. Each scope gets `readers N` Claude readers (default 1), and as many Codex readers when Codex runs. One reader in
-   all is today's run.
+   all is the one-reader run.
 5. The Claude readers start at once: the areas times N. Above 20, refuse before any plan: give the count, and the
    words that reduce it (`readers 1`, `areas <M>`, `single`, `no agents`). The checkers start after the readers end,
    one Claude checker per area at most.
@@ -53,7 +53,7 @@ Steps 2 to 4 give the automatic shape, when the request has no word that sets th
 
 | Eligible changed code | Codex available | Codex not available |
 |---|---|---|
-| up to 160 KB, or the split gives one area | whole diff: 1 Claude and 1 Codex reader; a Claude and a Codex checker | today's run |
+| up to 160 KB, or the split gives one area | whole diff: 1 Claude and 1 Codex reader; a Claude and a Codex checker | the one-reader run |
 | above 160 KB, 2 to 20 areas | areas: 1 Claude and 1 Codex reader per area; both checkers per area | areas: 1 Claude reader and the Claude checker per area |
 | more than 20 areas | packed into 20 areas, as `areas 20` | the same, Claude only |
 
@@ -64,9 +64,9 @@ Steps 2 to 4 give the automatic shape, when the request has no word that sets th
 - When a run would wait and nobody can answer, it returns its plan as its final reply and stops. This holds for the
   default wait and for `confirm`. Nobody can answer when another skill or agent started this hunter, or when the
   request says that nobody answers. A caller that has approved the spend adds `unattended`.
-- A reply with words makes a new plan, shows it, and waits for "go" again. A word of the reply replaces each word of
-  the request that sets the same thing: `single` replaces `areas 4`. Run Shape again on the same `<run>`; the split
-  first removes every `<run>/a<k>/`.
+- A reply with words makes a new plan, shows it, and waits for "go" again. This also holds when the new plan has one
+  reader. A word of the reply replaces each word of the request that sets the same thing: `single` replaces
+  `areas 4`. Run Shape again on the same `<run>`; the split first removes every `<run>/a<k>/`.
 - After "go", or at once when the run does not wait, a run with one reader continues SKILL.md as written, from
   Phase 1 step 5. Under `no agents`, where the budget sentence of **Persist run state.** offers a split over
   sub-agents, read alone instead. A run with more than one reader goes on to Readers.
@@ -105,7 +105,7 @@ Reply "go", or change the run with: no codex, single, areas N, readers N, no age
   both to whole dollars.
 - The warning shows when the shape is the whole diff, the diff is above 160 KB, and it has more than one reader.
 - A plan with one reader (shown under `confirm`) has the line
-  `Readers    this session reads the diff alone (today's run); no checkers` in place of Readers, Checkers and
+  `Readers    this session reads the diff alone; no checkers` in place of Readers, Checkers and
   Merge, and `Estimate   this session ~$<a>` with N = 1.
 
 ## Readers
@@ -116,7 +116,7 @@ The run folder:
 <run>/areas.txt                        the split: one line per scope, "<k>: <files> files, <bytes> bytes (<prod> production) — <units>"
 <run>/a<k>/scope.txt, scope-meta.txt   the snapshot of scope k; the whole diff is a1
 <run>/a<k>/r<i>.md                     report r<i> of scope k
-<run>/codex/a<k>-r<i>/                 the Codex reader job of report r<i>: prompt.md, reply.md, log.txt, tmp/
+<run>/codex/a<k>-r<i>/                 the Codex reader job of report r<i>: prompt.md, reply.md, log.txt
 <run>/codex/a<k>-check/                the Codex checker job of scope k
 ```
 
@@ -215,10 +215,11 @@ Copy each row's cells and row note as its reader wrote them.
    | one checker failed or did not start | — | the other checker's verdict applies alone; Scope records the failed checker |
    | both checkers failed | — | the scope's findings stay unchecked, and `Audit completed` ends with `— partial: <scope> not verified` |
 
-   Without Codex readers, the Claude checker's verdict applies alone. A kept finding stays as its reader wrote it. A
-   fixed finding takes the new Action, all the text after the second ` — `, and its row-note line gets the
-   `Action changed:` clause. A dropped finding leaves the tables. Of two fixes, take one Action word for word, unless
-   each covers a site or a condition that the other lacks: then merge them.
+   Without Codex readers, the Claude checker's verdict applies alone. A drop by a verdict that applies alone gets a
+   `dropped (checkers)` line that names its checker: `by the Claude checker` or `by the Codex checker`. A kept
+   finding stays as its reader wrote it. A fixed finding takes the new Action, all the text after the second ` — `,
+   and its row-note line gets the `Action changed:` clause. A dropped finding leaves the tables. Of two fixes, take
+   one Action word for word, unless each covers a site or a condition that the other lacks: then merge them.
 2. **Disputes.** Open the code, and judge the finding against the rule that the dropping checker named. When the
    rule holds, drop the finding with its `dropped (dispute)` line. Otherwise keep it, and its row-note line gets the
    `dispute:` clause. Both name the checker that dropped, so real runs show whether this session overrules one
@@ -231,10 +232,10 @@ Copy each row's cells and row note as its reader wrote them.
    `another area dropped it: <reason>`.
 4. **One finding per defect.** This step takes every finding of the completed reports, the dropped ones included.
    Two locations are near when they are in the same file, and within 3 lines of each other or in the same function.
-   Two findings from two reports are candidates for one when a location of one is near a location of the other, or
-   when both name the same dependency (a Replaceable dependency finding can anchor at imports in different files).
-   Join them only when they name the same defect: two findings in one function can be separate. The copies of one
-   defect share one place, the kept copy's row or one dropped line that names them all:
+   Two findings from two reports are candidates for one, whatever their categories, when a location of one is near a
+   location of the other, or when both name the same dependency (a Replaceable dependency finding can anchor at
+   imports in different files). Join them only when they name the same defect: two findings in one function can be
+   separate. The copies of one defect share one place, the kept copy's row or one dropped line that names them all:
    - Every copy dropped: one dropped line, of the kind that dropped the copy that the tie-break would keep.
    - Some copies dropped and others surviving: a dispute. Open the code, and judge a surviving copy against the
      dropped copy's rule. When the rule holds for the defect itself, drop the defect with one `dropped (dispute)`
@@ -268,7 +269,13 @@ Copy each row's cells and row note as its reader wrote them.
      scope that another reader completed;
    - `— partial: <scope> not verified`: the scope has findings, and no checker of it completed.
 
-   `<scope>` is `area <k>` or `whole diff`. `<position>` is `Claude <n>` or `Codex <n>`.
+   `<scope>` is `area <k>` or `whole diff`. `<position>` is `Claude <n>` or `Codex <n>`. Each case adds its own
+   ` — partial: `, so two cases read:
+
+   ```text
+   Audit completed: 7 findings — partial: area 2 Codex 1 not audited — partial: area 3 not verified
+   ```
+
 10. **Scope**, in report-format.md order:
     - The Phase 1 lines, once: they describe the whole diff. Leave out each report's line of the same name.
     - `Codex: not available — <why>`, when Shape added it, before the coverage lines.
