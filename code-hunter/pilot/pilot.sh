@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One unattended hunter run on a fixed commit of a fixture repository.
+# One hunter run on a fixed commit of a fixture repository.
 #
 #   code-hunter/pilot/pilot.sh <fixture-repo> <hunter> <out-dir> <prompt...>
 #
@@ -9,11 +9,12 @@
 # Permissions: auto mode, as in an interactive session. Its classifier approves or denies each call. A denied call
 # is listed in result.json (permission_denials); compare.py prints the count. A run with denials is not comparable.
 #
-# Env: PILOT_COMMIT (default: fixture HEAD), PILOT_MODEL (default: claude-opus-5-5), PILOT_BUDGET_USD (default: 25).
+# Env: PILOT_COMMIT (default: fixture HEAD), PILOT_MODEL (default: claude-opus-5-5),
+# PILOT_EFFORT (default: xhigh), PILOT_BUDGET_USD (default: 25).
 # Writes <out-dir>/report.md, result.json (cost, tokens, denials, session id), meta.txt.
 set -euo pipefail
 
-[ $# -ge 4 ] || { sed -n 2,13p "$0" >&2; exit 2; }
+[ $# -ge 4 ] || { sed -n 2,14p "$0" >&2; exit 2; }
 fixture=$(git -C "$1" rev-parse --show-toplevel)
 hunter=$2
 out=$3
@@ -36,7 +37,7 @@ out=$(cd "$out" && pwd)
 
 prompt="$*
 
-Unattended run: nobody answers questions. Do not ask. Decide, and record each decision in the report's Scope section.
+Nobody answers questions in this run. Do not ask. Decide, and record each decision in the report's Scope section.
 Save the report as $out/report.md."
 
 {
@@ -45,10 +46,11 @@ Save the report as $out/report.md."
   echo "hunter: $hunter"
   echo "skill: $(git -C "$skill" rev-parse --short HEAD)$([ -n "$(git -C "$skill" status --porcelain -- .)" ] && echo ' (dirty)')"
   echo "model: $model"
+  echo "effort: ${PILOT_EFFORT:-xhigh}"
   echo "prompt: $*"
 } > "$out/meta.txt"
 
 cd "$tmp/wt"
-claude -p "$prompt" --plugin-dir "$tmp/plugin" --model "$model" --settings '{"disableAllHooks":true}' \
+claude -p "$prompt" --plugin-dir "$tmp/plugin" --model "$model" --effort "${PILOT_EFFORT:-xhigh}" --settings '{"disableAllHooks":true}' \
   --permission-mode auto --add-dir "$out" --max-budget-usd "${PILOT_BUDGET_USD:-25}" --output-format json > "$out/result.json"
 [ -s "$out/report.md" ] || { echo "no report written: $out" >&2; exit 1; }
