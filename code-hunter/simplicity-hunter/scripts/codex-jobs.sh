@@ -5,7 +5,8 @@
 #   bash codex-jobs.sh --selftest
 #
 # A job is a folder that holds prompt.md. The job reads that prompt, and writes its reply to <job>/reply.md, its
-# output to <job>/log.txt and its scratch files to <job>/tmp. Codex's sandbox lets it write inside the job folder only.
+# output to <job>/log.txt and its scratch files to <job>/tmp. Go builds with its cache in <job>/tmp/go-build, because
+# Go's default cache under the home folder is read-only in the sandbox. Codex's sandbox lets it write inside the job folder only.
 # All jobs start together. The script ends when every job has ended, and then prints one line per job, in argument
 # order, with the absolute path:
 #   <job>: ok                   exit code 0 and a reply that is not empty
@@ -40,7 +41,7 @@ run_jobs() {
     # An old reply must not pass as the reply of a job that writes nothing.
     rm -f "$job/reply.md"
     mkdir -p "$job/tmp"
-    TMPDIR=$job/tmp timeout --kill-after="$KILL_AFTER_SECONDS" "$cap" \
+    TMPDIR=$job/tmp GOCACHE=$job/tmp/go-build timeout --kill-after="$KILL_AFTER_SECONDS" "$cap" \
       codex exec --ephemeral --ignore-user-config --skip-git-repo-check -C "$job" -s workspace-write \
         -m "$LLM" -c model_reasoning_effort="$EFFORT" -c approval_policy=never \
         -c sandbox_workspace_write.exclude_slash_tmp=true \
@@ -81,6 +82,7 @@ done
 date +%s.%N > "$dir/start"
 printf '%s\n' "$@" > "$dir/args.txt"
 echo "TMPDIR=$TMPDIR" >> "$dir/args.txt"
+echo "GOCACHE=$GOCACHE" >> "$dir/args.txt"
 cat > "$dir/stdin.txt"
 case $(head -n 1 "$dir/stdin.txt") in
   ok) echo reply > "$reply" ;;
@@ -126,7 +128,8 @@ sandbox_workspace_write.exclude_tmpdir_env_var=true
 -o
 $root/j1/reply.md
 -
-TMPDIR=$root/j1/tmp"
+TMPDIR=$root/j1/tmp
+GOCACHE=$root/j1/tmp/go-build"
   [ "$(cat j1/args.txt)" = "$want" ] || { echo "j1/args.txt differs:"; cat j1/args.txt; return 1; }
   [ -d j1/tmp ] || { echo "j1/tmp missing"; return 1; }
   cmp -s j1/stdin.txt j1/prompt.md || { echo "j1 stdin differs from prompt.md"; return 1; }
