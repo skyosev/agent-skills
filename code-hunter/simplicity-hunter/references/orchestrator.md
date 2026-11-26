@@ -301,8 +301,9 @@ Copy each row's cells and row note as its reader wrote them.
 
 11. **Row notes.** Each note starts with the row-note line of report-format.md (**Row notes.**), which holds every
     clause that the merge adds. Each checker clause gives that checker's verdict on the kept copy, or `failed` or
-    `not started`. When no checker of the scope completed, the line ends `— not verified` in their place. The reader's
-    note follows on the next lines, unchanged, except that its first line loses its `#<n> — ` head.
+    `not started`. The Codex checker clause appears only when Codex readers ran. When no checker of the scope
+    completed, the line ends `— not verified` in their place. The reader's note follows on the next lines, unchanged,
+    except that its first line loses its `#<n> — ` head.
 12. **Recommendations.** Write `## Recommendations (Priority Order)` over the merged rows, ending with one Tooling
     block (Phase 6, "Delegated to tools").
 13. **Save** as Phase 6 says.

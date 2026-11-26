@@ -21,7 +21,7 @@ merge adds; the reader's note follows, its first line without its `#N — ` head
 #<N> — Found by: <Claude | Codex | both> — from: <keys> — not verified
 ```
 
-An example:
+The Codex checker clause appears only when Codex readers ran. An example:
 
 ```text
 #1 — Found by: both — from: area 1 r1 Duplication #1; area 1 r2 Duplication #2 — Claude checker: keep — Codex checker: keep
