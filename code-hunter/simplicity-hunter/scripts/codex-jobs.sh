@@ -7,7 +7,7 @@
 # A job is a folder that holds prompt.md. The job reads that prompt, and writes its reply to <job>/reply.md, its
 # output to <job>/log.txt and its scratch files to <job>/tmp. Go builds with its cache in <job>/tmp/go-build, because
 # Go's default cache under the home folder is read-only in the sandbox. Codex's sandbox lets it write inside the job
-# folder only. The script removes <job>/tmp when the job ends: a Go build leaves about 187 MB there and /tmp is RAM.
+# folder only. The script removes <job>/tmp when the job ends, because a Go build cache can take hundreds of megabytes.
 # All jobs start together. The script ends when every job has ended, and then prints one line per job, in argument
 # order, with the absolute path:
 #   <job>: ok                   exit code 0 and a reply that is not empty
@@ -17,6 +17,7 @@
 # "ok" says only that the process ended well. It does not say that the reply is right: the caller checks the reply.
 #
 # Exit 0: every job ended, whatever its status. Exit 2: no job, or a job without prompt.md; no job has started.
+# Exit 129, 130 or 143: HUP, INT or TERM stopped the launcher, and it sent TERM to every job that still ran.
 set -euo pipefail
 LLM=gpt-6.2-sol
 EFFORT=high
@@ -25,7 +26,7 @@ KILL_AFTER_SECONDS=60  # time between the stop signal and the kill; a job that i
 
 # Usage: run_jobs <cap-seconds> <job>...
 run_jobs() {
-  local cap=$1 job pid rc i
+  local cap=$1 job rc i
   shift
   local jobs=() pids=()
   # Codex runs with -C <job> and TMPDIR=<job>/tmp; a relative path would point at the wrong place.
@@ -37,6 +38,14 @@ run_jobs() {
   for job in "${jobs[@]}"; do
     [ -f "$job/prompt.md" ] || { echo "no prompt.md in $job" >&2; exit 2; }
   done
+
+  # Each timeout runs in its own process group, so a signal that stops the launcher would not reach its jobs.
+  # `jobs -rp` lists only the jobs that still run: a PID of an ended job may already belong to another process.
+  # A SIGKILL of the launcher cannot be trapped, and its jobs then run on until their time cap.
+  local stop='kill -TERM $(jobs -rp) 2>/dev/null || true; exit'
+  trap "$stop 129" HUP
+  trap "$stop 130" INT
+  trap "$stop 143" TERM
 
   for job in "${jobs[@]}"; do
     # An old reply must not pass as the reply of a job that writes nothing.
@@ -54,7 +63,8 @@ run_jobs() {
   for i in "${!jobs[@]}"; do
     job=${jobs[i]} rc=0
     wait "${pids[i]}" || rc=$?
-    rm -rf "$job/tmp"
+    # A folder that the job made read-only must not cost the status lines of the jobs after it.
+    rm -rf "$job/tmp" 2>/dev/null || true
     if [ "$rc" = 124 ] || [ "$rc" = 137 ]; then
       echo "$job: failed — timed out"
     elif [ "$rc" != 0 ]; then
@@ -68,9 +78,10 @@ run_jobs() {
 }
 
 selftest() {
-  local stub out want rc pid
+  local self stub out want rc pid launcher
+  self=$(realpath "$0")
   root=$(mktemp -d)
-  trap 'rm -rf "$root"' EXIT
+  trap 'chmod -R u+w "$root"; rm -rf "$root"' EXIT
   stub=$root/bin
   mkdir "$stub"
   cat > "$stub/codex" <<'STUB'
@@ -93,6 +104,7 @@ case $(head -n 1 "$dir/stdin.txt") in
   empty) : > "$reply" ;;
   sleep) sleep 30 & echo "$$ $!" > "$dir/pid"; wait ;;
   silent) ;;
+  read-only) mkdir "$TMPDIR/ro" && touch "$TMPDIR/ro/f" && chmod 555 "$TMPDIR/ro"; echo reply > "$reply" ;;
 esac
 STUB
   chmod +x "$stub/codex"
@@ -152,11 +164,33 @@ tmpdir: exists"
   (run_jobs 2 ok2 bad2) > /dev/null 2>&1 || rc=$?
   [ "$rc" = 2 ] || { echo "missing prompt.md: exit $rc, want 2"; return 1; }
   [ -z "$(find ok2 bad2 -name args.txt)" ] || { echo "a job started before the check"; return 1; }
+
+  # Bash runs a function inside $(…) without set -e. So these cases start the launcher in its own process, as its
+  # callers do, where set -e and the signal traps apply.
+  mkdir ro after
+  echo read-only > ro/prompt.md; echo ok > after/prompt.md
+  out=$(bash "$self" ro after 2>&1) ||
+    { echo "a read-only folder in a job's tmp stopped the launcher:"; echo "$out"; return 1; }
+  [ "$out" = "$root/ro: ok
+$root/after: ok" ] || { echo "status lines after a read-only tmp folder differ:"; echo "$out"; return 1; }
+
+  mkdir slow
+  echo sleep > slow/prompt.md
+  bash "$self" slow > /dev/null & launcher=$!
+  for _ in $(seq 50); do [ -s slow/pid ] && break; sleep 0.1; done
+  rc=0
+  kill -TERM "$launcher"
+  wait "$launcher" || rc=$?
+  [ "$rc" = 143 ] || { echo "a stopped launcher exits $rc, want 143"; return 1; }
+  for _ in $(seq 50); do kill -0 $(cat slow/pid) 2>/dev/null || break; sleep 0.1; done
+  for pid in $(cat slow/pid); do
+    ! kill -0 "$pid" 2>/dev/null || { echo "pid $pid of a stopped launcher's job is alive"; return 1; }
+  done
   echo "selftest ok"
 }
 
 if [ "${1:-}" = --selftest ]; then
   selftest
-elif [ "${BASH_SOURCE[0]}" = "$0" ]; then
+else
   run_jobs "$CAP_SECONDS" "$@"
 fi

@@ -121,10 +121,6 @@ fi
 # Prefix each line with its area number. The areas are runs of consecutive directories: cut[i] marks the
 # directory that starts one.
 awk -v size="$AREA_SIZE" -v max="$MAX_AREAS" -v want="$areas" -v total="$total" '
-  function count(limit,   i, k, bytes) {
-    for (i = 1; i <= dirs; i++) { if (k == 0 || bytes + dbytes[i] > limit) { k++; bytes = 0 } bytes += dbytes[i] }
-    return k
-  }
   function pack(limit,   i, k, bytes) {
     for (i = 1; i <= dirs; i++) {
       cut[i] = (k == 0 || bytes + dbytes[i] > limit)
@@ -136,11 +132,11 @@ awk -v size="$AREA_SIZE" -v max="$MAX_AREAS" -v want="$areas" -v total="$total" 
   $1 != last { dirs++; last = $1 }
   { dbytes[dirs] += $2; line[NR] = $0; dir[NR] = dirs }
   END {
-    if (want == 0 && count(size) <= max) { n = pack(size) }
-    else {
+    n = pack(size)
+    if (want != 0 || n > max) {
       if (want == 0) want = max
       lo = 1; hi = total
-      while (lo < hi) { mid = int((lo + hi) / 2); if (count(mid) <= want) hi = mid; else lo = mid + 1 }
+      while (lo < hi) { mid = int((lo + hi) / 2); if (pack(mid) <= want) hi = mid; else lo = mid + 1 }
       n = pack(lo)
       while (n < want) {
         found = 0
