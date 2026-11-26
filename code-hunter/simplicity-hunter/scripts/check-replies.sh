@@ -7,16 +7,19 @@
 #
 # Prints one line: "completed", or "failed — <what>" with the first problem in the order given below.
 #
+# A report and a reply are read alike. Each line is read without its "*" and backticks, its leading spaces and a
+# leading "- ". The header is the first line that is neither empty nor a code fence, and may go on after its form
+# below. The lines before the header open no code block, so a report wrapped in a code fence reads as if it were not.
+#
 # A report's ID is its file name without .md. Its findings are the rows of its Findings tables: each line that starts
 # with "|", whose first cell is a whole number, under a "### <Category>" heading inside "## Findings", and outside
 # fenced code blocks. A finding is named "<report ID> <Category> #<n>".
 #
-# report: the report of scope k is completed when its first line is "area <k>: <N> findings" ("finding" also
-# passes), it has exactly N findings, and it has an "Audit completed:" line. Its problems: "no header",
-# "<m> rows, not <N>", "no Audit completed line".
+# report: the report of scope k is completed when its header is "area <k>: <N> findings" ("finding" also passes), it
+# has exactly N findings, and it has an "Audit completed:" line. Its problems: "no header", "<m> rows, not <N>",
+# "no Audit completed line".
 #
-# verdicts: the reply of the checker of scope k, against the reports that the checker got. Each line is read without
-# a leading "- ", "*" and backticks. The header is the first line that is neither empty nor a code fence, and reads
+# verdicts: the reply of the checker of scope k, against the reports that the checker got. Its header is
 # "verify <k>: <a> kept, <b> dropped, <c> fixed". A verdict line is one of
 #   <finding>: keep
 #   <finding>: drop — <rule> — <evidence>
@@ -31,10 +34,15 @@
 # Exit 0: a status line, whatever the status. Exit 2: a usage error, or a file that cannot be read.
 set -euo pipefail
 
-# Prints "row<TAB><finding>" for each finding of a report, and "audit" for each Audit completed line.
-scan() {
-  LC_ALL=C awk -v id="$(basename "$1" .md)" '
-    { t = $0; sub(/^[ \t]+/, "", t); mark = substr(t, 1, 3) }
+# The first rules of both awk programs, so that a report's header and a reply's header are found and read alike.
+READ_LINES='
+  function plain(s) { gsub(/[*`]/, "", s); sub(/^[ \t]+/, "", s); sub(/^- /, "", s); return s }
+  { t = $0; sub(/^[ \t]+/, "", t); sub(/[ \t\r]+$/, "", t); mark = substr(t, 1, 3); line = plain(t) }
+  !started { if (t != "" && mark != "```" && mark != "~~~") { started = 1; header = line }; next }
+'
+
+report_parts() {
+  LC_ALL=C awk -v k="$1" -v id="$(basename "$2" .md)" "$READ_LINES"'
     fence != "" { if (mark == fence) fence = ""; next }
     mark == "```" || mark == "~~~" { fence = mark; next }
     /^## / { in_findings = ($0 ~ /^## Findings[ \t\r]*$/); category = ""; next }
@@ -45,34 +53,34 @@ scan() {
     }
     category != "" && /^\|/ {
       split($0, cell, "|"); n = cell[2]; gsub(/^[ \t]+|[ \t]+$/, "", n)
-      if (n ~ /^[0-9]+$/) print "row\t" id " " category " #" n
+      if (n ~ /^[0-9]+$/) print "row " id " " category " #" n
       next
     }
-    { gsub(/[*`]/, "", t); if (t ~ /^(- )?Audit completed:/) print "audit" }
-  ' "$1"
+    line ~ /^Audit completed:/ { print "audit" }
+    END {
+      if (header ~ ("^area " k ": [0-9]+ findings?([^A-Za-z0-9_]|$)")) { split(header, w, " "); print "header " w[3] }
+    }
+  ' "$2"
 }
 
 report() {
-  local k=$1 file=$2 header n rows audit
-  header="^area $k: ([0-9]+) findings?[[:space:]]*$"
-  if ! [[ $(head -n 1 "$file") =~ $header ]]; then echo "failed — no header"; return; fi
-  n=${BASH_REMATCH[1]}
-  read -r rows audit < <(scan "$file" | awk '/^row\t/ { r++ } $0 == "audit" { a = 1 } END { print r + 0, a + 0 }')
-  if [ "$rows" -ne "$n" ]; then
-    echo "failed — $rows rows, not $n"
-  elif [ "$audit" = 0 ]; then
-    echo "failed — no Audit completed line"
-  else
-    echo completed
-  fi
+  report_parts "$1" "$2" | awk '
+    $1 == "header" { n = $2 }
+    $1 == "row" { rows++ }
+    $1 == "audit" { audit = 1 }
+    END {
+      if (n == "") print "failed — no header"
+      else if (rows + 0 != n + 0) print "failed — " (rows + 0) " rows, not " n
+      else if (!audit) print "failed — no Audit completed line"
+      else print "completed"
+    }'
 }
 
 verdicts() {
-  local k=$1 reply=$2 f
+  local k=$1 reply=$2 f findings
   shift 2
-  # The first file is the findings in report order, the second the reply.
-  LC_ALL=C awk -v k="$k" -v sep=" — " '
-    function plain(s) { gsub(/[*`]/, "", s); sub(/^- /, "", s); return s }
+  findings=$(for f in "$@"; do report_parts "$k" "$f"; done | sed -n 's/^row //p')
+  FINDINGS=$findings LC_ALL=C awk -v k="$k" -v sep=" — " "$READ_LINES"'
     function fail(what) { print "failed — " what; exit }
     # Whether the text after a drop or fix verdict is " — <part> — <part>", both parts not blank.
     function both_parts(rest,   i) {
@@ -81,15 +89,7 @@ verdicts() {
       i = index(rest, sep)
       return i > 0 && substr(rest, 1, i - 1) ~ /[^ \t]/ && substr(rest, i + length(sep)) ~ /[^ \t]/
     }
-    FILENAME == ARGV[1] { if (sub(/^row\t/, "")) { want[++n] = $0; known[$0] = 1 }; next }
-    { t = $0; sub(/^[ \t]+/, "", t); sub(/[ \t\r]+$/, "", t); line = plain(t) }
-    !started && t != "" && substr(t, 1, 3) != "```" && substr(t, 1, 3) != "~~~" {
-      started = 1
-      if (line ~ /^verify [0-9]+: [0-9]+ kept, [0-9]+ dropped, [0-9]+ fixed([^A-Za-z0-9_]|$)/) {
-        split(line, w, /[ :,]+/); header = 1; area = w[2]; counted = w[3] + w[5] + w[7]
-      }
-      next
-    }
+    BEGIN { n = split(ENVIRON["FINDINGS"], want, "\n"); for (i = 1; i <= n; i++) known[want[i]] = 1 }
     match(line, / #[0-9]+: (keep|drop|fix)/) {
       head = substr(line, 1, RSTART - 1); tail = substr(line, RSTART, RLENGTH); rest = substr(line, RSTART + RLENGTH)
       if (head !~ /^[^ ]+ [^ ]/ || rest ~ /^[A-Za-z0-9_]/) next
@@ -99,7 +99,9 @@ verdicts() {
       if (verdict != "keep" && !both_parts(rest)) incomplete[finding] = verdict
     }
     END {
-      if (!header) fail("no verify header")
+      if (header !~ /^verify [0-9]+: [0-9]+ kept, [0-9]+ dropped, [0-9]+ fixed([^A-Za-z0-9_]|$)/)
+        fail("no verify header")
+      split(header, w, /[ :,]+/); area = w[2]; counted = w[3] + w[5] + w[7]
       if (area + 0 != k + 0) fail("header names area " area)
       for (i = 1; i <= n; i++) if (!verdicts[want[i]]) fail("no verdict for " want[i])
       for (i = 1; i <= n; i++) if (verdicts[want[i]] > 1) fail("two verdicts for " want[i])
@@ -109,7 +111,7 @@ verdicts() {
       for (i = 1; i <= n; i++) if (incomplete[want[i]] == "fix") fail("fix without a new Action: " want[i])
       print "completed"
     }
-  ' <(for f in "$@"; do scan "$f"; done) "$reply"
+  ' "$reply"
 }
 
 selftest() {
@@ -196,8 +198,16 @@ EOF
   check "failed — 3 rows, not 4" report 2 rows.md
   grep -v 'Audit completed' r1.md > audit.md
   check "failed — no Audit completed line" report 2 audit.md
+  sed 's/^- Audit completed/* Audit completed/' r1.md > bullet.md
+  check completed report 2 bullet.md
+  sed '1s/.*/**area 2: 1 finding** (one Go file)/' r2.md > bold.md
+  check completed report 2 bold.md
+  { echo '```markdown'; cat r1.md; echo '```'; } > fenced.md
+  check completed report 2 fenced.md
 
   reply completed < reply.md
+  reply completed < <(sed 's/^verify 2:/* verify 2:/' reply.md)
+  reply completed < <(sed 's/^- r1 Duplication #1/* r1 Duplication #1/' reply.md)
   reply "failed — no verify header" < <(echo "Verdicts:"; cat reply.md)
   reply "failed — no verify header" < <(sed 's/^verify 2: .*/verify 2: 4 kept/' reply.md)
   reply "failed — header names area 3" < <(sed 's/^verify 2:/verify 3:/' reply.md)
