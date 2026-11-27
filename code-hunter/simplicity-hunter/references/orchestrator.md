@@ -244,11 +244,11 @@ Copy each row's cells and row note as its reader wrote them, except where a step
      with more locations, then the copy from the lower area number, then the one with the lower report ID. The row
      takes the higher Severity and the higher Impact of the copies. When each copy has a location with no near
      location in the other, the row lists the locations of all, and its Action covers them. Anchor the row at its
-     location whose path sorts first. When another copy shows a case of the defect that the kept claim leaves out,
-     widen the row: add words to the claim that name the case, extend the Action to cover it, and add that copy's
-     evidence for it to the note. Widening only adds: every word of the kept copy's claim and every line of its note
-     stay. A joined row may have a `Merge:` line that says why the copies are one defect, which copy the row kept,
-     and what it took from the others. A widened row must have one.
+     location whose path sorts first. When another surviving copy shows a case of the defect that the kept claim
+     leaves out, and that case clears the evidence bar, widen the row: add words to the claim that name the case,
+     extend the Action to cover it, and add that copy's evidence for it to the note. Widening only adds: every word
+     of the kept copy's claim and every line of its note stay. A joined row may have a `Merge:` line that says why
+     the copies are one defect, which copy the row kept, and what it took from the others. A widened row must have one.
 
    A dropped line of several copies takes its location and claim from the copy that the tie-break would keep, and
    its rule, evidence and checker from the drop that it records.
@@ -312,9 +312,9 @@ Copy each row's cells and row note as its reader wrote them, except where a step
 11. **Row notes.** Each note starts with the row-note line of report-format.md (**Row notes.**), which holds every
     clause that the merge adds. Each checker clause gives that checker's verdict on the kept copy, or `failed` or
     `not started`. The Codex checker clause appears only when Codex readers ran. When no checker of the scope
-    completed, the line ends `— not verified` in their place. The `Merge:` line of step 4 comes next. The reader's
-    note follows on the next lines, unchanged, except that its first line loses its `#<n> — ` head and a widened row
-    adds the evidence that it took.
+    completed, the line ends `— not verified` in their place. When the row has a `Merge:` line, it comes next. The
+    reader's note follows on the next lines, unchanged, except that its first line loses its `#<n> — ` head and a
+    joined row adds the evidence of each location or case that it took from another copy.
 12. **Recommendations.** Write `## Recommendations (Priority Order)` over the merged rows, ending with one Tooling
     block (Phase 6, "Delegated to tools").
 13. **Save** as Phase 6 says.
