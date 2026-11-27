@@ -52,12 +52,11 @@ Your final reply is the lines of this block, without the fence, and nothing else
 
 ```text
 verify <k>: <kept> kept, <dropped> dropped, <fixed> fixed
-<report ID> <Category> #<n>: keep
-<report ID> <Category> #<n>: drop — <rule> — <file:line evidence>
-<report ID> <Category> #<n>: fix — <evidence> — <new Action text>
+<report ID> #<n>: keep
+<report ID> #<n>: drop — <rule> — <file:line evidence>
+<report ID> #<n>: fix — <evidence> — <new Action text>
 ```
 
 Give one line per finding: the reports in the order of your prompt, and the findings of each report in its order.
-`<Category>` is the text of the finding's `###` heading in its report, without the `###`, and `<n>` is its `#` cell.
-The three counts add up to the findings of all the reports. Write the `<evidence>` of a fix without ` — `. The new
-Action is the rest of its line, so it may hold ` — `.
+`<n>` is the number in the finding's `###` heading. The three counts add up to the findings of all the reports. Write
+the `<evidence>` of a fix without ` — `. The new Action is the rest of its line, so it may hold ` — `.

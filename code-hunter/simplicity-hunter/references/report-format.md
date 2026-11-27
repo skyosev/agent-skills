@@ -1,31 +1,41 @@
 # Simplicity Hunter — report format
 
-The report is, in order: `## Scope`; `## Findings` with one `###` section per category that has at least one finding;
-`## Recommendations (Priority Order)`. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}`
-line appears only when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope
-lines resolved so far and its `Audit completed` line, nothing else. A category with no findings gets no heading,
-table, or "none found" line; a thin report is a valid result.
+The report is, in order: `## Scope`; `## Findings`, one list of every finding sorted by Severity, then by Impact; `##
+Recommendations (Priority Order)`, which holds only the Tooling block of Phase 6, because the order of the findings is
+the priority order. Unbraced Scope lines appear on every run that reaches scanning; a `{braced}` line appears only
+when its condition holds. A run that stops early (empty scope, no eligible source) writes the Scope lines resolved so
+far and its `Audit completed` line, nothing else. A run with no findings writes no "none found" line; a thin report is
+a valid result.
 
 In a `{braced}` Scope line or braced part of a line, a closing clause that starts `— only` or `— one` states when the
 line appears or how many such lines there are. It is a note for you, never part of the line.
-
-Language-only categories appended by a language reference (Go: Interface Pollution, Channel & Goroutine Overuse) use
-the table schemas supplied in that reference.
 
 **Only what a reviewer acts on.** The report holds the findings and the lines of the template below, nothing else.
 It names no dropped, withdrawn or handed-off candidate, and no check that found nothing. Its Scope records no
 decision, probe, baseline, run directory or per-file read note.
 
-**Cells.** A description cell says what is wrong in one or two sentences. An Action cell says what to change, then
-ends with the parts of Phase 5 Behavior parity that apply: `**Changes:**`, `**Parity shown:**`, `**Verify:**`. A
-cell holds no reasoning that cleared the finding: no rule names, no other reading, no trace, no remedy check that
-found nothing.
+**Order.** Severity Critical → High → Medium → Low, then Impact High → Medium → Low, then the category order of
+Fields below, then the path of the anchor. Number the findings from 1 in that order. A `#<n>` anywhere in the report
+names the finding with that number.
 
-**Row notes.** Under each table, one note per row, headed `#N`: the shortest excerpt of the code that the row cites
-and that shows the issue, in a fenced block, with `…` for lines left out. Then, only when the finding rests on it, the
-comment, commit or record that the row uses as evidence, quoted to the sentence that matters. Then, when it applies,
-"probe blocked" (Probe a writer and its checker) or the "remedy unresolved" counterexample (Readers of a tolerated
-value).
+**Finding.** One block per finding, each part a paragraph, in this order:
+
+1. The heading `### #<n> · <Severity> severity · <Impact> impact · <Category>`.
+2. `**Location:**` each `file:line` that the finding cites. The first is its anchor.
+3. The category's fields (Fields below). A field holds a name, a count, or what is wrong in one or two sentences.
+4. The evidence: the shortest excerpt of the code that the finding cites and that shows the issue, in a fenced block,
+   with `…` for lines left out. Then, only when the finding rests on it, the comment, commit or record that the
+   finding uses as evidence, quoted to the sentence that matters. Then, when it applies, "probe blocked" (Probe a
+   writer and its checker) or the "remedy unresolved" counterexample (Readers of a tolerated value).
+5. `**Action:**` what to change. Then each part of Phase 5 Behavior parity that applies, each its own paragraph:
+   `**Changes:**`, `**Parity shown:**`, `**Verify:**`.
+
+**Code in a block.** Every name, path and expression is in backticks. Code of more than one statement that the
+Action adds or rewrites goes in a fenced block after the sentence that introduces it. An Action that changes three or
+more sites lists one site per bullet.
+
+A block holds no reasoning that cleared the finding: no rule names, no other reading, no trace, no remedy check that
+found nothing.
 
 **Limitation lines.** One per open published unit whose negative claims were withdrawn:
 `Limitation: {unit} open; {the signal that opened it}; consumer set not closed`.
@@ -52,60 +62,69 @@ value).
 
 ## Findings
 
-### Duplication
+### #1 · Medium severity · High impact · Duplication
 
-| # | Locations | Description | Severity | Impact | Action |
-| - | --------- | ----------- | -------- | ------ | ------ |
-| 1 | a:10, b:20 | Near-identical validation | Medium | High | Validate with the existing `EmailSchema`; delete both regex checks. **Verify:** `pnpm test test/api` |
+**Location:** a:10, b:20
 
-#1
+Near-identical validation of the email field.
+
 ~~~ts
+// a:10
 if (!body.email || !EMAIL_RE.test(body.email)) throw new ValidationError('email');
 ~~~
 
-### Reinvented Primitives
+**Action:** Validate with the existing `EmailSchema`; delete both regex checks.
 
-| # | Location | Hand-rolled or dependency | Primitive | Toolchain | Severity | Impact | Action |
-| - | -------- | ------------------------- | --------- | --------- | -------- | ------ | ------ |
-| 1 | file:line | error messages joined into one string | `errors.Join` | go 1.20 | Low | Medium | Replace |
-| 2 | file:line | dependency `pytz`, 3 import sites | `zoneinfo` | python 3.9 | Low | Medium | Replace; drop from `pyproject.toml` |
+**Verify:** `pnpm test test/api`
 
-### Unnecessary Abstractions
+### #2 · Medium severity · Medium impact · Over-Parameterized APIs
 
-| # | Location | Abstraction | Consumers | Severity | Impact | Action |
-| - | -------- | ----------- | --------- | -------- | ------ | ------ |
-| 1 | file:line | `ConfigManager` | 1 | Medium | Medium | Inline |
+**Location:** file:line
 
-### Dead Code Paths
+**Function:** `render(...)`
 
-| # | Location | Code | Evidence | Severity | Impact | Action |
-| - | -------- | ---- | -------- | -------- | ------ | ------ |
-| 1 | file:line | `if cfg.LegacyMode` branch | `LegacyMode` false in every config; no override | Low | High | Delete |
+**Params:** 5 (3 bools)
 
-### Over-Parameterized APIs
-
-| # | Location | Function | Params | Severity | Impact | Action |
-| - | -------- | -------- | ------ | -------- | ------ | ------ |
-| 1 | file:line | `render(...)` | 5 (3 bools) | Medium | Medium | Split by use case |
-
-### Mixed Concerns
-
-| # | Location | Function | Concerns | Severity | Impact | Action |
-| - | -------- | -------- | -------- | -------- | ------ | ------ |
-| 1 | file:line | `processOrder()` | fetch + transform + log | Medium | Medium | Extract 3 helpers |
-
-### Coexisting Generations
-
-| # | Concern | Strata | Live evidence | Survivor (capability/intent) | Severity | Impact | Action |
-| - | ------- | ------ | ------------- | ---------------------------- | -------- | ------ | ------ |
-| 1 | HTTP | a:12 (axios), b:8 (fetch) | migration names axios; 14 vs 3 | axios — intent | Medium | High | Move 3; drop fetch |
+**Action:** Split by use case.
 
 ## Recommendations (Priority Order)
 
-- **High:** Duplication #3, Dead Code Paths #1
-- **Medium:** Duplication #1, Mixed Concerns #1, Unnecessary Abstractions #1
+{the Tooling block of Phase 6}
 ```
 
-Recommendations has one line per severity that has findings, Critical → High → Medium → Low. A line names each
-finding as `{Category} #{n}` only, ordered by Impact (High → Medium → Low); the row holds the rest. The Tooling block
-of Phase 6 follows.
+## Fields
+
+Each category's fields come after `**Location:**`, in this order, each as `**<field>:** <value>`. Language-only
+categories appended by a language reference (Go: Interface Pollution, Channel & Goroutine Overuse) use the fields
+that reference supplies.
+
+### Duplication
+
+The description, with no label: what is duplicated, and where the copies differ.
+
+### Reinvented Primitives
+
+`**Hand-rolled or dependency:**` error messages joined into one string, or dependency `pytz`, 3 import sites;
+`**Primitive:**` `errors.Join`; `**Toolchain:**` go 1.20. For a dependency, the Action also drops it from its manifest
+(`pyproject.toml`).
+
+### Unnecessary Abstractions
+
+`**Abstraction:**` `ConfigManager`; `**Consumers:**` 1.
+
+### Dead Code Paths
+
+`**Code:**` the `if cfg.LegacyMode` branch; `**Evidence:**` `LegacyMode` false in every config; no override.
+
+### Over-Parameterized APIs
+
+`**Function:**` `render(...)`; `**Params:**` 5 (3 bools).
+
+### Mixed Concerns
+
+`**Function:**` `processOrder()`; `**Concerns:**` fetch + transform + log.
+
+### Coexisting Generations
+
+`**Location:**` holds each stratum, `a:12 (axios), b:8 (fetch)`. Then `**Concern:**` HTTP; `**Live evidence:**`
+migration names axios; 14 vs 3; `**Survivor (capability/intent):**` axios — intent.

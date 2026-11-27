@@ -25,11 +25,7 @@ handwritten or a wire or fx provider) is solid-hunter's Fat Interfaces question.
 **Action:** Remove the interface and use the concrete type. Introduce the interface when a second implementation or
 test double is actually needed.
 
-**Report table:**
-
-| # | Location | Interface | Implementations | Severity | Impact | Action |
-| - | -------- | --------- | --------------- | -------- | ------ | ------ |
-| 1 | file.go:line | `Processor` | 1 (no test doubles) | Medium | Medium | Remove, use concrete type |
+**Report fields:** `**Interface:**` `Processor`; `**Implementations:**` 1 (no test doubles).
 
 ### Channel & Goroutine Overuse
 
@@ -48,11 +44,7 @@ channel-based worker pattern for simple state.
 **Action:** Use the simplest concurrency primitive that works. Mutex for state, channel for communication, goroutine
 for actual parallelism.
 
-**Report table:**
-
-| # | Location | Pattern | Simpler Alternative | Severity | Impact | Action |
-| - | -------- | ------- | ------------------- | -------- | ------ | ------ |
-| 1 | file.go:line | Channel for shared counter | `sync/atomic` | Medium | Medium | Replace |
+**Report fields:** `**Pattern:**` channel for a shared counter; `**Simpler Alternative:**` `sync/atomic`.
 
 ## Reinvented Primitives
 

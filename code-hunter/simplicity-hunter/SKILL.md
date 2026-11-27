@@ -151,15 +151,15 @@ states the relation that it tests:
   difference, it is design.
 
 Take the inputs from the difference: the values on each side of a tolerance edge, and the input types that the two
-message paths print differently. A probe changes no source file. When no runner that the project has can run it,
-write "probe blocked" in the row note. A language reference that has a **Probe runner** note names the runner.
+message paths print differently. A probe changes no source file. When no runner that the project has can run it, write
+"probe blocked" in the finding's evidence. A language reference that has a **Probe runner** note names the runner.
 
 **Readers of a tolerated value.** When an Action changes how a value is tolerated or normalized (a snap, an epsilon,
 rounding), search the readers of the value by operand (Phase 3 step 2). The Action names the value that is stored and
 each reader found, with the form that the reader expects: a band or an exact value. Do not write an Action that makes
 one check tolerate a value that a reader compares exactly. Keep the minimal edit to the drifted copy. When a reader
-still disagrees with what a check accepts, write the counterexample in the row note, and mark that part "remedy
-unresolved".
+still disagrees with what a check accepts, write the counterexample in the finding's evidence, and mark that part
+"remedy unresolved".
 
 ### Reinvented Primitives
 
@@ -305,9 +305,9 @@ One finding per site.
   parameter and deletes each branch that the value rules out. A branch dead for another reason (the type, the
   preceding logic) is a separate Dead Code Paths finding.
 - **A hand-rolled primitive copied at two or more sites**, with nothing else shared → Reinvented Primitives, in one
-  row that lists each copy that clears all six gates. Not Duplication. A copy that fails a gate stays a Duplication
-  candidate. When the copies share more than the primitive, Duplication claims that region, and its Action calls the
-  primitive inside the shared unit.
+  finding that lists each copy that clears all six gates. Not Duplication. A copy that fails a gate stays a
+  Duplication candidate. When the copies share more than the primitive, Duplication claims that region, and its Action
+  calls the primitive inside the shared unit.
 - **A branch chain that restates a mapping an existing constant or map holds** → Duplication (rule 1): the Action
   reads the existing source. When only some arms match, Duplication claims those arms.
 - **A wrapper whose whole body re-implements a primitive** (a manual `Promise` around a promisified API, a
@@ -555,17 +555,18 @@ report names no dropped candidate.
 
 ### Phase 6: Produce Report
 
-Read `references/report-format.md` for the report template and per-category table schemas.
+Read `references/report-format.md` for the report template, the order of the findings, and the fields of each
+category.
 
 **Read coverage.** Count the eligible files that the audit did not read in full, and write the Scope line
 `not read in full: {n} files`. A file that the `not read` line of **Context budget.** counts is not counted again. A
 report without the line claims that every eligible file was read in full.
 
-**Merging a split run.** When one audit is split across agents and merged into one report, copy each finding's Action
-cell and row note, or derive them again from the code. An edit may remove repetition, but not a condition, a site or
-evidence. When two runs report one site, keep the claim whose every site clears the evidence bar; a wider claim does
-not win because it covers more. Scope holds each line of the report format once, for the whole scope; add the
-coverage counts without counting a seed twice.
+**Merging a split run.** When one audit is split across agents and merged into one report, copy each finding's block,
+or derive it again from the code. An edit may remove repetition, but not a condition, a site or evidence. When two
+runs report one site, keep the claim whose every site clears the evidence bar; a wider claim does not win because it
+covers more. Scope holds each line of the report format once, for the whole scope; add the coverage counts without
+counting a seed twice.
 
 **Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
 defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
@@ -583,8 +584,8 @@ an output path or return mode (e.g. a party-mode orchestrator), it overrides thi
 ## Operating Constraints
 
 - **Report only.** The audit report is the deliverable; source files stay untouched.
-- **Evidence required.** Every finding cites `file:line`, and its row note holds the exact code.
-  A comment, commit or defect record used as evidence is quoted in the row note, and is cited only when its subject
+- **Evidence required.** Every finding cites `file:line`, and its evidence holds the exact code.
+  A comment, commit or defect record used as evidence is quoted in its evidence, and is cited only when its subject
   is the code that the finding cites. A claim about a whole set ("every other pair", "no caller", "all copies") lists
   the members it was checked on, or is removed. A count of call sites or tests to change lists each one, with its
   reason.

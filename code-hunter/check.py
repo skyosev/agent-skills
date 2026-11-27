@@ -12,6 +12,8 @@ import argparse, pathlib, re, sys
 ROOT = pathlib.Path(__file__).resolve().parent
 HUNTERS = sorted(d.name for d in ROOT.glob("*-hunter"))
 NOT_SLOP = [h for h in HUNTERS if h != "slop-hunter"]  # slop's step 1 differs on purpose: diff is its default scope
+# simplicity's findings are one list of blocks sorted by severity, not one table per category
+NOT_SIMPLICITY = [h for h in HUNTERS if h != "simplicity-hunter"]
 COMMENT_RULE = ["doc-hunter", "slop-hunter", "smell-hunter"]
 # hunters whose references hold a `## Delegated to tools` section
 DELEGATING = ["boundary-hunter", "doc-hunter", "exception-hunter", "invariant-hunter", "security-hunter",
@@ -30,7 +32,7 @@ SHARED = [
     ("SKILL.md", "2. **Detect languages**", None, HUNTERS),  # the extension list; the next paragraph is per hunter
     ("SKILL.md", "Write each subset to `<run>/<lang>.txt`", None, NOT_SLOP),
     ("SKILL.md", "Hunter names are unsuffixed.", None, HUNTERS),
-    ("references/report-format.md", "The report is, in order:", None, HUNTERS),
+    ("references/report-format.md", "The report is, in order:", None, NOT_SIMPLICITY),
     ("SKILL.md", "- Comment contradicts the code it describes", None, COMMENT_RULE),
     ("SKILL.md", "*Trivial* code is one statement", None, COMMENT_RULE),
     ("SKILL.md", "**Delegated to tools.**", None, DELEGATING),
@@ -162,10 +164,10 @@ def check():
         for m in re.finditer(r"source skill|hunter-party-|\(today:|Until consolidation", skill):
             problems.append(f"{h}/SKILL.md: historical wording: {m.group(0)}")
 
-        # Category names in report-format.md must be What to Hunt headings.
+        # Category names in report-format.md must be What to Hunt headings. A "### #<n>" heading is a finding.
         hunt = re.search(r"^## What to Hunt\n(.*?)^## ", skill, re.M | re.S)
         cats = {re.sub(r"\s*\*\(.*?\)\*", "", c).strip() for c in re.findall(r"^### (.+)$", hunt.group(1), re.M)}
-        for c in re.findall(r"^### (.+)$", (d / "references/report-format.md").read_text(), re.M):
+        for c in re.findall(r"^### (?!#)(.+)$", (d / "references/report-format.md").read_text(), re.M):
             if c.strip() not in cats:
                 problems.append(f"{h}: report-format section '{c.strip()}' is not a What to Hunt heading")
 

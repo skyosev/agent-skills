@@ -14,8 +14,8 @@ the snapshot directory `<snap>` and your area number `<k>`. The whole scope is a
 - **Nobody answers.** Ask nothing, and decide. A decision shows only in the Scope line that it changes, such as
   Exclusions.
 - **Drops that cite another area.** For each candidate that you drop and that cites a file outside your area, write
-  one Scope line: `dropped: <locations> — <rule> — <evidence>`. The merge reads these lines against the rows of the
-  other areas, and leaves them out of the final report.
+  one Scope line: `dropped: <locations> — <rule> — <evidence>`. The merge reads these lines against the findings of
+  the other areas, and leaves them out of the final report.
 - **Return.** Your final reply is the report: this is the caller's return mode under Phase 6. Its first line is
-  `area <k>: <N> findings`. The report ends after `## Findings`: the merge writes the Recommendations and the Tooling
-  block once for all areas.
+  `area <k>: <N> findings`. The report ends after `## Findings`: the merge writes `## Recommendations (Priority
+  Order)`, the Tooling block, once for all areas.

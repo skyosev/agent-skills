@@ -4,7 +4,8 @@
     python3 code-hunter/pilot/compare.py --selftest
 
 Each setup dir holds one sub-dir per run, with the report.md and result.json that pilot.sh writes. A finding's
-anchor is the first file:line in the second cell of a Findings table row, else in the row. A run dir without a
+anchor is the first file:line in the second cell of a Findings table row, else in the row; in a report of finding
+blocks ("### #<n> · … · <Category>"), the first file:line of the block's **Location:** line. A run dir without a
 report.md is skipped. Findings in one file whose lines are at
 most --tol apart are one site across runs, whatever their category: two runs can file one defect under two
 categories. --within keeps only findings whose anchor file starts with one of the prefixes (the premise test compares
@@ -17,17 +18,24 @@ ANCHOR = re.compile(r"([\w./@+-]+\.\w+):(\d+)")
 LOC = re.compile(r"([\w./@+-]+):(\d+)")
 CELL = re.compile(r"(?<!\\)\|")
 COMPLETED = re.compile(r"Audit completed:\s*(\d+)")
+FINDING = re.compile(r"^### #\d+ · .* · (.+)$")
 
 
 def parse(text):
-    """Rows of a report: (category, file, line, row text). The anchor is in the second column, or in the row."""
-    rows, category, in_findings = [], None, False
+    """Findings of a report: (category, file, line, text), from table rows or from finding blocks."""
+    rows, category, in_findings, block = [], None, False, False
     for line in text.splitlines():
         if line.startswith("## "):
             in_findings = line.strip() == "## Findings"
             category = None
         elif in_findings and line.startswith("### "):
-            category = line[4:].strip()
+            m = FINDING.match(line.strip())
+            block = bool(m)
+            category = m.group(1).strip() if m else line[4:].strip()
+        elif in_findings and block and line.startswith("**Location:**"):
+            m = LOC.search(line.replace("`", ""))
+            rows.append((category, m.group(1) if m else "", int(m.group(2)) if m else 0, line.strip()))
+            block = False
         elif in_findings and category and line.startswith("|"):
             cells = CELL.split(line)
             if len(cells) < 4 or cells[1].strip() == "#" or set(cells[1].strip()) <= set("-: "):
@@ -114,6 +122,10 @@ def selftest():
                                                 ("Coexisting Generations", "lib/old.go", 3)], rows
     fs = [("S", "1", "M", "a.go", 10, ""), ("W", "1", "M", "a.go", 12, ""), ("W", "1", "M", "a.go", 20, ""), ("S", "1", "N", "a.go", 10, ""),
           ("S", "1", "M", "b.go", 11, "")]
+    b = "## Findings\n\n### #1 · High severity · Low impact · Dead Code Paths\n\n**Location:** `src/a.ts:4`, `src/b.ts:9`\n\n" \
+        "~~~ts\n// src/z.ts:1\n~~~\n\n### #2 · Low severity · Low impact · Over-Parameterized APIs\n\n**Location:** lib/c.ts:7\n\n" \
+        "## Recommendations (Priority Order)\n\n**Location:** z.ts:1\n"
+    assert [(r[0], r[1], r[2]) for r in parse(b)] == [("Dead Code Paths", "src/a.ts", 4), ("Over-Parameterized APIs", "lib/c.ts", 7)], parse(b)
     assert [len(g) for g in cluster(fs, 3)] == [3, 1, 1]  # one site whatever the category; another file is another site
     print("selftest ok")
 
