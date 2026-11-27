@@ -1,6 +1,6 @@
 # Checker
 
-The session that started you splits one diff audit into reading scopes: the whole diff, or package areas. One or more
+The session that started you splits one audit into reading scopes: the whole scope, or package areas. One or more
 readers audited scope `<k>` with this hunter, each in its own report. You check every finding of every report under
 this hunter's rules, in a fresh context. Your prompt names the repository root `<root>`, the scope number `<k>`, and
 each report as `<report ID> <path>`.

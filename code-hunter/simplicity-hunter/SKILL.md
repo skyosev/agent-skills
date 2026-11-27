@@ -346,8 +346,9 @@ and frequently-read file, is High impact.
 
 ### Phase 1: Gain Context
 
-**Run modes** split a diff audit over several readers. They apply to a diff scope outside **Party mode**, in a session
-with a sub-agent tool. There, **Context budget.** (step 1) waits until step 4 ends.
+**Run modes** split an audit over several readers, and pair Codex readers and checkers with them when Codex is
+available. They apply to every scope (diff, path and codebase) outside **Party mode**, in a session with a sub-agent
+tool. There, **Context budget.** (step 1) waits until step 4 ends.
 
 1. **Resolve the raw manifest.** Scope may be:
    - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
@@ -427,7 +428,9 @@ with a sub-agent tool. There, **Context budget.** (step 1) waits until step 4 en
    **Two surfaces.** Findings are reported only against the **target scope** — every finding anchors (`file:line`)
    there. Related files may still be *read* as **context** (call sites, canonical helpers, competing strata).
 
-   **Run modes.** Where they apply, read `references/orchestrator.md` now and follow it.
+   **Run modes.** Where they apply, a codebase scope rewrites each `<run>/<lang>.txt` as path mode writes it: the
+   eligible files in place of `.`, because the split packs file lists. Then read `references/orchestrator.md` and
+   follow it.
 
 5. **Read repository instructions** when present (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, project convention docs)
    for stated design decisions, intentional complexity, toolchain conventions. Note helpers, utilities, and

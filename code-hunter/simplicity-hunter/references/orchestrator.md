@@ -4,7 +4,7 @@ Contents: Words · Shape · Approval · The run plan · Readers · Checkers · M
 
 This session reads the request's words, chooses the shape, shows the run plan when the approval rules say so, starts
 the readers and the checkers, and merges their reports. A reader audits one reading scope with this whole hunter: the
-whole diff, or one package area. A checker judges every finding of every report of one scope again, in a fresh
+whole scope, or one package area. A checker judges every finding of every report of one scope again, in a fresh
 context. With more than one reader, Phase 1 step 5 and Phases 2 to 5 run in the readers, and Phase 1 step 5 and
 Phase 5 run again in the checkers. This session judges disputes and joins duplicates, so it writes none of the
 reports: it reads no code for findings, and opens code only where a merge step asks. The readers answer the context
@@ -18,10 +18,10 @@ The words are plain words in the request; there is no flag parser.
 
 | Word | Effect |
 |---|---|
-| `single` | one reading scope: the whole diff |
-| `areas N` | split into N areas, also on a diff of up to 160 KB |
+| `single` | one reading scope: the whole scope |
+| `areas N` | split into N areas, also on a scope of up to 160 KB |
 | `readers N` | N readers of each LLM for each reading scope (default 1). With Codex, `readers 2` means 2 Claude and 2 Codex readers per scope |
-| `no codex` | no Codex readers or checker, as when Codex is not available: the one-reader run on the whole diff, and Claude readers with the Claude checker on areas |
+| `no codex` | no Codex readers or checker, as when Codex is not available: the one-reader run on the whole scope, and Claude readers with the Claude checker on areas |
 | `no agents` | the one-reader run: this session reads alone, with no sub-agents, no Codex and no checkers. This also holds when **Context budget.** would otherwise split the reading over sub-agents |
 | `confirm`, `unattended` | wait for "go" even with one reader; never wait |
 
@@ -38,7 +38,7 @@ The words are plain words in the request; there is no flag parser.
 2. Run `bash <skill>/scripts/split-areas.sh <run>`, with ` 1` added for `single` and ` <N>` for `areas N`. It prints
    one line per area, `<k>: <files> files, <bytes> bytes (<production> production) — <units>`, then
    `areas: <n>, <bytes> eligible bytes`. A unit is one directory's eligible files, tests included. One area is the
-   whole diff. On a non-zero exit, add the Scope line `Run modes: split failed — <its message>` before
+   whole scope. On a non-zero exit, add the Scope line `Run modes: split failed — <its message>` before
    `Audit completed`, and go to Approval with one reader.
 3. Codex is available when `command -v codex >/dev/null && codex login status 2>&1` succeeds. With `no codex`, skip
    the check: Codex does not run. When Codex is not available, add the Scope line
@@ -52,9 +52,9 @@ The words are plain words in the request; there is no flag parser.
 
 Steps 2 to 4 give the automatic shape, when the request has no word that sets the shape:
 
-| Eligible changed code | Codex available | Codex not available |
+| Eligible code | Codex available | Codex not available |
 |---|---|---|
-| up to 160 KB, or the split gives one area | whole diff: 1 Claude and 1 Codex reader; a Claude and a Codex checker | the one-reader run |
+| up to 160 KB, or the split gives one area | whole scope: 1 Claude and 1 Codex reader; a Claude and a Codex checker | the one-reader run |
 | above 160 KB, 2 to 20 areas | areas: 1 Claude and 1 Codex reader per area; both checkers per area | areas: 1 Claude reader and the Claude checker per area |
 | more than 20 areas | packed into 20 areas, as `areas 20` | the same, Claude only |
 
@@ -80,9 +80,9 @@ Steps 2 to 4 give the automatic shape, when the request has no word that sets th
 `[…]` is shown only when it applies:
 
 ```text
-simplicity-hunter plan: diff <merge base>..<HEAD> (<eligible KB> KB eligible, <files> files)
+simplicity-hunter plan: <surface> (<eligible KB> KB eligible, <files> files)
 
-Shape      <whole diff | <n> areas by package> (<automatic | requested: <the words>>)
+Shape      <whole scope | <n> areas by package> (<automatic | requested: <the words>>)
 Readers    per <area | scope>: <N> Claude (<LLM family>, xhigh)[ + <N> Codex (gpt-6.2-sol, high)] = <total> readers
              <k>  <units>   <files> files, <KB> KB
 Checkers   per <area | scope>: 1 Claude[ + 1 Codex]; each checks every finding of every reader of its scope
@@ -91,12 +91,13 @@ Merge      this session: applies both verdicts; judges each dispute against the 
 Estimate   Claude readers ~$<a>, Claude checkers ~$<b>; merge and reply writing not measured.
            [Codex uses your plan's quota.]
 [Codex     not available — <why>]
-[Warning   each reader reads only part of a diff above 160 KB]
+[Warning   each reader reads only part of a scope above 160 KB]
 
 Reply "go", or change the run with: no codex, single, areas N, readers N, no agents
 ```
 
-- `<merge base>` and `<HEAD>` are the short SHAs of `<run>/mb` and of `HEAD`.
+- `<surface>` is `diff <merge base>..<HEAD>` in a diff, `path <paths> at <HEAD>` in a path scope, and `codebase at
+  <HEAD>` in a codebase scope. `<merge base>` and `<HEAD>` are the short SHAs of `<run>/mb` and of `HEAD`.
 - `<eligible KB>` is the eligible bytes of the split's `areas:` line divided by 1000, and `<files>` is the sum of the
   files of its area lines. Without a split (`no agents`, or a failed split), the eligible bytes are the sizes of the
   files in Phase 1's eligible lists, and `<files>` is their count.
@@ -107,9 +108,9 @@ Reply "go", or change the run with: no codex, single, areas N, readers N, no age
 - The area lines come from the split's output, one per area, with each area's bytes in KB.
 - `<a>` is N × the eligible KB × $3.40 / 100. `<b>` is the number of reports (scopes × N × the LLMs) × $1.60. Round
   both to whole dollars.
-- The warning shows when the shape is the whole diff, the diff is above 160 KB, and it has more than one reader.
+- The warning shows when the shape is the whole scope, the scope is above 160 KB, and it has more than one reader.
 - A plan with one reader (shown under `confirm`) has the line
-  `Readers    this session reads the diff alone; no checkers` in place of Readers, Checkers and
+  `Readers    this session reads the scope alone; no checkers` in place of Readers, Checkers and
   Merge, and `Estimate   this session ~$<a>` with N = 1.
 
 ## Readers
@@ -118,7 +119,7 @@ The run folder:
 
 ```text
 <run>/areas.txt                        the split: one line per scope, "<k>: <files> files, <bytes> bytes (<prod> production) — <units>"
-<run>/a<k>/scope.txt, scope-meta.txt   the snapshot of scope k; the whole diff is a1
+<run>/a<k>/scope.txt, scope-meta.txt   the snapshot of scope k; the whole scope is a1
 <run>/a<k>/r<i>.md                     report r<i> of scope k
 <run>/a<k>/claude-check.md             the Claude checker's verdict list of scope k
 <run>/codex/a<k>-r<i>/                 the Codex reader job of report r<i>: prompt.md, reply.md, log.txt
@@ -199,7 +200,7 @@ launcher's status. A checker that could not start is `not started`. In a scope w
 
 Merge when every checker has ended. Phase 6 "Merging a split run" applies to every finding. Within its scope, a
 finding is `<report ID> <Category> #<n>`, so two reports of one scope can both hold a `Duplication #1`. Its key is
-`area <k> r<i> <Category> #<n>`: its scope, its report, its `###` heading and its `#` cell. The whole diff is area 1.
+`area <k> r<i> <Category> #<n>`: its scope, its report, its `###` heading and its `#` cell. The whole scope is area 1.
 Copy each row's cells and row note as its reader wrote them, except where a step below changes them.
 
 1. **Verdicts.** Only the verdict lists of `completed` checkers count. A verdict applies only to its own report's
@@ -276,7 +277,7 @@ Copy each row's cells and row note as its reader wrote them, except where a step
      scope that another reader completed;
    - `— partial: <scope> not verified`: the scope has findings, and no checker of it completed.
 
-   `<scope>` is `area <k>` or `whole diff`. `<position>` is `Claude <n>` or `Codex <n>`. Each case adds its own
+   `<scope>` is `area <k>` or `whole scope`. `<position>` is `Claude <n>` or `Codex <n>`. Each case adds its own
    ` — partial: `, so two cases read:
 
    ```text
@@ -284,9 +285,9 @@ Copy each row's cells and row note as its reader wrote them, except where a step
    ```
 
 10. **Scope**, in this order, with `Audit completed` last:
-    - The Phase 1 lines, once: they describe the whole diff. Leave out each report's line of the same name.
+    - The Phase 1 lines, once: they describe the whole scope. Leave out each report's line of the same name.
     - `Codex: not available — <why>`, when Shape added it.
-    - `Duplication coverage (<position>): <searched> of <total> seed functions searched` and
+    - `Duplication coverage (<position>): <searched> of <total> seed functions searched` and, in a diff,
       `Added units (<position>): <n> listed`, one each per reader position, summed over the areas, in place of each
       report's `Duplication coverage` and `Added units` lines. A dependency counts once. Never sum two readers of one
       scope: nobody knows how far their seeds overlap.
@@ -303,11 +304,11 @@ Copy each row's cells and row note as its reader wrote them, except where a step
       ```
 
     - The `Run:` line and its sub-lines. `<alias>` is the `model` that the Claude readers got. A scope's sub-line is
-      its `areas.txt` line with `area <k>:` in place of `<k>:`, or `whole diff:` in a whole-diff run. Under it come
+      its `areas.txt` line with `area <k>:` in place of `<k>:`, or `whole scope:` in a whole-scope run. Under it come
       its readers in report-ID order, then its checkers. The Codex checker line appears only when Codex readers ran.
 
       ```md
-      - Run: <whole diff | <n> areas by package>, <automatic | requested: <the words>> — per <area | scope> <N> Claude reader(s) (<alias>, xhigh)[ and <N> Codex reader(s) (gpt-6.2-sol, high)] — <Claude checker | Claude and Codex checkers> — <waited for "go" | unattended> — merged by this session
+      - Run: <whole scope | <n> areas by package>, <automatic | requested: <the words>> — per <area | scope> <N> Claude reader(s) (<alias>, xhigh)[ and <N> Codex reader(s) (gpt-6.2-sol, high)] — <Claude checker | Claude and Codex checkers> — <waited for "go" | unattended> — merged by this session
         - area <k>: <files> files, <bytes> bytes (<production> production) — <units>
           - r<i> (<position>): <completed | failed — <what> | not started>
           - Claude checker: <completed | failed — <what> | not started | no findings>
