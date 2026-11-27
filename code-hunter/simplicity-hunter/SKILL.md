@@ -152,7 +152,7 @@ states the relation that it tests:
 
 Take the inputs from the difference: the values on each side of a tolerance edge, and the input types that the two
 message paths print differently. A probe changes no source file. When no runner that the project has can run it,
-write "probe blocked" in the row note. The language reference names the runner.
+write "probe blocked" in the row note. A language reference that has a **Probe runner** note names the runner.
 
 **Readers of a tolerated value.** When an Action changes how a value is tolerated or normalized (a snap, an epsilon,
 rounding), search the readers of the value by operand (Phase 3 step 2). The Action names the value that is stored and
@@ -346,15 +346,8 @@ and frequently-read file, is High impact.
 
 ### Phase 1: Gain Context
 
-**Run modes** can split a diff audit over readers: Claude sub-agents and Codex jobs that each audit a reading
-scope, the whole diff or one package area. Checkers then judge their findings again, and this session merges the
-reports. Run modes apply to a diff scope outside **Party mode**, in a session with a sub-agent tool. There, the
-budget sentence of **Persist run state.** (from "If the resolved surface exceeds the context budget" to the end of
-that paragraph) waits until step 4 ends. Then read `references/orchestrator.md` and follow it. It reads the
-request's words and the diff's size, and decides whether this session reads alone, as written here, or merges the
-reports of several readers. A caller that runs this hunter in `claude -p` with the word `unattended` also sets
-`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`: without it, Claude Code can stop background agents after 10 minutes of
-idle waiting, once no background command runs.
+**Run modes** split a diff audit over several readers. They apply to a diff scope outside **Party mode**, in a session
+with a sub-agent tool. There, **Context budget.** (step 1) waits until step 4 ends.
 
 1. **Resolve the raw manifest.** Scope may be:
    - **Diff**: files changed relative to the base branch — committed, staged, unstaged, untracked. Resolve it with
@@ -373,12 +366,15 @@ idle waiting, once no background command runs.
    printed path literally from then on. Every call starts at the repository root (`cd "$(git rev-parse
    --show-toplevel)"`), because every list holds root-relative paths. Write `$SCOPE` to `<run>/scope.txt` and, in diff mode, `$MB` to `<run>/mb`.
    A later call restores what it uses (`SCOPE=$(cat <run>/scope.txt)`); an empty restore is a STOP, never an empty
-   result. If the resolved surface exceeds the context budget, report the file count and ask to narrow. Narrowing is
-   the only known recovery: on a 13 600-line Go scope, a whole-codebase run found about half the sites of a run scoped
-   to one directory, and splitting the reading over agents did not recover them. With nobody to ask, do one of two
-   things and say which in Scope: read alone as far as the budget allows and record what is left as `not read: <n>
-   files — context budget`, or split the reading over sub-agents and record the split as `Read split: <n> agents by
-   <directory|file list> — merged by this session`. A report with neither line claims that one reader read every file.
+   result.
+
+   **Context budget.** If the resolved surface exceeds the context budget, report the file count and ask to narrow.
+   Narrowing is the only known recovery: on a 13 600-line Go scope, a whole-codebase run found about half the sites of
+   a run scoped to one directory, and splitting the reading over agents did not recover them. With nobody to ask, do
+   one of two things and say which in Scope: read alone as far as the budget allows and record what is left as
+   `not read: <n> files — context budget`, or split the reading over sub-agents and record the split as
+   `Read split: <n> agents by <directory|file list> — merged by this session`. A report with neither line claims that
+   one reader read every file.
 
    **Record provenance.** Capture `git rev-parse --short HEAD` and whether the working tree is dirty
    (`git status --porcelain -- $SCOPE`); both go in the report's Scope section. On a dirty tree, line numbers match no
@@ -430,6 +426,8 @@ idle waiting, once no background command runs.
 
    **Two surfaces.** Findings are reported only against the **target scope** — every finding anchors (`file:line`)
    there. Related files may still be *read* as **context** (call sites, canonical helpers, competing strata).
+
+   **Run modes.** Where they apply, read `references/orchestrator.md` now and follow it.
 
 5. **Read repository instructions** when present (`CLAUDE.md`, `AGENTS.md`, `.cursor/rules/`, project convention docs)
    for stated design decisions, intentional complexity, toolchain conventions. Note helpers, utilities, and
@@ -489,16 +487,18 @@ records where the search stopped.
 
 For each loaded language, run that reference's Phase 4 block. These scans nominate candidates only; apply the
 Coexisting Generations evidence bar, then Within-skill precedence, before raising a finding. Done when every nominated
-stratum has a project-wide liveness verdict and is a candidate or dismissed.
+stratum has a project-wide liveness verdict and is a candidate or dropped.
 
 ### Phase 5: Evaluate Each Finding
 
 **Reporting gate.** Report only when the proposed change demonstrably reduces total concepts, duplicated behavior, or
 control-flow burden enough to outweigh new indirection and behavioral risk.
 
-For each candidate: apply the general Not a finding list and the category's own **Not a finding:** line first; clear the
-category's evidence bar in What to Hunt and the reporting gate; choose the simplest elimination. Re-open every
-signature a remedy cites: each parameter, arity, and adjacency it relies on must exist as written.
+For each candidate: apply the exclusions first — the general Not a finding list, the category's own **Not a finding:**
+line and **Ownership** note, **Within-skill precedence**, **Test-code scope**, and the language reference's rules for
+the candidate's file; clear the category's evidence bar in What to Hunt and the reporting gate; choose the simplest
+elimination. Re-open every signature a remedy cites: each parameter, arity, and adjacency it relies on must exist as
+written.
 
 **Remedy check (every Action that adds, splits, moves or inlines code).** An executor builds the Action as written,
 so the Action is a spec. Write each clause below that applies to the Action; write "none" when the search finds
@@ -544,21 +544,21 @@ evidence, drop the finding — this class over-fires.
 Assign **Severity and Impact** to every finding. `Audit completed: N findings` counts every reported finding.
 
 Done when every candidate is a reported finding, dropped, withdrawn with its `Limitation` line, or handed off to its
-owning hunter.
+owning hunter with its `handed off` line.
 
 ### Phase 6: Produce Report
 
-Save as `YYYY-MM-DD-simplicity-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
-(e.g. `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). If the caller specifies
-an output path or return mode (e.g. a party-mode orchestrator), it overrides this default.
-
-**Merging a split run.** When one audit is split across agents (by folder or by language) and merged into one report,
-copy each finding's Action cell and row note, or derive them again from the code. An edit may remove repetition, but
-not a condition, a site or evidence. When two runs report one site, keep the claim whose every site clears the
-evidence bar; a wider claim does not win because it covers more. In Scope, keep each command result with the run that
-it covers, and add the coverage counts without counting a seed twice.
-
 Read `references/report-format.md` for the report template and per-category table schemas.
+
+**Read coverage.** Write one `not read in full` Scope line for each eligible file that the audit did not read in full.
+A file that the `not read` line of **Context budget.** counts gets no line of its own. A report without such a line
+claims that every eligible file was read in full.
+
+**Merging a split run.** When one audit is split across agents and merged into one report, copy each finding's Action
+cell and row note, or derive them again from the code. An edit may remove repetition, but not a condition, a site or
+evidence. When two runs report one site, keep the claim whose every site clears the evidence bar; a wider claim does
+not win because it covers more. In Scope, keep each command result with the run that it covers, and add the coverage
+counts without counting a seed twice.
 
 **Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
 defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to
@@ -568,6 +568,10 @@ section in a shared file (`[tool.ruff]` in `pyproject.toml`), or its name in a C
 every line of the loaded sections, each prefixed `not found, adopt:` or `found, confirm these are on:`. A line that
 states a condition prints only when the condition holds. The block prints on every run, also when every tool is set up:
 a tool can be set up with a rule off, and naming the rule costs one line.
+
+Save as `YYYY-MM-DD-simplicity-hunter-audit-{model-name}.md` — `{model-name}` is the executing model's short name
+(e.g. `fable-5`) — in `docs/` (or the repository root when there is no `docs/`). If the caller specifies
+an output path or return mode (e.g. a party-mode orchestrator), it overrides this default.
 
 ## Operating Constraints
 

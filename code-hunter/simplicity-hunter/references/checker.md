@@ -23,9 +23,7 @@ each report as `<report ID> <path>`.
 
 ## Each finding, in this order
 
-1. Try the exclusions: the list under `## Not a finding on these grounds alone`, the category's own
-   **Not a finding:** line and its **Ownership** note, **Within-skill precedence**, **Test-code scope**, and the rules
-   of the language reference for the finding's file.
+1. Try the exclusions that Phase 5 names.
 2. Check the category's evidence bar in What to Hunt, and the **Reporting gate.** For a consolidation, check
    Duplication rule 2 in full: count the lines before and after the Action, count the concepts, and check for one
    stable behavior.

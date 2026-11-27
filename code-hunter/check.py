@@ -24,6 +24,7 @@ SHARED = [
     ("SKILL.md", "**Party mode:**", None, HUNTERS),
     ("SKILL.md", "**Record provenance.**", None, NOT_SLOP),
     ("SKILL.md", "**Persist run state.**", None, HUNTERS),
+    ("SKILL.md", "**Context budget.**", None, HUNTERS),
     ("SKILL.md", "The raw manifest is **immutable**", None, HUNTERS),
     ("SKILL.md", "**Whitespace in paths is unsupported.**", None, HUNTERS),
     ("SKILL.md", "2. **Detect languages**", None, HUNTERS),  # the extension list; the next paragraph is per hunter

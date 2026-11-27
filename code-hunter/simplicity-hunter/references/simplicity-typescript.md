@@ -1,5 +1,7 @@
 # Simplicity Hunter — TypeScript reference
 
+Contents: Generated-code eligibility · Reinvented Primitives · Dead code — ownership and liveness hooks · Coexisting Generations — Phase 4 · Delegated to tools · Phase 2 — complexity scans · Phase 3 — Duplication list and exclude
+
 ## Generated-code eligibility
 
 **Marker:** no TypeScript-wide marker is defined; when a project documents one, apply it. `@generated` alone is not
@@ -95,6 +97,7 @@ else DUP_FILES=$(printf '%s\n' $TS_FILES | grep -Ev '\.(test|spec|e2e)\.[^/]*$|(
 rg -Hn --pcre2 '(?://|/\*|^\s*\*).*\b(?i:mirrors|mirror of|as in|same as|copy of|in step with|keep in sync with)\b.{0,60}\b[a-z]+[A-Z][A-Za-z]*' --type ts $DUP_EXCLUDE -- $DUP_FILES
 ```
 
-**Probe runner** (Drifted copies): a TypeScript runner that the project already has, or `node <run>/probe.ts`. Node
-strips types by default from 22.18 and 23.6, and with `--experimental-strip-types` from 22.6. Relative imports must
-carry `.ts`; `enum`, `namespace` and `.tsx` do not run. Neither form type-checks. Never install a runner.
+**Probe runner** (Duplication: Probe a writer and its checker): a TypeScript runner that the project already has, or
+`node <run>/probe.ts`. Node strips types by default from 22.18 and 23.6, and with `--experimental-strip-types` from
+22.6. Relative imports must carry `.ts`; `enum`, `namespace` and `.tsx` do not run. Neither form type-checks. Never
+install a runner.
