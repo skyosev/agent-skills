@@ -13,7 +13,8 @@
 #
 # A report's ID is its file name without .md. Its findings are the rows of its Findings tables: each line that starts
 # with "|", whose first cell is a whole number, under a "### <Category>" heading inside "## Findings", and outside
-# fenced code blocks. A finding is named "<report ID> <Category> #<n>".
+# fenced code blocks. The "## Findings" heading may go on, as "## Findings (3)" does. A finding is named
+# "<report ID> <Category> #<n>".
 #
 # report: the report of scope k is completed when its header is "area <k>: <N> findings" ("finding" also passes), it
 # has exactly N findings, and it has an "Audit completed:" line. Its problems: "no header", "<m> rows, not <N>",
@@ -45,14 +46,14 @@ report_parts() {
   LC_ALL=C awk -v k="$1" -v id="$(basename "$2" .md)" "$READ_LINES"'
     fence != "" { if (mark == fence) fence = ""; next }
     mark == "```" || mark == "~~~" { fence = mark; next }
-    /^## / { in_findings = ($0 ~ /^## Findings[ \t\r]*$/); category = ""; next }
-    /^### / {
+    line ~ /^## / { in_findings = (line ~ /^## Findings([^A-Za-z0-9_]|$)/); category = ""; next }
+    line ~ /^### / {
       category = ""
-      if (in_findings) { category = substr($0, 5); sub(/[ \t\r]+$/, "", category) }
+      if (in_findings) { category = substr(line, 5); sub(/[ \t]+$/, "", category) }
       next
     }
-    category != "" && /^\|/ {
-      split($0, cell, "|"); n = cell[2]; gsub(/^[ \t]+|[ \t]+$/, "", n)
+    category != "" && line ~ /^\|/ {
+      split(line, cell, "|"); n = cell[2]; gsub(/^[ \t]+|[ \t]+$/, "", n)
       if (n ~ /^[0-9]+$/) print "row " id " " category " #" n
       next
     }
@@ -131,7 +132,8 @@ selftest() {
   # reply <want>: the verdict list on stdin has the status <want> against r1.md and r2.md.
   reply() { cat > v.md; check "$1" verdicts 2 v.md r1.md r2.md; }
 
-  # The fenced row note holds a line that would be a row, and the table under Recommendations is outside Findings.
+  # The fenced row notes, one in a ``` fence and one in a ~~~ fence, hold lines that would be rows. The table under
+  # Recommendations is outside Findings.
   cat > r1.md <<'EOF'
 area 2: 3 findings
 
@@ -158,6 +160,11 @@ area 2: 3 findings
 | # | Location | Action |
 |---|---|---|
 | 1 | `b.go:3` | Use a mutex |
+
+#1
+~~~go
+| 8 | b | fenced |
+~~~
 
 ## Recommendations (Priority Order)
 
@@ -204,6 +211,10 @@ EOF
   check completed report 2 bold.md
   { echo '```markdown'; cat r1.md; echo '```'; } > fenced.md
   check completed report 2 fenced.md
+  sed 's/^| 1 | `a.go:1`/| **1** | `a.go:1`/' r1.md > bold-cell.md
+  check completed report 2 bold-cell.md
+  sed 's/^## Findings$/## Findings (3)/' r1.md > counted.md
+  check completed report 2 counted.md
 
   reply completed < reply.md
   reply completed < <(sed 's/^verify 2:/* verify 2:/' reply.md)
@@ -219,6 +230,12 @@ EOF
   reply "failed — drop without a rule: r1 Duplication #2" < <(sed 's/ — a.go:9 has the same loop//' reply.md)
   reply "failed — fix without a new Action: r1 Channel & Goroutine Overuse #1" \
     < <(sed 's/ — Use a mutex — not a channel//' reply.md)
+
+  # A report with a bold heading, and a checker that copies that heading.
+  mkdir bold
+  sed 's/^### Duplication$/### **Duplication**/' r1.md > bold/r1.md
+  sed 's/r1 Duplication/r1 **Duplication**/' reply.md > bold/reply.md
+  check completed verdicts 2 bold/reply.md bold/r1.md r2.md
 
   rc=0
   bash "$self" verdicts 2 reply.md none.md > /dev/null 2>&1 || rc=$?
