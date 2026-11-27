@@ -7,7 +7,7 @@ disable-model-invocation: true
 
 # Implementation Plan
 
-Arguments: `$ARGUMENTS`. The request names the spec and may add instructions; an instruction in the request outranks this skill. When it names no spec, ask for one and suggest the newest file under `docs/process/specs/` and `docs/process/brainstorm/`.
+Arguments: `$ARGUMENTS`. The request names the spec and may add instructions; an instruction in the request outranks this skill. When it names no spec, ask for one and suggest the newest file under `docs/process/specs/`, or the newest `spec.md` or `brainstorm.md` that a grill skill wrote (the Artifact folder section of `grill-plan/SKILL.md`, beside this skill's directory, says where).
 
 Write the plan for an engineer who has seen neither this codebase nor the spec. They write idiomatic code in the project's language once they know the exact interface and the exact test, and they make a reasonable choice wherever the plan leaves one open. What they cannot know is what you decided: which files, which names and signatures, which values from the spec, which tests prove each task. The plan records those decisions. DRY. YAGNI. TDD.
 

@@ -22,7 +22,7 @@ Sub-agent mode is a free test that the artifact stands alone: if the artifact do
 
 ## Pass 1: Plan
 
-Write `docs/process/spec/{Y-m-d-session-name}.md`. When `docs/process/` does not exist, ask once where to write the artifact. Sections, in this order, omitting any that would be empty:
+Write `spec.md` in the session folder that the Artifact folder section of `grill-plan` sets. Sections, in this order, omitting any that would be empty:
 
 - **Problem Statement**, **Glossary**, **Expected Behavior**, **Scope** — as in the grill-plan template.
 - **Decisions**: every decision taken in the interview, numbered, with its reason.

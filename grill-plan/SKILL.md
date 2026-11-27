@@ -83,7 +83,7 @@ Ask what the plan changes or builds on, and read it. Usually that is the code. I
 
 ### 6 Synthesize artifact
 
-Produce `docs/process/brainstorm/{Y-m-d-session-name}.md` — containing the result of the brainstorming session. When `docs/process/` does not exist, ask once where to write the artifact.
+Produce `brainstorm.md` in the session folder (see Artifact folder) — containing the result of the brainstorming session.
 This document serves as the **input** for a future precise requirements or implementation plan.
 
 ## Principles
@@ -100,9 +100,17 @@ This document serves as the **input** for a future precise requirements or imple
   would contain zero items — do not include empty lists, placeholder subsections, or negative statements like
   "none", "N/A", or "no open questions".
 
+## Artifact folder
+
+Every session gets its own folder, `{root}/{Y-m-d-session-name}/`. The artifact and every file made for it (probes, samples, captures) go there. The root is the first of these that applies:
+
+1. A folder that the user's request or the project's instructions (`CLAUDE.md`, `AGENTS.md`) name for these documents.
+2. An existing folder that holds the project's plans, specs or brainstorms, such as `docs/process/`, `docs/plans/` or `docs/specs/`. When it sorts them into one folder per kind (`docs/process/brainstorm/`, `docs/process/spec/`), the root is the folder above those, `docs/process/`. When several folders qualify, ask once which one to use, with your recommendation.
+3. `docs/process/`, created when missing.
+
 ## Output Template (you might change or expand this as needed)
 
-### {Y-m-d-session-name}.md
+### brainstorm.md
 
 ```md
 # [Feature Name]

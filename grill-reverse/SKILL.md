@@ -39,7 +39,7 @@ Skip step 5b: a render of the branch shows the solution. A capture of the base s
 
 ## 4 Write the artifact
 
-Write `docs/process/spec/{Y-m-d-session-name}.md`. The file name, title and text never name the branch, the PR/MR or its author, and never say the work exists. When `docs/process/` does not exist, ask once where to write it.
+Write `spec.md` in the session folder that the Artifact folder section of `grill-plan` sets. The folder name, title and text never name the branch, the PR/MR or its author, and never say the work exists.
 
 Every sentence is one of: a fact about the system at the merge base, a need, a constraint, an observable outcome, or an open question. Sections, in this order, omitting any that would be empty:
 
