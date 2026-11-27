@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Packs a diff scope's eligible files into reading areas, one snapshot per area.
+# Packs a scope's eligible files into reading areas, one snapshot per area.
 #
 #   bash split-areas.sh <run> [<areas>]
 #   bash split-areas.sh --selftest
 #
-# Reads what Phase 1 wrote: <run>/scope.txt, <run>/mb and the eligible lists <run>/{go,python,typescript}.txt.
+# Reads what Phase 1 wrote: <run>/scope.txt, the eligible lists <run>/{go,python,typescript}.txt, and <run>/mb
+# in a diff. Each snapshot says "surface: diff" with the "mb:" line when <run>/mb exists, else "surface: path".
 # A unit is the eligible files of one directory, tests included. Units are packed in path order; a unit that would
 # take its area above the limit starts a new area, and a unit is never cut.
 #
 # Without <areas>, the limit is AREA_SIZE bytes. If that gives more than MAX_AREAS areas, the split packs as for
 # <areas> = MAX_AREAS. With <areas> = N, it packs with the smallest limit that gives at most N areas. Then, while
 # there are fewer than N areas, it splits the largest area that holds two or more units before its last unit. So
-# the result has N areas, or one per unit when the diff has fewer than N units. One area is the whole diff.
+# the result has N areas, or one per unit when the scope has fewer than N units. One area is the whole scope.
 #
 # Exit 0: removes the <run>/a<k>/ of an earlier call, writes <run>/a<k>/scope.txt and scope-meta.txt, and prints one
 # line per area (also saved to <run>/areas.txt), then "areas: <n>, <bytes> eligible bytes" and "run: <absolute run>".
@@ -79,6 +80,13 @@ files: 6" "case 1 meta"
   out=$(cd "$repo" && bash "$script" ../c8-run)
   eq "$(tail -n 1 <<< "$out")" "run: $run" "case 8 last line"
   eq "$(head -n 1 <<< "$out")" "1: 5 files, 52082 bytes (49760 production) — d1, d2, d3, d4" "case 8 area line"; once 8
+
+  mk c9 "${four[@]}"; rm "$run/mb"
+  split "$run" > /dev/null
+  eq "$(cat "$run/a1/scope-meta.txt")" "surface: path
+files: 6" "case 9 meta without mb"; once 9
+  : > "$run/mb"
+  ! split "$run" > /dev/null 2>&1 || fail "case 9: an empty mb must exit 1"
   echo "selftest ok"
 }
 if [ "${1:-}" = --selftest ]; then selftest; exit 0; fi
@@ -92,9 +100,12 @@ if ! [[ $areas =~ ^[0-9]+$ ]] || { [ $# -ge 2 ] && [ "$areas" -lt 1 ]; }; then
   exit 1
 fi
 cd "$(git rev-parse --show-toplevel)"
-for f in scope.txt mb; do
-  [ -s "$run/$f" ] || { echo "missing or empty: $run/$f" >&2; exit 1; }
-done
+[ -s "$run/scope.txt" ] || { echo "missing or empty: $run/scope.txt" >&2; exit 1; }
+surface='surface: path'
+if [ -e "$run/mb" ]; then
+  [ -s "$run/mb" ] || { echo "empty: $run/mb" >&2; exit 1; }
+  surface=$(printf 'surface: diff\nmb: %s' "$(cat "$run/mb")")
+fi
 rm -rf "$run"/a[0-9]*/
 
 # One line per eligible file: directory, bytes, prod|test, path. The test paths are each reference's Phase 3 seeds.
@@ -162,8 +173,7 @@ LC_ALL=C sort "$run/scope.txt" | LC_ALL=C comm -23 - "$run/eligible-files.txt" >
 for k in $(seq 1 "$n"); do
   mkdir -p "$run/a$k"
   { awk -v k="$k" '$1 == k { print $5 }' "$run/split.txt"; cat "$run/not-eligible.txt"; } > "$run/a$k/scope.txt"
-  printf 'surface: diff\nmb: %s\nfiles: %s\n' "$(cat "$run/mb")" "$(wc -l < "$run/a$k/scope.txt" | tr -d ' ')" \
-    > "$run/a$k/scope-meta.txt"
+  printf '%s\nfiles: %s\n' "$surface" "$(wc -l < "$run/a$k/scope.txt" | tr -d ' ')" > "$run/a$k/scope-meta.txt"
 done
 
 if ! cat "$run"/a*/scope.txt | grep -Fx -f "$run/eligible-files.txt" | LC_ALL=C sort \
