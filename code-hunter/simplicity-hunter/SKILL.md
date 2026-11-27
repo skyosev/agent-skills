@@ -101,8 +101,8 @@ Declarations; repeated logic and repeated runtime values stay here. Test code: s
    genuinely different consumers.
 2. Where elimination does not apply, a consolidation finding must show the shared unit **reduces total code and total
    concepts** and represents **one stable behavior**, not two behaviors that merely look alike today.
-   The Action writes the shared unit's signature. Each of these is evidence of two behaviors; the row note answers it,
-   or the finding is dropped:
+   The Action writes the shared unit's signature. Each of these is evidence of two behaviors; answer each one that
+   applies before you report the finding, or drop it:
    - a callback, or a flag whose values run different steps (a side parameter that selects the mirror image of one
      test is one behavior);
    - a message, hint or tolerance that differs per caller;
@@ -233,7 +233,7 @@ Chesterton's Fence applies where there is a fence; history can be shallow, absen
 
 **Evidence:** cite channels *relevant to this symbol* and what they showed — not a recited checklist.
 
-**Action:** Delete. An uncertain dead-code finding is withdrawn, with one Scope `Limitation` line.
+**Action:** Delete. An uncertain dead-code finding is withdrawn.
 
 ### Over-Parameterized APIs
 
@@ -291,7 +291,7 @@ once empty). The survivor is already written: the remedy moves call sites onto i
 
 ### Within-skill precedence
 
-One finding per site. The reported finding's row note (report format) names the other reading in one clause.
+One finding per site.
 
 - **Go interface with no live seam** → Interface Pollution (simplicity-go.md), never also Unnecessary Abstractions.
 - **A function with one call site whose name states one concern of its caller** stays. It is the result of Mixed
@@ -396,8 +396,7 @@ tool. There, **Context budget.** (step 1) waits until step 4 ends.
 
    **Supported languages are Go, Python, and TypeScript.** Every other extension — `.js`, `.jsx`, `.mjs`, `.cjs`
    included — is **excluded, not audited**: without a reference there is no eligibility rule, no scan set, no
-   Duplication exclude. Record `excluded — no reference for .<ext>: {count} files` in Scope, naming
-   each extension.
+   Duplication exclude. Name each such extension, with its file count, in the Scope `Eligible` line.
 
 3. **Load language references.** For every detected language, read `references/simplicity-<lang>.md` from the
    directory this SKILL.md was read from (e.g. `references/simplicity-go.md`). **Fail closed:** if a required
@@ -405,7 +404,7 @@ tool. There, **Context budget.** (step 1) waits until step 4 ends.
 
 4. **Derive per-language eligible subsets** by applying each reference's generated-code and vendoring rules to that
    language's files. These subsets are then immutable. Record in Scope: raw manifest count, each per-language eligible
-   count, exclusions, and `References loaded: {go, python, typescript as present}`.
+   count, and exclusions.
 
    Drop from eligibility only: vendored trees, lockfiles, documentation / Markdown-only inputs, and generated files —
    identified by each reference's in-file marker and by its generated-file globs. A handwritten file named like a
@@ -450,7 +449,7 @@ full. For each loaded language, read `git diff -U0 "$(cat <run>/mb)" -- $(cat <r
 is added whole. List each unit that the diff adds: a function, a parameter or an option, a branch on a flag, a
 wrapper, a class or an interface, and a dependency in a manifest that `<run>/scope.txt` holds. Each added unit is a
 candidate for the category that owns it. A unit that the diff removes at one place and adds unchanged at another was
-moved, not added. Record `Added units: {n} listed` in Scope.
+moved, not added.
 
 Done when every scan has run and every hit belongs to a candidate, and in diff scope every added unit is listed.
 
@@ -504,17 +503,17 @@ elimination. Re-open every signature a remedy cites: each parameter, arity, and 
 written.
 
 **Remedy check (every Action that adds, splits, moves or inlines code).** An executor builds the Action as written,
-so the Action is a spec. Write each clause below that applies to the Action; write "none" when the search finds
-nothing:
+so the Action is a spec. Run each check below that applies. The Action carries what a check adds to the change, and
+nothing for a check that finds nothing:
 
 1. **Reuses** (the Action adds a type, helper or constant): the existing unit of the same shape (the same fields, the
-   same clauses, or the same value for the same quantity), and whether the Action uses it in place of a new one. If
-   not, why not: the same shape can carry a different meaning. Duplication rule 1 applies to the remedy too.
+   same clauses, or the same value for the same quantity). The Action uses it in place of a new one, unless the same
+   shape carries a different meaning. Duplication rule 1 applies to the remedy too.
 2. **Shared locals** (an extraction): each local that the old body computes once and that two or more new units
-   read, and how each new unit gets it: as a parameter, from one helper beside the new units, or computed again,
-   with the reason.
-3. **Call sites** (the Action changes a signature): each call site, tests included, and each import that the Action
-   adds (`from.ts → to.ts`).
+   read. The Action says how each new unit gets it: as a parameter, from one helper beside the new units, or computed
+   again.
+3. **Call sites** (the Action changes a signature): the Action lists each call site, tests included, and each import
+   that it adds (`from.ts → to.ts`).
 4. **Lost callers** (a merge, a move or an inline): each unit whose call sites or importers fall to one or zero. At
    zero, apply the liveness channels and the published-unit rule (Terms) before the Action deletes the unit or
    removes its `export`. At one, Within-skill precedence decides whether the unit stays.
@@ -523,22 +522,27 @@ nothing:
 the generator input (config, template, or schema) when that input is in the target scope, and dropped otherwise.
 
 **Behavior parity (every remedy).** The remedy keeps every output, every error (its code, the values its message
-names, and which error wins), every side effect and its order, and the blocking and concurrency behavior. The Action
-ends with one parity clause. "Order stays", "output unchanged" or "traced" alone is not a parity clause:
+names, and which error wins), every side effect and its order, and the blocking and concurrency behavior. Check each:
 
 - **Error order:** each caller's checks in order, now and after. A shared unit cannot take checks from both sides of a
-  check that stays in the caller. In a loop, say whether each check runs per item or over all items.
+  check that stays in the caller. In a loop, check whether each check runs per item or over all items.
 - **Outputs:** the test, snapshot set or probe that shows parity, and the inputs it covers. Inputs that one caller
   rejects can still come from another caller.
 - **Contracts:** every direct caller, tests included, defines the contract. One caller's precondition does not make a
-  branch dead. An Action that deletes a test which pins the behavior changes the contract, and says so.
+  branch dead. An Action that deletes a test which pins the behavior changes the contract.
 
-Mark the clause **shown** when the audit's own evidence shows the claim before and after, and name the inputs it
-covers: a trace of each caller's checks, or a probe that runs the old and the new form on the same inputs. A test
-that was read shows what it covers, and the current code run as it is shows the current behavior; neither shows
-that the remedy keeps it. Mark the clause **to verify** when the claim waits for a check that must run on the built
-remedy, and name the check. When the audit can neither show parity nor name such a check, the Action says what
-changes, or the finding is dropped. An Action rewritten after review gets this check again.
+The Action ends with the result of the check, not its trace:
+
+- **Changes:** each output, error, order or contract that the remedy changes. Leave it out when nothing changes.
+- **Parity shown:** when the audit's own evidence shows parity before and after: a trace of each caller's checks, or
+  a probe that runs the old and the new form on the same inputs. Name the evidence and the inputs it covers in one
+  clause. A test that was read shows what it covers, and the current code run as it is shows the current behavior;
+  neither shows that the remedy keeps it.
+- **Verify:** the check that must run on the built remedy, when parity waits for one.
+
+"Order stays", "output unchanged" or "traced" alone is neither Parity shown nor Verify. When the audit can neither
+show parity nor name such a check, the Action says what changes, or the finding is dropped. An Action rewritten after
+review gets this check again.
 
 **Platform-guarantee rule (flag only with evidence).** When recommending removal because "the platform / framework /
 middleware already guarantees it," name the owning layer and cite the proof that it keeps that parity. Without that
@@ -546,22 +550,22 @@ evidence, drop the finding — this class over-fires.
 
 Assign **Severity and Impact** to every finding. `Audit completed: N findings` counts every reported finding.
 
-Done when every candidate is a reported finding, dropped, withdrawn with its `Limitation` line, or handed off to its
-owning hunter with its `handed off` line.
+Done when every candidate is a reported finding or is dropped: excluded, withdrawn, or owned by another hunter. The
+report names no dropped candidate.
 
 ### Phase 6: Produce Report
 
 Read `references/report-format.md` for the report template and per-category table schemas.
 
-**Read coverage.** Write one `not read in full` Scope line for each eligible file that the audit did not read in full.
-A file that the `not read` line of **Context budget.** counts gets no line of its own. A report without such a line
-claims that every eligible file was read in full.
+**Read coverage.** Count the eligible files that the audit did not read in full, and write the Scope line
+`not read in full: {n} files`. A file that the `not read` line of **Context budget.** counts is not counted again. A
+report without the line claims that every eligible file was read in full.
 
 **Merging a split run.** When one audit is split across agents and merged into one report, copy each finding's Action
 cell and row note, or derive them again from the code. An edit may remove repetition, but not a condition, a site or
 evidence. When two runs report one site, keep the claim whose every site clears the evidence bar; a wider claim does
-not win because it covers more. In Scope, keep each command result with the run that it covers, and add the coverage
-counts without counting a seed twice.
+not win because it covers more. Scope holds each line of the report format once, for the whole scope; add the
+coverage counts without counting a seed twice.
 
 **Delegated to tools.** Each loaded reference's `## Delegated to tools` section names, one line per tool, the classes of
 defect this hunter leaves to that tool. Do not hunt those classes or run the tool, and do not read its configuration to

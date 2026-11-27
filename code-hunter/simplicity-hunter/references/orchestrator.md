@@ -41,9 +41,8 @@ The words are plain words in the request; there is no flag parser.
    whole scope. On a non-zero exit, add the Scope line `Run modes: split failed — <its message>` before
    `Audit completed`, and go to Approval with one reader.
 3. Codex is available when `command -v codex >/dev/null && codex login status 2>&1` succeeds. With `no codex`, skip
-   the check: Codex does not run. When Codex is not available, add the Scope line
-   `Codex: not available — <the last line of the output, or "codex is not on PATH">` before `Duplication coverage`.
-   The plan shows the same reason.
+   the check: Codex does not run. When Codex is not available, the plan shows why: the last line of the output, or
+   "codex is not on PATH".
 4. Each scope gets `readers N` Claude readers (default 1), and as many Codex readers when Codex runs. One reader in
    all is the one-reader run.
 5. The Claude readers start at once: the areas times N. Above 20, refuse before any plan: give the count, and the
@@ -71,7 +70,7 @@ Steps 2 to 4 give the automatic shape, when the request has no word that sets th
   reader. A word of the reply replaces each word of the request that sets the same thing: `single` replaces
   `areas 4`. Run Shape again on the same `<run>`; the split first removes every `<run>/a<k>/`.
 - After "go", or at once when the run does not wait, a run with one reader continues SKILL.md as written, from
-  Phase 1 step 5. Its report has no `Run:` line, also after it waited for "go". Under `no agents`, where
+  Phase 1 step 5. Its report has no `Read split:` line, also after it waited for "go". Under `no agents`, where
   **Context budget.** offers a split over sub-agents, read alone instead. A run with more than one reader goes on to
   Readers.
 
@@ -124,6 +123,7 @@ The run folder:
 <run>/a<k>/claude-check.md             the Claude checker's verdict list of scope k
 <run>/codex/a<k>-r<i>/                 the Codex reader job of report r<i>: prompt.md, reply.md, log.txt
 <run>/codex/a<k>-check/                the Codex checker job of scope k
+<run>/merge-log.md                     the dropped lines and each row's provenance, kept out of the report
 ```
 
 Report IDs are per scope, in the order Claude 1, Codex 1, Claude 2, Codex 2, …, over the LLMs that run. With
@@ -201,7 +201,8 @@ launcher's status. A checker that could not start is `not started`. In a scope w
 Merge when every checker has ended. Phase 6 "Merging a split run" applies to every finding. Within its scope, a
 finding is `<report ID> <Category> #<n>`, so two reports of one scope can both hold a `Duplication #1`. Its key is
 `area <k> r<i> <Category> #<n>`: its scope, its report, its `###` heading and its `#` cell. The whole scope is area 1.
-Copy each row's cells and row note as its reader wrote them, except where a step below changes them.
+Copy each row's cells and row note as its reader wrote them, except where a step below changes them. Every dropped
+line and every clause about a row's origin and verdicts goes to the merge log (step 12), never to the report.
 
 1. **Verdicts.** Only the verdict lists of `completed` checkers count. A verdict applies only to its own report's
    finding: another report's copy of the same finding keeps its own verdicts, and step 4 joins the copies. For each
@@ -210,28 +211,28 @@ Copy each row's cells and row note as its reader wrote them, except where a step
    | Claude checker | Codex checker | Result |
    |---|---|---|
    | keep | keep | keep |
-   | drop | drop | drop, with a Scope line `dropped (checkers)` |
+   | drop | drop | drop, with a `dropped (checkers)` line |
    | drop | keep (or the reverse) | a dispute (step 2) |
    | drop | fix (or the reverse) | a dispute (step 2). When the finding stays, the fix applies |
    | fix | keep (or the reverse) | the fix applies |
    | fix | fix | pick one of the two Actions, or merge them |
-   | one checker failed or did not start | — | the other checker's verdict applies alone; Scope records the failed checker |
+   | one checker failed or did not start | — | the other checker's verdict applies alone; the `Read split` line records the failed checker |
    | both checkers failed | — | the scope's findings stay unchecked, and `Audit completed` ends with `— partial: <scope> not verified` |
 
    Without Codex readers, the Claude checker's verdict applies alone. A drop by a verdict that applies alone gets a
    `dropped (checkers)` line that names its checker: `by the Claude checker` or `by the Codex checker`. A kept
    finding stays as its reader wrote it. A fixed finding takes the new Action, all the text after the second ` — `,
-   and its row-note line gets the `Action changed:` clause. A dropped finding leaves the tables. Of two fixes, take
+   and its log entry gets the `Action changed:` clause. A dropped finding leaves the tables. Of two fixes, take
    one Action word for word, unless each covers a site or a condition that the other lacks: then merge them.
 2. **Disputes.** Open the code, and judge the finding against the rule that the dropping checker named. When the
-   rule holds, drop the finding with its `dropped (dispute)` line. Otherwise keep it, and its row-note line gets the
+   rule holds, drop the finding with its `dropped (dispute)` line. Otherwise keep it, and its log entry gets the
    `dispute:` clause. Both name the checker that dropped, so real runs show whether this session overrules one
    checker's drops more often than the other's.
 3. **Disagreement**, between readers of different areas only: within one scope, the checkers have judged every
    finding. When a report's `dropped:` line or another Scope note drops a candidate with a reason, and a report of
    another area holds that candidate as a finding that steps 1 and 2 keep, open the code that the finding cites and
    judge it against that reason. Drop it when the reason holds under a named rule of SKILL.md or the language
-   reference, with its `dropped (disagreement)` line. Otherwise it stays, and its row-note line gets the clause
+   reference, with its `dropped (disagreement)` line. Otherwise it stays, and its log entry gets the clause
    `another area dropped it: <reason>`.
 4. **One finding per defect.** This step takes every finding of the completed reports, the dropped ones included.
    Two locations are near when they are in the same file, and within 3 lines of each other or in the same function.
@@ -251,16 +252,17 @@ Copy each row's cells and row note as its reader wrote them, except where a step
      location in the other, the row lists the locations of all, and its Action covers them. Anchor the row at its
      location whose path sorts first. When another surviving copy shows a case of the defect that the kept claim
      leaves out, and that case clears the evidence bar, widen the row: add words to the claim that name the case,
-     extend the Action to cover it, and add that copy's evidence for it to the note. Widening only adds: every word
-     of the kept copy's claim and every line of its note stay. A joined row may have a `Merge:` line that says why
-     the copies are one defect, which copy the row kept, and what it took from the others. A widened row must have one.
+     extend the Action to cover it, and add that copy's excerpt for it to the note. Widening only adds: every word
+     of the kept copy's claim and every line of its note stay. A joined row's log entry may have a `Merge:` line that
+     says why the copies are one defect, which copy the row kept, and what it took from the others. A widened row's
+     entry must have one.
 
    A dropped line of several copies takes its location and claim from the copy that the tie-break would keep, and
    its rule, evidence and checker from the drop that it records.
    `Found by:` names every reader LLM whose report held a copy, dropped copies included.
-5. **Keys.** Each row's `from:` and each dropped line's `from:` name the keys of the copies that they hold, the kept
-   copy first, separated by `; `. Before Layout, check that every finding of every completed report has its key in
-   exactly one place.
+5. **Keys.** The `from:` of each row's log entry and of each dropped line names the keys of the copies that it
+   holds, the kept copy first, separated by `; `. Before Layout, check that every finding of every completed report
+   has its key in exactly one place.
 6. **Two Actions on one function.** When rows from any two reports change the same function, open the function and
    judge the two Actions together: one must not undo the other (Duplication, rule 2).
 7. **A changed Action is checked again.** Run Phase 5's Remedy check and Behavior parity on the final wording of each
@@ -284,58 +286,39 @@ Copy each row's cells and row note as its reader wrote them, except where a step
    Audit completed: 7 findings — partial: area 2 Codex 1 not audited — partial: area 3 not verified
    ```
 
-10. **Scope**, in this order, with `Audit completed` last:
+10. **Scope**, in this order, with `Audit completed` last. The report format's list of lines is closed: no other line
+    of a report reaches the final report.
     - The Phase 1 lines, once: they describe the whole scope. Leave out each report's line of the same name.
-    - `Codex: not available — <why>`, when Shape added it.
-    - `Duplication coverage (<position>): <searched> of <total> seed functions searched` and, in a diff,
-      `Added units (<position>): <n> listed`, one each per reader position, summed over the areas, in place of each
-      report's `Duplication coverage` and `Added units` lines. A dependency counts once. Never sum two readers of one
-      scope: nobody knows how far their seeds overlap.
-    - Every other line of a completed report, except `Audit completed`: once when every completed report gives the
-      same text, else once per report as `<line> (area <k>, <position>)`. Every `not read in full` line gets
-      ` (area <k>, <position>)`.
-    - The dropped lines of steps 1 to 4, one per defect. `<location>` is its anchor, one `file:line`. `<checker>` is
-      `the Claude checker`, `the Codex checker` or `both checkers`.
-
-      ```text
-      dropped (checkers): <location> — <claim in one clause> — <rule> — <evidence> — by <checker> — from: <keys>
-      dropped (dispute): <location> — <claim in one clause> — <rule> — <evidence> — by <checker> — from: <keys>
-      dropped (disagreement): <location> — <claim in one clause> — <rule> — <evidence> — from: <keys>
-      ```
-
-    - The `Run:` line and its sub-lines. `<alias>` is the `model` that the Claude readers got. A scope's sub-line is
-      its `areas.txt` line with `area <k>:` in place of `<k>:`, or `whole scope:` in a whole-scope run. Under it come
-      its readers in report-ID order, then its checkers. The Codex checker line appears only when Codex readers ran.
+    - `Duplication coverage (<position>): <searched> of <total> seed functions searched` and
+      `not read in full (<position>): <n> files`, one each per reader position, summed over the areas, in place of
+      each report's lines of the same name. Never sum two readers of one scope: nobody knows how far their seeds or
+      their reads overlap.
+    - Each `Limitation` line of a completed report, once.
+    - The `Read split:` line. `<alias>` is the `model` that the Claude readers got. Under it, one sub-line for each
+      reader or checker whose status is neither `completed` nor `no findings`.
 
       ```md
-      - Run: <whole scope | <n> areas by package>, <automatic | requested: <the words>> — per <area | scope> <N> Claude reader(s) (<alias>, xhigh)[ and <N> Codex reader(s) (gpt-6.2-sol, high)] — <Claude checker | Claude and Codex checkers> — <waited for "go" | unattended> — merged by this session
-        - area <k>: <files> files, <bytes> bytes (<production> production) — <units>
-          - r<i> (<position>): <completed | failed — <what> | not started>
-          - Claude checker: <completed | failed — <what> | not started | no findings>
-          - Codex checker: <completed | failed — <what> | not started | no findings>
+      - Read split: <n> readers over <the whole scope | <n> areas by package>, <automatic | requested: <the words>> — per <area | scope> <N> Claude (<alias>, xhigh)[ and <N> Codex (gpt-6.2-sol, high)] — <Claude checker | Claude and Codex checkers> — merged by this session
+        - area <k> <r<i> (<position>) | Claude checker | Codex checker>: <failed — <what> | not started>
       ```
 
-11. **Row notes.** Each note starts with the row-note line, which holds every clause that the merge adds. `[…]` is
-    shown only when it applies:
+11. **Row notes.** Each row's note is its kept copy's note, headed with the row's new `#<N>`. A joined row adds the
+    excerpt of each location or case that it took from another copy.
+12. **Merge log.** Write `<run>/merge-log.md`: the dropped lines of steps 1 to 4, one per defect, then one entry per
+    row. The report carries none of it. `<location>` is a dropped defect's anchor, one `file:line`. `<checker>` is
+    `the Claude checker`, `the Codex checker` or `both checkers`. `[…]` is shown only when it applies:
 
     ```text
-    #<N> — Found by: <Claude | Codex | both> — from: <keys> — Claude checker: <keep | fix | drop | failed | not started> — Codex checker: <…>[ — dispute: dropped by <the Claude checker | the Codex checker | both checkers> under <rule>; kept: <reason>][ — Action changed: <what changed>, by <the Claude checker | the Codex checker | this session>][ — another area dropped it: <reason>]
-    #<N> — Found by: <Claude | Codex | both> — from: <keys> — not verified
+    dropped (checkers): <location> — <claim in one clause> — <rule> — <evidence> — by <checker> — from: <keys>
+    dropped (dispute): <location> — <claim in one clause> — <rule> — <evidence> — by <checker> — from: <keys>
+    dropped (disagreement): <location> — <claim in one clause> — <rule> — <evidence> — from: <keys>
+    <Category> #<N> — Found by: <Claude | Codex | both> — from: <keys> — Claude checker: <keep | fix | drop | failed | not started> — Codex checker: <…>[ — dispute: dropped by <checker> under <rule>; kept: <reason>][ — Action changed: <what changed>, by <the Claude checker | the Codex checker | this session>][ — another area dropped it: <reason>]
+    <Category> #<N> — Found by: <Claude | Codex | both> — from: <keys> — not verified
     ```
 
     Each checker clause gives that checker's verdict on the kept copy, or `failed` or `not started`. The Codex
-    checker clause appears only when Codex readers ran. When no checker of the scope completed, the line ends
-    `— not verified` in their place. When the row has a `Merge:` line, it comes next. The reader's note follows on
-    the next lines, unchanged, except that its first line loses its `#<n> — ` head and a joined row adds the evidence
-    of each location or case that it took from another copy. An example:
-
-    ```text
-    #1 — Found by: both — from: area 1 r1 Duplication #1; area 1 r2 Duplication #2 — Claude checker: keep — Codex checker: keep
-    other reading: Coexisting Generations; one copy is not a successor of the other
-    ~~~ts
-    if (!body.email || !EMAIL_RE.test(body.email)) throw new ValidationError('email');
-    ~~~
-    ```
-12. **Recommendations.** Write `## Recommendations (Priority Order)` over the merged rows, ending with one Tooling
-    block (Phase 6, "Delegated to tools").
-13. **Save** as Phase 6 says.
+    checker clause appears only when Codex readers ran. When no checker of the scope completed, the entry ends
+    `— not verified` in their place. When the entry has a `Merge:` line, it comes next.
+13. **Recommendations.** Write `## Recommendations (Priority Order)` over the merged rows, in the report format's
+    form, ending with one Tooling block (Phase 6, "Delegated to tools").
+14. **Save** as Phase 6 says, and name `<run>/merge-log.md` in the final reply.

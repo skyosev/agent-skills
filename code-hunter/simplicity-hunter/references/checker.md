@@ -31,8 +31,8 @@ each report as `<report ID> <path>`.
    included, defines the contract.
 4. Run Phase 5 again on the Action as written. Open again each signature that it cites. Run the **Remedy check**
    (Reuses, Shared locals, Call sites, Lost callers), with one `rg` per name that the Action deletes or renames.
-   Check **Behavior parity**. A parity clause marked **shown** must hold for the inputs it names. An output, error or
-   value that changes and that the Action does not name is a flaw of the Action.
+   Check **Behavior parity**. A **Parity shown** part must hold for the inputs it names. An output, error or value
+   that changes and that the Action does not name under **Changes** is a flaw of the Action.
 
 ## Verdicts
 
