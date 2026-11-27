@@ -9,6 +9,8 @@
 # Go's default cache under the home folder is read-only in the sandbox. Codex's sandbox lets it write inside the job
 # folder only. When the job ends, the script removes everything in <job> except prompt.md, log.txt and reply.md: a Go
 # build cache can take hundreds of megabytes, and Codex may ignore TMPDIR and make its own scratch folder in <job>.
+# So that this removal deletes only what the script and its job made, a job folder may hold only prompt.md, reply.md,
+# log.txt and tmp when the script starts.
 # All jobs start together. The script ends when every job has ended, and then prints one line per job, in argument
 # order, with the absolute path:
 #   <job>: ok                   exit code 0 and a reply that is not empty
@@ -17,7 +19,8 @@
 #   <job>: failed — empty reply Codex exited with 0 and wrote no reply
 # "ok" says only that the process ended well. It does not say that the reply is right: check-replies.sh checks it.
 #
-# Exit 0: every job ended, whatever its status. Exit 2: no job, or a job without prompt.md; no job has started.
+# Exit 0: every job ended, whatever its status. Exit 2: no job, a job without prompt.md, or a job folder that holds
+# something else; no job has started.
 # Exit 129, 130 or 143: HUP, INT or TERM stopped the launcher, and it sent TERM to every job that still ran.
 set -euo pipefail
 LLM=gpt-6.2-sol
@@ -27,7 +30,7 @@ KILL_AFTER_SECONDS=60  # time between the stop signal and the kill; a job that i
 
 # Usage: run_jobs <cap-seconds> <job>...
 run_jobs() {
-  local cap=$1 job rc i
+  local cap=$1 job rc i stray
   shift
   local jobs=() pids=()
   # Codex runs with -C <job> and TMPDIR=<job>/tmp; a relative path would point at the wrong place.
@@ -38,6 +41,9 @@ run_jobs() {
   [ ${#jobs[@]} -gt 0 ] || { echo "usage: codex-jobs.sh <job>..." >&2; exit 2; }
   for job in "${jobs[@]}"; do
     [ -f "$job/prompt.md" ] || { echo "no prompt.md in $job" >&2; exit 2; }
+    stray=$(find "$job" -mindepth 1 -maxdepth 1 ! -name prompt.md ! -name reply.md ! -name log.txt ! -name tmp)
+    [ -z "$stray" ] ||
+      { printf '%s holds more than prompt.md, reply.md, log.txt and tmp:\n%s\n' "$job" "$stray" >&2; exit 2; }
   done
 
   # Each timeout runs in its own process group, so a signal that stops the launcher would not reach its jobs.
@@ -123,7 +129,8 @@ STUB
   cd "$root"
   mkdir j1 j2 j3 j4 j5
   echo ok > j1/prompt.md; echo "exit 3" > j2/prompt.md; echo empty > j3/prompt.md
-  echo sleep > j4/prompt.md; echo silent > j5/prompt.md; echo old > j5/reply.md
+  echo sleep > j4/prompt.md; echo silent > j5/prompt.md
+  echo old > j5/reply.md; echo old > j5/log.txt; mkdir j5/tmp
   out=$(run_jobs 2 j1 j2 j3 j4 j5)
   want="$root/j1: ok
 $root/j2: failed — exit 3
@@ -173,6 +180,14 @@ tmpdir: exists"
   (run_jobs 2 ok2 bad2) > /dev/null 2>&1 || rc=$?
   [ "$rc" = 2 ] || { echo "missing prompt.md: exit $rc, want 2"; return 1; }
   [ ! -e ok2.seen ] && [ ! -e bad2.seen ] || { echo "a job started before the check"; return 1; }
+
+  mkdir stray
+  echo ok > stray/prompt.md; echo snapshot > stray/scope.txt
+  rc=0
+  (run_jobs 2 ok2 stray) > /dev/null 2>&1 || rc=$?
+  [ "$rc" = 2 ] || { echo "a stray file in a job folder: exit $rc, want 2"; return 1; }
+  [ ! -e ok2.seen ] && [ ! -e stray.seen ] || { echo "a job started before the stray-file check"; return 1; }
+  [ -f stray/scope.txt ] || { echo "the launcher deleted a file that it did not make"; return 1; }
 
   # Bash runs a function inside $(…) without set -e. So these cases start the launcher in its own process, as its
   # callers do, where set -e and the signal traps apply.
