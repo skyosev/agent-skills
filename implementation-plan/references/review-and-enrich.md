@@ -1,6 +1,6 @@
 # Review and enrich an implementation plan
 
-You review a lean implementation plan against its spec and fix it, then enrich every task. Your brief gives the paths of the spec, the plan folder and each file in it, `BACKLOG.md`, each repository the plan touches, and the `enriching-plans` SKILL.md. That skill is user-invoked only, so the Skill tool cannot load it: read the file.
+You review a lean implementation plan against its spec and fix it, then enrich every task. Your brief gives the paths of the spec, the plan folder and each plan file in it, `BACKLOG.md`, each repository the plan touches, and the `enriching-plans` SKILL.md. That skill is user-invoked only, so the Skill tool cannot load it: read the file.
 
 The plan's **index** is `00.plan.md`; a one-task plan has no `00.plan.md`, and its task file is the index.
 

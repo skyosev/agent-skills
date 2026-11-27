@@ -102,7 +102,9 @@ This document serves as the **input** for a future precise requirements or imple
 
 ## Artifact folder
 
-Every session gets its own folder, `{root}/{Y-m-d-session-name}/`. The artifact and every file made for it (probes, samples, captures) go there. The root is the first of these that applies:
+Every topic gets its own session folder, `{root}/{Y-m-d-session-name}/`. The artifact and every file made for it (probes, samples, captures) go there. One folder holds the topic's `brainstorm.md`, its `spec.md`, its implementation plan and their reviews (`review-brainstorm/`, `review-spec/`, `review-plan/`).
+
+When the request builds on a `brainstorm.md` or `spec.md` that already lives in a session folder, write into that folder. A file there with the name you are about to write is the earlier version of your artifact: revise it in place. Otherwise start a new session folder. Its root is the first of these that applies:
 
 1. A folder that the user's request or the project's instructions (`CLAUDE.md`, `AGENTS.md`) name for these documents.
 2. An existing folder that holds the project's plans, specs or brainstorms, such as `docs/process/`, `docs/plans/` or `docs/specs/`. When it sorts them into one folder per kind (`docs/process/brainstorm/`, `docs/process/spec/`), the root is the folder above those, `docs/process/`. When several folders qualify, ask once which one to use, with your recommendation.

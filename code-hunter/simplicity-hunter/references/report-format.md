@@ -21,7 +21,8 @@ names the finding with that number.
 **Finding.** One block per finding, each part a paragraph, in this order:
 
 1. The heading `### #<n> · <Severity> severity · <Impact> impact · <Category>`.
-2. `**Location:**` each `file:line` that the finding cites. The first is its anchor.
+2. `**Location:**` each `file:line` that the finding cites. The first is its anchor, with its path from the repository
+   root.
 3. The category's fields (Fields below). A field holds a name, a count, or what is wrong in one or two sentences.
 4. The evidence: the shortest excerpt of the code that the finding cites and that shows the issue, in a fenced block,
    with `…` for lines left out. Then, only when the finding rests on it, the comment, commit or record that the
@@ -36,6 +37,12 @@ more sites lists one site per bullet.
 
 A block holds no reasoning that cleared the finding: no rule names, no other reading, no trace, no remedy check that
 found nothing.
+
+**Split.** After the merge of a run with two or more read areas, `scripts/split-report.sh` splits a long report into
+a folder of the same name. `index.md` holds the title, the Scope, one line per finding in Order with a link to its
+file, and the Recommendations. `area-<k>.md` holds the findings whose anchor is in area k, unchanged and in Order. A
+finding keeps its number, so a `#<n>` names one finding in every file. The script holds the gate: a shorter report
+stays one file.
 
 **Limitation lines.** One per open published unit whose negative claims were withdrawn:
 `Limitation: {unit} open; {the signal that opened it}; consumer set not closed`.

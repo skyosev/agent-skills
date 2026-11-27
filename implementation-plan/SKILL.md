@@ -1,13 +1,13 @@
 ---
 name: implementation-plan
-description: Turn a spec into a plan of as few task files as the work allows, under docs/process/specs; a fresh sub-agent then reviews it and enriches it with seams, test outlines and critical code. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
+description: Turn a spec into a plan of as few task files as the work allows, in the spec's session folder; a fresh sub-agent then reviews it and enriches it with seams, test outlines and critical code. Reports omit empty sections — no placeholder headings, empty tables, or negative statements like "no issues found".
 argument-hint: "<spec path> [instructions]"
 disable-model-invocation: true
 ---
 
 # Implementation Plan
 
-Arguments: `$ARGUMENTS`. The request names the spec and may add instructions; an instruction in the request outranks this skill. When it names no spec, ask for one and suggest the newest file under `docs/process/specs/`, or the newest `spec.md` or `brainstorm.md` that a grill skill wrote (the Artifact folder section of `grill-plan/SKILL.md`, beside this skill's directory, says where).
+Arguments: `$ARGUMENTS`. The request names the spec and may add instructions; an instruction in the request outranks this skill. When it names no spec, ask for one and suggest the newest `spec.md` or `brainstorm.md` in a session folder (the Artifact folder section of `grill-plan/SKILL.md`, beside this skill's directory, says where those folders are).
 
 Write the plan for an engineer who has seen neither this codebase nor the spec. They write idiomatic code in the project's language once they know the exact interface and the exact test, and they make a reasonable choice wherever the plan leaves one open. What they cannot know is what you decided: which files, which names and signatures, which values from the spec, which tests prove each task. The plan records those decisions. DRY. YAGNI. TDD.
 
@@ -21,10 +21,10 @@ Reading is done when you can name, for each requirement of the spec, the file an
 
 ## 2. Where the plan goes
 
-- **Folder:** `docs/process/specs/<Y-m-d>-<name>/`: today's date, then kebab-case words that say what the plan delivers, in the style of the folders already there (a ticket id first, when the spec has one). A spec that already lives in `docs/process/specs/` and is named for what it delivers lends the folder its own name. When `docs/process/` does not exist, ask once where to write.
+- **Folder:** the session folder that holds the spec, when the spec is a `spec.md` or `brainstorm.md` in one. For any other spec, a new session folder, placed by the Artifact folder section of `grill-plan/SKILL.md` and named `<Y-m-d>-<name>`: today's date, then kebab-case words that say what the plan delivers (a ticket id first, when the spec has one). Plan files already in the folder are the earlier version of this plan: revise them in place.
 - **Task files:** `NN.<what-the-task-delivers>.md` — a two-digit number, a dot, then kebab-case words that say what the task delivers, e.g. `01.hub-cp-extract-takes-page-ranges.md`.
 - **Index:** with more than one task, `00.plan.md` holds the plan header and the list of tasks. With one task, the task file is the index: `01.<name>.md` holds the header, then the task as `## Task 1: …` without the "Part of the plan" line.
-- **Backlog:** follow-up work that this plan defers, but that is worth doing or at least investigating later, goes into `docs/process/BACKLOG.md` (create it when missing) under `## From <plan title> (<Y-m-d>)`, one `###` item each: what, why it waits, and what would start it. The items live only there; the plan links to the section. An idea the plan rejects for good belongs in the reason of the decision that rejects it.
+- **Backlog:** follow-up work that this plan defers, but that is worth doing or at least investigating later, goes into `BACKLOG.md` in the folder above the session folder (create it when missing) under `## From <plan title> (<Y-m-d>)`, one `###` item each: what, why it waits, and what would start it. The items live only there; the plan links to the section. An idea the plan rejects for good belongs in the reason of the decision that rejects it.
 
 ## 3. Write the plan
 
@@ -124,7 +124,7 @@ More than that is a **transcript** of the code; less is a **placeholder**.
 
 Dispatch one fresh sub-agent with this brief:
 
-- the absolute path of the spec, of the plan folder and of each file in it, and of `BACKLOG.md`;
+- the absolute path of the spec, of the plan folder and of each plan file in it, and of `BACKLOG.md`;
 - the absolute path of each repository the plan touches;
 - the absolute path of the `enriching-plans` SKILL.md, in the `enriching-plans` directory beside this skill's own;
 - the absolute path of `references/review-and-enrich.md` in this skill's directory, with "Read it and follow it".

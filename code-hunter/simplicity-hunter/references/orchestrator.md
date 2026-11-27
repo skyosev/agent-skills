@@ -321,4 +321,8 @@ verdicts goes to the merge log (step 12), never to the report.
     `— not verified` in their place. When the entry has a `Merge:` line, it comes next.
 13. **Recommendations.** Write `## Recommendations (Priority Order)` with one Tooling block (Phase 6, "Delegated to
     tools") and no finding: the Order of the findings is the priority order.
-14. **Save** as Phase 6 says, and name `<run>/merge-log.md` in the final reply.
+14. **Save** as Phase 6 says. When the report goes to Phase 6's default path, run
+    `bash <skill>/scripts/split-report.sh <report> <run>`. A report saved to a caller's output path stays one file.
+    The script prints `one file: <report>`, or `split: <folder>/index.md, <m> area files` when it splits the report
+    (report format, Split). On exit 1, fix what it names, most often an anchor without its path from the repository
+    root, and run it again. Name the file that it prints and `<run>/merge-log.md` in the final reply.
