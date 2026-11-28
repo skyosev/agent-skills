@@ -18,7 +18,7 @@ Each reviewer works alone, so that no review anchors on another. A review subfol
 - `round-<N>-<reviewer>.md`: your own reviews;
 - `round-<N>-response-<reviewer>.md`: the author's responses to you.
 
-Every other file in a review subfolder (`review-brainstorm/`, `review-spec/`, `review-plan/`) belongs to another reviewer. Never open, search or quote it, in any round, even when a link, a file listing or a search result leads to it. You may see its name, as in the ledger; its content stays unread. Exclude the review subfolders from every search: `rg -g '!review-*'`, `grep -r --exclude-dir='review-*'`.
+Every other file in a review subfolder (`review-brainstorm/`, `review-spec/`, `review-plan/`) belongs to another reviewer: their reviews, and the author's responses to them, such as `round-1-response-gemini.md` when you are `codex`. Never open, search or quote such a file, in any round, even when a link, a file listing or a search result leads to it. You may see its name, as in the ledger; its content stays unread. Exclude the review subfolders from every search: `rg -g '!review-*'`, `grep -r --exclude-dir='review-*'`.
 
 ## 1. Where the review goes
 
